@@ -95,8 +95,8 @@ UnitOutputDir=
 PackageDLLOutputDir=
 PackageDCPOutputDir=
 SearchPath=
-Packages=
-Conditionals=
+Packages=vcl;rtl;vclx;indy;inet;xmlrtl;vclie;inetdbbde;inetdbxpress;dbrtl;dsnap;dsnapcon;vcldb;soaprtl;VclSmp;dbexpress;dbxcds;inetdb;bdertl;vcldbx;webdsnap;websnap;adortl;ibxpress;teeui;teedb;tee;dss;visualclx;visualdbclx;vclactnband;vclshlctrls;IntrawebDB_50_70;Intraweb_50_70;Rave50CLX;Rave50VCL;dclOfficeXP
+Conditionals=DEBUG
 DebugSourceDirs=
 UsePackages=0
 [Parameters]
@@ -110,12 +110,12 @@ ActiveLang=
 ProjectLang=
 RootDir=
 [Version Info]
-IncludeVerInfo=0
-AutoIncBuild=0
-MajorVer=1
-MinorVer=0
+IncludeVerInfo=1
+AutoIncBuild=1
+MajorVer=0
+MinorVer=1
 Release=0
-Build=0
+Build=105
 Debug=0
 PreRelease=0
 Special=0
@@ -126,7 +126,7 @@ CodePage=1251
 [Version Info Keys]
 CompanyName=
 FileDescription=
-FileVersion=1.0.0.0
+FileVersion=0.1.0.105
 InternalName=
 LegalCopyright=
 LegalTrademarks=
