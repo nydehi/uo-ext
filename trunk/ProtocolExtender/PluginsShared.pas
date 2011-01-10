@@ -15,7 +15,6 @@ const
   PF_ASKSYNCEVENT = 10;
   PF_ZLIBCOMPRESS2 = 11;
   PF_ZLIBDECOMPRESS = 12;
-  PF_GETOPENEDHANDLEFORDOSNAME = 13;
 
 type
   TPacketHandler = function (Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean; stdcall;
@@ -68,9 +67,6 @@ type
 
   TzLibCompress2 = function(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; stdcall;
   TzLibDecompress = function(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer):Integer; stdcall;
-
-  TGetOpenedHandleForDOSName = function(AName:PChar):THandle; stdcall;
-
 
 implementation
 
