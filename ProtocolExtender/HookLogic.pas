@@ -76,8 +76,6 @@ begin
 end;
 
 function CloseHandleHook(hObject: THandle): BOOL; stdcall;
-var
-  i: Integer;
 begin
   Hooker.TrueAPI(@CloseHandleHook);
   Result := CloseHandle(hObject);

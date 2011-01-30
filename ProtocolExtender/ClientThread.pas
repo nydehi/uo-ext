@@ -69,7 +69,6 @@ function TClientThread.Execute:Integer;
 var
   fs:TFDSet;
   ITrue:Integer;
-  bForceBreak:Boolean;
 begin
   Result:=-1;
   CurrentClientThread := Self;
@@ -88,32 +87,23 @@ begin
   {$IFDEF Debug}
   FSCObj.DebugPresend:=IntToStr(FServerIp shr 24) + '.' + IntToStr((FServerIp shr 16) and $FF) + '.' + IntToStr((FServerIp shr 8) and $FF) + '.' + IntToStr(FServerIp and $FF) + ':' + IntToStr(FServerPort) + ' ';
   FCSObj.DebugPresend:=FSCObj.DebugPresend;
-  {$ENDIF}
   Write('Client thread ready to work.');
-  bForceBreak:=False;
+  {$ENDIF}
   repeat
     FD_ZERO(fs);
     FD_SET(FClientConnection, fs);
     FD_SET(FServerConnection, fs);
     select(0, @fs, nil, nil, @TV_Timeout);
     If FD_ISSET(FClientConnection, fs) Then Begin
-      If not FCSObj.ProcessNetworkData Then Begin
-        bForceBreak:=True;
-        Break;
-      end else FCSObj.Flush;
+      If not FCSObj.ProcessNetworkData Then FNeedExit := True;
     End;
-//    FD_ZERO(fs);
-//    select(0, @fs, nil, nil, @TV_Timeout);
     If FD_ISSET(FServerConnection, fs) Then Begin
-      If not FSCObj.ProcessNetworkData Then Begin
-        bForceBreak:=True;
-        Break;
-      end else FSCObj.Flush;
+      If not FSCObj.ProcessNetworkData Then FNeedExit := True;
     end;
     FCSObj.Flush;
     FSCObj.Flush;
     PluginSystem.CheckSyncEvent;
-  until FNeedExit or bForceBreak;
+  until FNeedExit;
   Write('Connection terminated by some reason.');
   Result:=0;
   ITrue:=0;

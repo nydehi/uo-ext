@@ -2,42 +2,61 @@ unit PacketStream;
 
 interface
 
-uses Windows, WinSock, ProtocolDescription, HuffmanAlgo;
+uses Windows, WinSock, ProtocolDescription, HuffmanAlgo, Encryption;
 
 type
+  TBuffer = class
+  private
+    FData: Pointer;
+    FWritePoint: Pointer;
+    FAmount: Cardinal;
+    FCapacity: Cardinal;
+  public
+    property Amount: Cardinal read FAmount;
+    property Capacity: Cardinal read FCapacity;
+    property Base: Pointer read FData;
+    property WritePoint: Pointer read FWritePoint;
+
+    constructor Create; overload;
+    constructor Create(AnAmount: Cardinal); overload;
+    destructor Destroy; override;
+
+    procedure Push(Data: Pointer; AnAmount: Cardinal); overload;
+    procedure Push(Data: Pointer; Offset, AnAmount: Cardinal); overload;
+    procedure Pushed(AnAmount: Cardinal);
+
+    procedure Shift(AnAmount: Cardinal); overload;
+    procedure Shift(ToWhere: Pointer; AnAmount: Cardinal); overload;
+
+    procedure EnshureFreeSpace(AnAmount: Cardinal);
+  end;
+
   TPacketEvent=procedure(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean) of object;
 
   TPacketStream=class
   protected
     FOnPacketEvent:TPacketEvent;
 
-    FIncommingBuffer:Pointer;
-    FIncommingBufferLength:Cardinal;
-    FIncommingBufferCount:Cardinal;
+    FIncommingBuffer:TBuffer;
     FIncommingSocket:TSocket;
-    FIncommingLock:TRTLCriticalSection;
 
-    FOutcommingBuffer:Pointer;
-    FOutcommingBufferLength:Cardinal;
-    FOutcommingBufferCount:Cardinal;
+    FOutcommingBuffer:TBuffer;
     FOutcommingSocket:TSocket;
-    FOutcommingLock:TRTLCriticalSection;
 
     FSeed:Cardinal;
     FCompression:Boolean;
-//    FDescriptor:TProtocolDescription;
     FIsCliServ:Boolean;
 
     {$IFDEF Debug}
-    FProcessingBuffer:Pointer;
-    FProcessingBufferLength:Cardinal;
-    FProcessingBufferCount:Cardinal;
-
     FDebugPresent:String;
     {$ENDIF}
 
+    FCryptObject: TNoEncryption;
+
     function GetNetworkData:Boolean;
+    function GetSeed:Boolean;
     procedure ProcessIncommingData; virtual;
+    function DetectEncryption:Boolean;
   public
     {$IFDEF Debug}
     property DebugPresend:String read FDebugPresent write FDebugPresent;
@@ -48,7 +67,7 @@ type
     property Compression:Boolean read FCompression write FCompression;
     property IsCliServ:Boolean read FIsCliServ write FIsCliServ;
     property OnPacket:TPacketEvent read FOnPacketEvent write FOnPacketEvent;
-    constructor Create(Incomming:TSocket; Outcomming:TSocket{; Descriptor:TProtocolDescription});
+    constructor Create(Incomming:TSocket; Outcomming:TSocket);
     destructor Destroy; override;
     function ProcessNetworkData:Boolean; virtual;
     function DoSendPacket(Data:Pointer; var Length: Cardinal; Direct, Validate: Boolean):Boolean;
@@ -62,8 +81,7 @@ type
 
 implementation
 
-//uses SysUtils;
-uses Common;
+uses Common, ShardSetup;
 
 var
   TV_Timeout:timeval;
@@ -83,7 +101,7 @@ begin
     cPos:=0;
     repeat
       if cPos mod 16 = 0 Then Begin
-//        if cPos<>0 Then WriteLn(cLine);
+        if cPos<>0 Then WriteLn(cLine);
         cLine:=IntToStr(cPos);
         if cPos<100000 Then cLine:='0'+cLine;
         if cPos<10000 Then cLine:='0'+cLine;
@@ -96,11 +114,90 @@ begin
       If (cPos + 1) mod 4 = 0 Then cLine:=cLine + ' ';
       cPos:=cPos+1;
     until cPos>=Len;
-//    WriteLn(cLine);
+    WriteLn(cLine);
   End;
 end;
 {$ENDIF}
 
+//  TBuffer
+constructor TBuffer.Create;
+Begin
+  Inherited;
+
+  FCapacity := 0;
+  FData := nil;
+  FWritePoint := nil;
+End;
+
+constructor TBuffer.Create(AnAmount: Cardinal);
+begin
+  Inherited Create;
+
+  FCapacity := AnAmount;
+  FData := GetMemory(FCapacity);
+  FWritePoint := FData;
+end;
+
+destructor TBuffer.Destroy;
+Begin
+  If FData <> nil Then FreeMemory(FData);
+  Inherited;
+End;
+
+procedure TBuffer.EnshureFreeSpace(AnAmount: Cardinal);
+var
+  pNewData: Pointer;
+Begin
+  If AnAmount > (FCapacity - FAmount) Then Begin
+    pNewData := GetMemory(FCapacity + AnAmount);
+    CopyMemory(pNewData, FData, FAmount);
+    FWritePoint := Pointer( Cardinal(pNewData) + FAmount);
+    FCapacity := FCapacity + AnAmount;
+    FreeMemory(FData);
+    FData := pNewData;
+  End;
+End;
+
+procedure TBuffer.Push(Data: Pointer; AnAmount: Cardinal);
+Begin
+  Push(Data, 0, AnAmount);
+End;
+
+procedure TBuffer.Push(Data: Pointer; Offset, AnAmount: Cardinal);
+Begin
+  EnshureFreeSpace(AnAmount);
+  CopyMemory(FWritePoint, Pointer( Cardinal(Data) + Offset), AnAmount);
+  FWritePoint := Pointer( Cardinal(FWritePoint) + AnAmount);
+  FAmount := FAmount + AnAmount;
+End;
+
+procedure TBuffer.Pushed(AnAmount: Cardinal);
+Begin
+  FAmount := FAmount + AnAmount;
+End;
+
+procedure TBuffer.Shift(AnAmount: Cardinal);
+var
+  pTemp: Pointer;
+Begin
+  If FAmount > AnAmount Then Begin
+    pTemp := GetMemory(FAmount - AnAmount);
+    CopyMemory(pTemp, Pointer( Cardinal(FData) + AnAmount), FAmount - AnAmount);
+    CopyMemory(FData, pTemp, FAmount - AnAmount);
+    FreeMemory(pTemp);
+    FAmount := FAmount - AnAmount;
+    FWritePoint := Pointer( Cardinal(FWritePoint) - AnAmount);
+  End Else Begin
+    FAmount := 0;
+    FWritePoint := FData;
+  End;
+End;
+
+procedure TBuffer.Shift(ToWhere: Pointer; AnAmount: Cardinal);
+Begin
+  CopyMemory(ToWhere, FData, AnAmount);
+  Shift(AnAmount);
+End;
 
 // TPacketStream
 
@@ -109,35 +206,23 @@ const
   START_BUFFER_SIZE = 65536;
 begin
   Inherited Create;
-  FOutcommingBuffer:=GetMemory(START_BUFFER_SIZE);
-  FOutcommingBufferLength:=START_BUFFER_SIZE;
-  FOutcommingBufferCount:=0;
-  InitializeCriticalSection(FOutcommingLock);
-  FIncommingBuffer:=GetMemory(START_BUFFER_SIZE);
-  FIncommingBufferLength:=START_BUFFER_SIZE;
-  FIncommingBufferCount:=0;
-  InitializeCriticalSection(FIncommingLock);
-  FIncommingSocket:=Incomming;
-  FOutcommingSocket:=Outcomming;
-//  FDescriptor:=Descriptor;
-  FSeed:=0;
-  FCompression:=False;
-(*  {$IFDEF DEBUG}
-  FProcessingBuffer:=GetMemory(START_BUFFER_SIZE);
-  FProcessingBufferLength:=START_BUFFER_SIZE;
-  FProcessingBufferCount:=0;
-  {$ENDIF}*)
+  FIncommingBuffer := TBuffer.Create(START_BUFFER_SIZE);
+  FOutcommingBuffer := TBuffer.Create(START_BUFFER_SIZE);
+
+  FIncommingSocket := Incomming;
+  FOutcommingSocket := Outcomming;
+
+  FSeed := 0;
+  FCompression := False;
+
+  FCryptObject := nil;
 end;
 
 destructor TPacketStream.Destroy;
 begin
-  FreeMemory(FOutcommingBuffer);
-  DeleteCriticalSection(FOutcommingLock);
-  FreeMemory(FIncommingBuffer);
-  DeleteCriticalSection(FIncommingLock);
-(*  {$IFDEF DEBUG}
-  FreeMemory(FProcessingBuffer);
-  {$ENDIF}*)
+  FIncommingBuffer.Free;
+  FOutcommingBuffer.Free;
+  If Assigned(FCryptObject) Then FCryptObject.Free;
   Inherited Destroy;
 end;
 
@@ -145,48 +230,21 @@ procedure TPacketStream.EnQueueOutcommingPacket(Packet:Pointer; Length:Cardinal)
 const
   EncodedLength:Cardinal=65536;
 var
-  Pnt:Pointer;
   Encoded:Array [0..65535] of Char;
   EncodedLen:Cardinal;
-(*  {$IFDEF Debug}
-  Decoded: Array [0..65535] of Char;
-  DecodedLen: Cardinal;
-  {$ENDIF}*)
+  pOldWork: Pointer;
 begin
   If FCompression Then Begin
     EncodedLen:=EncodedLength;
     If not Huffman.compress(@Encoded[0], EncodedLen, Packet, Length) Then Begin
       Halt;
     End;
-(*    {$IFDEF Debug}
-    DecodedLen:=EncodedLength;
-    Huffman.decompress(@Decoded[0], DecodedLen, @Encoded[0], EncodedLen);
-    If Chr(PByte(Packet)^) <> Decoded[0] Then
-      Halt;
-    If (Length<>FProcessingBufferCount) Then Begin
-      Writeln(FDebugPresent, 'Decompression - Compression create difference.');
-      WriteLn('Original packet: Length: ', FProcessingBufferCount);
-      WriteDump(FProcessingBuffer, FProcessingBufferCount);
-      WriteLn('Recompressed packet: Length: ', EncodedLen);
-      WriteDump(Packet, Length);
-    End;
-    FProcessingBufferCount:=0;
-    {$ENDIF}*)
     Packet:=@Encoded;
     Length:=EncodedLen;
   End;
-//  EnterCriticalSection(FOutcommingLock);
-  If (FOutcommingBufferLength - FOutcommingBufferCount) < Length Then Begin
-    Pnt:=GetMemory(FOutcommingBufferLength + Length * 2);
-    ZeroMemory(Pnt, FOutcommingBufferLength + Length * 2);
-    If FOutcommingBufferCount>0 Then CopyMemory(Pnt, FOutcommingBuffer, FOutcommingBufferCount);
-    FreeMemory(FOutcommingBuffer);
-    FOutcommingBuffer:=Pnt;
-    FOutcommingBufferLength:=FOutcommingBufferLength + Length * 2;
-  End;
-  CopyMemory(Pointer(Cardinal(FOutcommingBuffer) + FOutcommingBufferCount), Packet, Length);
-  FOutcommingBufferCount:=FOutcommingBufferCount + Length;
-//  LeaveCriticalSection(FOutcommingLock);
+  pOldWork := FOutcommingBuffer.WritePoint;
+  FOutcommingBuffer.Push(Packet, Length);
+  If Assigned(FCryptObject) and ShardSetup.Encrypted Then FCryptObject.Encrypt(pOldWork, 0, Length);
   {$IFDEF Debug}
   Flush;
   {$ENDIF}
@@ -199,9 +257,9 @@ var
   CurrentPoint: Pointer;
   CurrentLength: Cardinal;
 begin
-  If FOutcommingBufferCount>0 Then Begin
-    CurrentPoint := FOutcommingBuffer;
-    CurrentLength := FOutcommingBufferCount;
+  If FOutcommingBuffer.Amount > 0 Then Begin
+    CurrentPoint := FOutcommingBuffer.Base;
+    CurrentLength := FOutcommingBuffer.Amount;
     repeat
       repeat
         FD_ZERO(fs);
@@ -215,40 +273,33 @@ begin
       CurrentLength := CurrentLength - Sended;
     until CurrentLength = 0;
   End;
-  FOutcommingBufferCount:=0;
+  FOutcommingBuffer.Shift(FOutcommingBuffer.Amount);
 end;
 
 function TPacketStream.GetNetworkData:Boolean;
 var
   Readed:Integer;
-  {$IFDEF Debug}
-  LastCount:Cardinal;
-  {$ENDIF}
-  fs : TFDSet;
 begin
   Result:=False;
-  {$IFDEF Debug}
-  LastCount:=FIncommingBufferCount;
-  {$ENDIF}
-  repeat
-    FD_ZERO(fs);
-    FD_SET(FIncommingSocket, fs);
-    select(0, @fs, nil, nil, @TV_Timeout);
-    If FD_ISSET(FIncommingSocket, fs) Then Begin
-      Readed:=recv(FIncommingSocket, Pointer(Cardinal(FIncommingBuffer) + FIncommingBufferCount)^, FIncommingBufferLength-FIncommingBufferCount, 0);
-      If (Readed = SOCKET_ERROR) or (Readed = 0) Then Exit;
-      FIncommingBufferCount:=FIncommingBufferCount+Readed;
-    end;
-  until not FD_ISSET(FIncommingSocket, fs);
-  Result := True;
-  {$IFDEF Debug}
-{    If FIsCliServ Then Begin
-      WriteLn('Cli -> Srv: Packet recived. Length: ', FIncommingBufferCount - LastCount);
+
+  ioctlsocket(FIncommingSocket, FIONREAD, Readed);
+  If Readed > 0 Then Begin
+    FIncommingBuffer.EnshureFreeSpace(Readed);
+    Readed := recv(FIncommingSocket, FIncommingBuffer.WritePoint^, Readed, 0);
+    If (Readed = SOCKET_ERROR) or (Readed = 0) Then Exit;
+
+    {$IFDEF Debug}
+    If FIsCliServ Then Begin
+      WriteLn('Cli -> Srv: Packet recived. Length: ', Readed);
     End Else Begin
-      WriteLn('Srv -> Cli: Packet recived. Length: ', FIncommingBufferCount - LastCount);
+      WriteLn('Srv -> Cli: Packet recived. Length: ', Readed);
     End;
-    WriteDump(Pointer(Cardinal(FIncommingBuffer) + LastCount), FIncommingBufferCount - LastCount);}
-  {$ENDIF}
+    WriteDump(FIncommingBuffer.WritePoint, Readed);
+    {$ENDIF}
+    If Assigned(FCryptObject) Then FCryptObject.Decrypt(FIncommingBuffer.WritePoint, 0, Readed);
+    FIncommingBuffer.Pushed(Readed);
+  End;
+  Result := True;
 end;
 
 function TPacketStream.ProcessNetworkData:Boolean;
@@ -257,101 +308,124 @@ begin
   If Result Then ProcessIncommingData;
 end;
 
+function TPacketStream.GetSeed:Boolean;
+var
+  Dummy: Cardinal;
+Begin
+  Result := False;
+  If not((FSeed <> 0) or (not FIsCliServ)) Then Begin
+    If PByte(FIncommingBuffer.Base)^ = $EF Then Begin // New 0xEF packet for seeding.
+      Dummy := ProtocolDescriptor.GetCliServLength($EF);
+      If FIncommingBuffer.Amount < Dummy Then Exit; // Wait for additional data
+      FSeed := PCardinal(Cardinal(FIncommingBuffer.Base) + 1)^;
+      DoSendPacket(FIncommingBuffer.Base, Dummy, False, False);
+      FIncommingBuffer.Shift(Dummy);
+      // This packet sends without encoding and/or packing.
+    End Else Begin
+      FSeed := PCardinal(FIncommingBuffer.Base)^;
+      FIncommingBuffer.Shift(4);
+    End;
+  End;
+  Result := True;
+End;
+
+function TPacketStream.DetectEncryption:Boolean;
+var
+  Buffer: PByteArray;
+Begin
+  Result := False;
+  If Assigned(FCryptObject) Then Exit;
+  Buffer := PByteArray(FIncommingBuffer.Base);
+  If IsCliServ Then Begin
+    If FIncommingBuffer.Amount = 62 Then Begin // Login phase
+      If (Buffer^[00] = $80) and
+        (Buffer^[30] = $00) and
+        (Buffer^[60] = $00) Then Begin // no login encryption
+        FCryptObject := TNoEncryption.Create;
+        {$IFDEF Debug}
+        WriteLn('No login encryption detected.');
+        {$ENDIF}
+      End Else Begin
+        FCryptObject := TLoginEncryption.Create(htonl(FSeed));
+        {$IFDEF Debug}
+        WriteLn('Login encryption detected.');
+        {$ENDIF}
+      End;
+      Result := True;
+    End;
+    If FIncommingBuffer.Amount >= 65 Then Begin
+      If (Buffer^[00] = $91) and
+         (Buffer^[01] = ((FSeed shr 24) and $FF)) and
+         (Buffer^[02] = ((FSeed shr 16) and $FF)) and
+         (Buffer^[03] = ((FSeed shr 8) and $FF)) and
+         (Buffer^[04] = (FSeed and $FF)) Then Begin // no encryption
+        FCryptObject := TNoEncryption.Create;
+        {$IFDEF Debug}
+        WriteLn('No encryption detected.');
+        {$ENDIF}
+        Result := True;
+      End Else Begin
+        // TODO: Add Game encryption
+        {$IFDEF Debug}
+        WriteLn('Game encryption detected.');
+        {$ENDIF}
+        Result := True;
+      End;
+    End;
+  End Else Begin
+    FCryptObject := TNoEncryption.Create;
+    Result := True;
+  End;
+  If Result Then Begin
+    FCryptObject.Decrypt(FIncommingBuffer.Base, 0, FIncommingBuffer.Amount);
+  End;
+End;
+
 procedure TPacketStream.ProcessIncommingData;
 const
-  DecodedLength:Cardinal=65536;
+  DecodedLength:Cardinal=70001;
 var
-  PacketLength{, ProcessedPacketLength}:Cardinal;
-//  Process:Boolean;
-  PCurrent:Pointer;
-  PLength:Cardinal;
-  PTemp:Pointer;
+  PacketLength:Cardinal;
 
   Decoded:Array [0..70000] of Char;
   DecodedLen:Cardinal;
   SourceLen:Cardinal;
 begin
-  If FIsCliServ AND (FSeed=0) Then Begin
-    If PByte(FIncommingBuffer)^=239 Then Begin // New 0xEF packet for seeding.
-      If FIncommingBufferCount<5 Then Exit;
-      FSeed:=PCardinal(Cardinal(FIncommingBuffer) + 1)^;
-    End Else Begin
-//      WriteLn('Seed not found, Inc. buffer contains: ', FIncommingBufferCount, ' bytes');
-      If FIncommingBufferCount<4 Then Exit;
-      FSeed:=PCardinal(FIncommingBuffer)^;
-      PCardinal(Cardinal(FOutcommingBuffer) + FOutcommingBufferCount)^:=FSeed;
-      FOutcommingBufferCount:=FOutcommingBufferCount+4;
-      If FIncommingBufferCount=4 Then Begin
-//        WriteLn('Seed get. Packet processed. Exit from PID.');
-        FIncommingBufferCount:=0;
-        Exit;
-      end;
-      PTemp:=GetMemory(FIncommingBufferCount - 4);
-      CopyMemory(PTemp, Pointer(Cardinal(FIncommingBuffer) + 4), FIncommingBufferCount - 4);
-      CopyMemory(FIncommingBuffer, PTemp, FIncommingBufferCount - 4);
-      FreeMemory(PTemp);
-      FIncommingBufferCount:=FIncommingBufferCount - 4;
-    End;
-  End;
-  PCurrent:=FIncommingBuffer;
-  PLength:=FIncommingBufferCount;
+  If not GetSeed Then Exit;
+  If not Assigned(FCryptObject) Then If not DetectEncryption Then Exit;
+
   repeat
     If not FCompression Then Begin
       If FIsCliServ Then
-        PacketLength:=ProtocolDescriptor.GetCliServLength(PCurrent, PLength)
+        PacketLength:=ProtocolDescriptor.GetCliServLength(FIncommingBuffer.Base, FIncommingBuffer.Amount)
       Else
-        PacketLength:=ProtocolDescriptor.GetServCliLength(PCurrent, PLength);
+        PacketLength:=ProtocolDescriptor.GetServCliLength(FIncommingBuffer.Base, FIncommingBuffer.Amount);
       If PacketLength=0 Then Begin
         {$IFDEF Debug}
         WriteLn(FDebugPresent, 'Uncompressed protocol: Some data lost in process.');
         {$ENDIF}
         Break;
       end;
-      If PLength<PacketLength Then Begin
+      If PacketLength > FIncommingBuffer.Amount Then Begin
         {$IFDEF Debug}
         WriteLn(FDebugPresent, 'UO packet length more than current data buffer. Waiting next frame.');
-        WriteLn(' Packet: ', PByte(PCurrent)^, ' CalcPacketsize: ', PacketLength, ' AvailData: ', PLength);
+        WriteLn(' Packet: ', PByte(FIncommingBuffer.Base)^, ' CalcPacketsize: ', PacketLength, ' AvailData: ', FIncommingBuffer.Amount);
         {$ENDIF}
         Break;
       End;
-      DoSendPacket(PCurrent, PacketLength, False, False);
-      PCurrent:=Pointer(Cardinal(PCurrent) + PacketLength);
-      PLength:=PLength - PacketLength;
+      DoSendPacket(FIncommingBuffer.Base, PacketLength, False, False);
+      FIncommingBuffer.Shift(PacketLength);
     End Else Begin
-      SourceLen:=PLength;
+      SourceLen:=FIncommingBuffer.Amount;
       DecodedLen:=DecodedLength;
-      If Huffman.decompress(@Decoded, DecodedLen, PCurrent, SourceLen) Then Begin
-(*        {$IFDEF Debug}
-        CopyMemory(Pointer(Cardinal(FProcessingBuffer) + FProcessingBufferCount), PCurrent, SourceLen);
-        FProcessingBufferCount:=FProcessingBufferCount + SourceLen;
-        {$ENDIF}*)
-        PCurrent:=Pointer(Cardinal(PCurrent) + SourceLen);
-        PLength:=PLength - SourceLen;
+      If Huffman.decompress(@Decoded, DecodedLen, FIncommingBuffer.Base, SourceLen) Then Begin
         DoSendPacket(@Decoded, DecodedLen, False, False);
+        FIncommingBuffer.Shift(SourceLen);
       End Else Begin
-        {$IFDEF Debug}
-(*        If PLength>SourceLen Then Begin
-          WriteLn(FDebugPresent, 'Compressed protocol: Data not processed. 1st Byte: ', IntToHex(PByte(PCurrent)^, 2), ' Avail len: ', PLength);
-          SourceLen:=PLength+1;
-          DecodedLen:=DecodedLength;
-          Huffman.decompress(@Decoded, DecodedLen, PCurrent, SourceLen)
-        End;*)
-        {$ENDIF}
         Break;
       End;
     End;
-  until PLength<=0;
-  If PLength<>FIncommingBufferCount Then Begin
-    If PLength=0 Then Begin
-      FIncommingBufferCount:=0;
-    End Else Begin
-      PTemp:=GetMemory(PLength);
-      CopyMemory(PTemp, PCurrent, PLength);
-      CopyMemory(FIncommingBuffer, PTemp, PLength);
-      FreeMemory(PTemp);
-      FIncommingBufferCount:=PLength;
-    End;
-  End;
+  until FIncommingBuffer.Amount <= 0;
 end;
 
 function TPacketStream.DoSendPacket(Data:Pointer; var Length: Cardinal; Direct, Validate: Boolean):Boolean;

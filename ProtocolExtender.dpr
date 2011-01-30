@@ -27,7 +27,8 @@ uses
   Plugins in 'ProtocolExtender\Plugins.pas',
   PluginsShared in 'ProtocolExtender\PluginsShared.pas',
   Serials in 'ProtocolExtender\Serials.pas',
-  zLib in 'ProtocolExtender\zLib.pas';
+  zLib in 'ProtocolExtender\zLib.pas',
+  Encryption in 'ProtocolExtender\Encryption.pas';
 
 {$IFDEF DEBUG}
 function HandlerRoutine(dwCtrlType: cardinal): bool; stdcall;
