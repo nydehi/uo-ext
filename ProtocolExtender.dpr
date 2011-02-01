@@ -28,7 +28,10 @@ uses
   PluginsShared in 'ProtocolExtender\PluginsShared.pas',
   Serials in 'ProtocolExtender\Serials.pas',
   zLib in 'ProtocolExtender\zLib.pas',
-  Encryption in 'ProtocolExtender\Encryption.pas';
+  Encryption in 'ProtocolExtender\Encryption.pas',
+  DCPcrypt in 'ProtocolExtender\DCPcrypt.pas',
+  Twofish in 'ProtocolExtender\Twofish.pas',
+  md5 in 'ProtocolExtender\md5.pas';
 
 {$IFDEF DEBUG}
 function HandlerRoutine(dwCtrlType: cardinal): bool; stdcall;
