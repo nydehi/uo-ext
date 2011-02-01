@@ -32,6 +32,7 @@ type
   end;
 
   TPacketEvent=procedure(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean) of object;
+  TClientEncryptionDetectedEvent=procedure(Sender: TObject; Encrypted: Boolean; IsGameCrypt: Boolean) of object;
 
   TPacketStream=class
   protected
@@ -52,6 +53,8 @@ type
     {$ENDIF}
 
     FCryptObject: TNoEncryption;
+    FEncrypted: Boolean;
+    FOnClientEncryptionDetected: TClientEncryptionDetectedEvent;
 
     function GetNetworkData:Boolean;
     function GetSeed:Boolean;
@@ -66,6 +69,9 @@ type
     property Seed:Cardinal read FSeed write FSeed;
     property Compression:Boolean read FCompression write FCompression;
     property IsCliServ:Boolean read FIsCliServ write FIsCliServ;
+    property Encrypted: Boolean read FEncrypted write FEncrypted;
+    property OnClientEncryptionDetected: TClientEncryptionDetectedEvent read FOnClientEncryptionDetected write FOnClientEncryptionDetected;
+    property CryptObject: TNoEncryption read FCryptObject write FCryptObject;
     property OnPacket:TPacketEvent read FOnPacketEvent write FOnPacketEvent;
     constructor Create(Incomming:TSocket; Outcomming:TSocket);
     destructor Destroy; override;
@@ -186,7 +192,7 @@ Begin
     CopyMemory(FData, pTemp, FAmount - AnAmount);
     FreeMemory(pTemp);
     FAmount := FAmount - AnAmount;
-    FWritePoint := Pointer( Cardinal(FWritePoint) - AnAmount);
+    FWritePoint := Pointer( Cardinal(FData) + FAmount);
   End Else Begin
     FAmount := 0;
     FWritePoint := FData;
@@ -212,8 +218,8 @@ begin
   FIncommingSocket := Incomming;
   FOutcommingSocket := Outcomming;
 
-  FSeed := 0;
-  FCompression := False;
+  FSeed:=0;
+  FCompression:=False;
 
   FCryptObject := nil;
 end;
@@ -244,7 +250,7 @@ begin
   End;
   pOldWork := FOutcommingBuffer.WritePoint;
   FOutcommingBuffer.Push(Packet, Length);
-  If Assigned(FCryptObject) and ShardSetup.Encrypted Then FCryptObject.Encrypt(pOldWork, 0, Length);
+  If Assigned(FCryptObject) Then FCryptObject.Encrypt(pOldWork, 0, Length);
   {$IFDEF Debug}
   Flush;
   {$ENDIF}
@@ -283,22 +289,20 @@ begin
   Result:=False;
 
   ioctlsocket(FIncommingSocket, FIONREAD, Readed);
-  If Readed > 0 Then Begin
-    FIncommingBuffer.EnshureFreeSpace(Readed);
-    Readed := recv(FIncommingSocket, FIncommingBuffer.WritePoint^, Readed, 0);
-    If (Readed = SOCKET_ERROR) or (Readed = 0) Then Exit;
+  FIncommingBuffer.EnshureFreeSpace(Readed);
+  Readed := recv(FIncommingSocket, FIncommingBuffer.WritePoint^, Readed, 0);
+  If (Readed = SOCKET_ERROR) or (Readed = 0) Then Exit;
 
-    {$IFDEF Debug}
-    If FIsCliServ Then Begin
-      WriteLn('Cli -> Srv: Packet recived. Length: ', Readed);
-    End Else Begin
-      WriteLn('Srv -> Cli: Packet recived. Length: ', Readed);
-    End;
-    WriteDump(FIncommingBuffer.WritePoint, Readed);
-    {$ENDIF}
-    If Assigned(FCryptObject) Then FCryptObject.Decrypt(FIncommingBuffer.WritePoint, 0, Readed);
-    FIncommingBuffer.Pushed(Readed);
+  {$IFDEF Debug}
+  If FIsCliServ Then Begin
+    WriteLn('Cli -> Srv: Packet recived. Length: ', Readed);
+  End Else Begin
+    WriteLn('Srv -> Cli: Packet recived. Length: ', Readed);
   End;
+  WriteDump(FIncommingBuffer.WritePoint, Readed);
+  {$ENDIF}
+  If Assigned(FCryptObject) Then FCryptObject.Decrypt(FIncommingBuffer.WritePoint, 0, Readed);
+  FIncommingBuffer.Pushed(Readed);
   Result := True;
 end;
 
@@ -324,6 +328,7 @@ Begin
     End Else Begin
       FSeed := PCardinal(FIncommingBuffer.Base)^;
       FIncommingBuffer.Shift(4);
+      FOutcommingBuffer.Push(@FSeed, 4);
     End;
   End;
   Result := True;
@@ -347,25 +352,30 @@ Begin
         {$ENDIF}
       End Else Begin
         FCryptObject := TLoginEncryption.Create(htonl(FSeed));
+        FCryptObject.NeedDecrypt := True;
+        FCryptObject.NeedEncrypt := ShardSetup.Encrypted;
         {$IFDEF Debug}
         WriteLn('Login encryption detected.');
         {$ENDIF}
       End;
       Result := True;
     End;
-    If FIncommingBuffer.Amount >= 65 Then Begin
+    If FIncommingBuffer.Amount >= 65 Then Begin // Game phase
       If (Buffer^[00] = $91) and
-         (Buffer^[01] = ((FSeed shr 24) and $FF)) and
-         (Buffer^[02] = ((FSeed shr 16) and $FF)) and
-         (Buffer^[03] = ((FSeed shr 8) and $FF)) and
-         (Buffer^[04] = (FSeed and $FF)) Then Begin // no encryption
+         (Buffer^[04] = ((FSeed shr 24) and $FF)) and
+         (Buffer^[03] = ((FSeed shr 16) and $FF)) and
+         (Buffer^[02] = ((FSeed shr 8) and $FF)) and
+         (Buffer^[01] = (FSeed and $FF)) Then Begin // no encryption
         FCryptObject := TNoEncryption.Create;
         {$IFDEF Debug}
         WriteLn('No encryption detected.');
         {$ENDIF}
         Result := True;
       End Else Begin
-        // TODO: Add Game encryption
+        FCryptObject := TGameEncryption.Create(htonl(FSeed));
+        FCryptObject.NeedDecrypt := True;
+        FCryptObject.NeedEncrypt := ShardSetup.Encrypted;
+        if Assigned(FOnClientEncryptionDetected) Then FOnClientEncryptionDetected(Self, True, True);
         {$IFDEF Debug}
         WriteLn('Game encryption detected.');
         {$ENDIF}
@@ -373,10 +383,26 @@ Begin
       End;
     End;
   End Else Begin
-    FCryptObject := TNoEncryption.Create;
+(*    If ShardSetup.Encrypted Then Begin
+      If FIncommingBuffer.Amount >= 4 Then Begin // Login phase
+        If (Buffer^[0] = $A8) and
+           (Buffer^[1] = $00) and
+           (Buffer^[2] =  46) and
+           (Buffer^[3] = $00) Then Begin
+          FCryptObject := TNoEncryption.Create;
+        End Else Begin // Game phase
+          FCryptObject := TGameEncryption.Create(htonl(FSeed));
+          FCryptObject.NeedDecrypt := True;
+        End;
+        Result := True;
+      End;
+    End Else Begin
+      FCryptObject := TNoEncryption.Create;
+      Result := True;
+    End;*)
     Result := True;
   End;
-  If Result Then Begin
+  If Result and Assigned(FCryptObject) Then Begin
     FCryptObject.Decrypt(FIncommingBuffer.Base, 0, FIncommingBuffer.Amount);
   End;
 End;
@@ -394,7 +420,7 @@ begin
   If not GetSeed Then Exit;
   If not Assigned(FCryptObject) Then If not DetectEncryption Then Exit;
 
-  repeat
+  If FIncommingBuffer.Amount > 0 Then repeat
     If not FCompression Then Begin
       If FIsCliServ Then
         PacketLength:=ProtocolDescriptor.GetCliServLength(FIncommingBuffer.Base, FIncommingBuffer.Amount)

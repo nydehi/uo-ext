@@ -2,11 +2,17 @@ unit Encryption;
 
 interface
 
-uses Windows;
+uses Windows, Twofish;
 
 type
   TNoEncryption=class
+  protected
+    FEncrypt: Boolean;
+    FDecrypt: Boolean;
   public
+    property NeedEncrypt: Boolean read FEncrypt write FEncrypt;
+    property NeedDecrypt: Boolean read FDecrypt write FDecrypt;
+    constructor Create;
     function Encrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal): Boolean; virtual;
     function Decrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal): Boolean; virtual;
   end;
@@ -29,11 +35,34 @@ type
     function Decrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal): Boolean; override;
   end;
 
+  TGameEncryption=class(TNoEncryption)
+  private
+    FKey: Array [0..15] of Byte;
+    cipherTable: Array [0..255] of Byte;
+    FXORData: Array [0..15] of Byte; //MD5 Hash
+    FRecvPosition: Cardinal;
+    FSendPosition: Cardinal;
+
+    FTFData: TTwofishData;
+    procedure RefreshCipherTable();
+  public
+    constructor Create(ASeed: Cardinal);
+    function Encrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal): Boolean; override;
+    function Decrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal): Boolean; override;
+  end;
+
 implementation
 
-uses Common{, SysUtils};
+uses Common{, SysUtils}, md5, ShardSetup;
 
 // TNoEncryption
+
+constructor TNoEncryption.Create;
+Begin
+  Inherited;
+  FEncrypt := False;
+  FDecrypt := False;
+End;
 
 function TNoEncryption.Encrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal): Boolean;
 Begin
@@ -110,6 +139,8 @@ Var
   i: Integer;
   tmp1, tmp2 : Cardinal;
 Begin
+  Result := True;
+  If not FDecrypt Then Exit;
   cByte := PByte(Cardinal(Data) + Offset - 1);
   For i := 0 to Length - 1 do Begin
     cByte := PByte(Cardinal(cByte) + 1);
@@ -121,7 +152,6 @@ Begin
     FDecTable2 := ( ( ( ( ( tmp2 SHR 1 ) OR ( tmp1 SHL 31 ) ) XOR FKey1 ) SHR 1 ) OR ( tmp1 SHL 31 ) ) XOR FKey1;
     FDecTable1 := ( ( tmp1 SHR 1 ) OR ( tmp2 SHL 31) ) XOR FKey2;
   End;
-  Result := True;
 End;
 
 function TLoginEncryption.Encrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal):Boolean;
@@ -130,6 +160,8 @@ Var
   i: Integer;
   tmp1, tmp2 : Cardinal;
 Begin
+  Result := True;
+  If not FEncrypt Then Exit;
   cByte := PByte(Cardinal(Data) + Offset - 1);
   For i := 0 to Length - 1 do Begin
     cByte := PByte(Cardinal(cByte) + 1);
@@ -141,6 +173,80 @@ Begin
     FEncTable2 := ( ( ( ( ( tmp2 SHR 1 ) OR ( tmp1 SHL 31 ) ) XOR FKey1 ) SHR 1 ) OR ( tmp1 SHL 31 ) ) XOR FKey1;
     FEncTable1 := ( ( tmp1 SHR 1 ) OR ( tmp2 SHL 31) ) XOR FKey2;
   End;
-  Result := True;
 End;
+
+// TGameEncryption
+
+constructor TGameEncryption.Create(ASeed: Cardinal);
+Var
+  i: Integer;
+  tmp: TMD5Digest;
+Begin
+  Inherited Create;
+  FKey[0] := ( ASeed SHR 24 ) AND $FF;
+  FKey[1] := ( ASeed SHR 16 ) AND $FF;
+  FKey[2] := ( ASeed SHR  8 ) AND $FF;
+  FKey[3] := ( ASeed        ) AND $FF;
+  For i := 1 to 3 do Begin
+    FKey[ i*4 + 0] := FKey[0];
+    FKey[ i*4 + 1] := FKey[1];
+    FKey[ i*4 + 2] := FKey[2];
+    FKey[ i*4 + 3] := FKey[3];
+  End;
+
+  For i := 0 to 255 do cipherTable[i] := i;
+  FSendPosition := 0;
+  FRecvPosition := 0;
+
+  TwofishReset(FTFData);
+  TwofishInit(FTFData, FKey, 128, nil);
+
+  RefreshCipherTable;
+
+  tmp := MD5Buffer(cipherTable, SizeOf(cipherTable));
+  CopyMemory(@FXORData, @tmp, SizeOf(FXORData));
+End;
+
+procedure TGameEncryption.RefreshCipherTable();
+Var
+  block : Array [0..3] of Cardinal;
+  i:Cardinal;
+Begin
+  For i:=0 to 15 do Begin
+    CopyMemory(@block, Pointer( Cardinal(@cipherTable) + i * 16), 16);
+    TwofishEncryptECB(FTFData, block, block);
+    CopyMemory(Pointer( Cardinal(@cipherTable) + i * 16), @block, 16);
+  End;
+  FRecvPosition := 0;
+End;
+
+function TGameEncryption.Decrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal):Boolean;
+Var
+  i: Cardinal;
+  cByte: PByte;
+Begin
+  Result := True;
+  If not FDecrypt Then Exit;
+  For i:=0 to Length - 1 do Begin
+    if FRecvPosition >= $100 Then RefreshCipherTable;
+    cByte := Pointer(Cardinal(Data) + i);
+    cByte^ := cByte^ XOR cipherTable[FRecvPosition];
+    FRecvPosition := FRecvPosition + 1;
+  End;
+End;
+
+function TGameEncryption.Encrypt(Data: Pointer; Offset: Cardinal; Length: Cardinal):Boolean;
+var
+  cByte: PByte;
+  i: Cardinal;
+Begin
+  Result := True;
+  If not FEncrypt Then Exit;
+  For i:=0 to Length - 1 do Begin
+    cByte := Pointer(Cardinal(Data) + i);
+    cByte^ := cByte^ XOR FXORData[FSendPosition];
+    FSendPosition := (FSendPosition + 1) AND $0F;
+  End;
+End;
+
 end.

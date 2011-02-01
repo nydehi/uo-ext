@@ -21,6 +21,7 @@ type
     procedure Write(What:String);
     procedure OnCSPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
     procedure OnSCPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
+    procedure OnCryptDetected(Sender:Tobject; Encrypted: Boolean; IsGameEncryption: Boolean);
   protected
     function Execute:Integer; override;
   public
@@ -36,7 +37,7 @@ var
 
 implementation
 
-uses Common, Plugins;
+uses Common, Plugins, Encryption, ShardSetup;
 //uses SysUtils;
 
 var
@@ -84,21 +85,22 @@ begin
   FCSObj.OnPacket:=OnCSPacket;
   FSCObj.IsCliServ:=False;
   FCSObj.IsCliServ:=True;
+  FCSObj.OnClientEncryptionDetected:=OnCryptDetected;
   {$IFDEF Debug}
   FSCObj.DebugPresend:=IntToStr(FServerIp shr 24) + '.' + IntToStr((FServerIp shr 16) and $FF) + '.' + IntToStr((FServerIp shr 8) and $FF) + '.' + IntToStr(FServerIp and $FF) + ':' + IntToStr(FServerPort) + ' ';
   FCSObj.DebugPresend:=FSCObj.DebugPresend;
-  Write('Client thread ready to work.');
   {$ENDIF}
+  Write('Client thread ready to work.');
   repeat
     FD_ZERO(fs);
     FD_SET(FClientConnection, fs);
     FD_SET(FServerConnection, fs);
     select(0, @fs, nil, nil, @TV_Timeout);
     If FD_ISSET(FClientConnection, fs) Then Begin
-      If not FCSObj.ProcessNetworkData Then FNeedExit := True;
+      If not FCSObj.ProcessNetworkData Then Break;
     End;
     If FD_ISSET(FServerConnection, fs) Then Begin
-      If not FSCObj.ProcessNetworkData Then FNeedExit := True;
+      If not FSCObj.ProcessNetworkData Then Break;
     end;
     FCSObj.Flush;
     FSCObj.Flush;
@@ -176,6 +178,15 @@ begin
   {$ENDIF}
   Result := Valid;
 end;
+
+procedure TClientThread.OnCryptDetected(Sender:Tobject; Encrypted: Boolean; IsGameEncryption: Boolean);
+Begin
+  if ShardSetup.Encrypted or Encrypted Then Begin
+    if not Assigned(FSCObj.CryptObject) Then FSCObj.CryptObject := TGameEncryption.Create(FCSObj.Seed);
+    FSCObj.CryptObject.NeedDecrypt := ShardSetup.Encrypted;
+    FSCObj.CryptObject.NeedEncrypt := Encrypted;
+  End;
+End;
 
 initialization
   TV_Timeout.tv_usec:=100;
