@@ -21,7 +21,7 @@ type
     procedure Write(What:String);
     procedure OnCSPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
     procedure OnSCPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
-    procedure OnCryptDetected(Sender:Tobject; Encrypted: Boolean; IsGameEncryption: Boolean);
+    procedure OnCryptDetected(Sender:Tobject; CryptType: TCryptType; Phase: TCryptPhase);
   protected
     function Execute:Integer; override;
   public
@@ -179,13 +179,37 @@ begin
   Result := Valid;
 end;
 
-procedure TClientThread.OnCryptDetected(Sender:Tobject; Encrypted: Boolean; IsGameEncryption: Boolean);
+procedure TClientThread.OnCryptDetected(Sender:TObject; CryptType: TCryptType; Phase: TCryptPhase);
+var
+  CSCrypt, SCCrypt: TNoEncryption;
 Begin
-  if ShardSetup.Encrypted or Encrypted Then Begin
-    if not Assigned(FSCObj.CryptObject) Then FSCObj.CryptObject := TGameEncryption.Create(FCSObj.Seed);
-    FSCObj.CryptObject.NeedDecrypt := ShardSetup.Encrypted;
-    FSCObj.CryptObject.NeedEncrypt := Encrypted;
+  CSCrypt := nil;
+  SCCrypt := nil;
+  if Phase = cpLogin Then Begin
+    // Client -> Server use Login Encryption
+    // Server -> Client not encrypted
+    If (CryptType = ctLogin) or ShardSetup.Encrypted Then Begin
+      CSCrypt := TLoginEncryption.Create(htonl(FCSObj.Seed));
+      CSCrypt.NeedDecrypt := (CryptType = ctLogin);
+      CSCrypt.NeedEncrypt := ShardSetup.Encrypted;
+    End;
+  End Else If Phase = cpGame Then Begin
+    // Both ways Encrypted.
+    If (CryptType = ctGame) or ShardSetup.Encrypted Then Begin
+      CSCrypt := TGameEncryptionCS.Create(htonl(FCSObj.Seed));
+      SCCrypt := TGameEncryptionSC.Create(htonl(FCSObj.Seed));
+
+      CSCrypt.NeedDecrypt := (CryptType = ctGame);
+      SCCrypt.NeedEncrypt := (CryptType = ctGame);
+
+      CSCrypt.NeedEncrypt := ShardSetup.Encrypted;
+      SCCrypt.NeedDecrypt := ShardSetup.Encrypted;
+    End;
   End;
+  If CSCrypt = nil Then CSCrypt := TNoEncryption.Create;
+  If SCCrypt = nil Then SCCrypt := TNoEncryption.Create;
+  FCSObj.CryptObject := CSCrypt;
+  FSCObj.CryptObject := SCCrypt;
 End;
 
 initialization

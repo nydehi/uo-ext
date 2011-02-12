@@ -32,7 +32,9 @@ type
   end;
 
   TPacketEvent=procedure(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean) of object;
-  TClientEncryptionDetectedEvent=procedure(Sender: TObject; Encrypted: Boolean; IsGameCrypt: Boolean) of object;
+  TCryptType = (ctNone, ctLogin, ctGame);
+  TCryptPhase = (cpLogin, cpGame);
+  TClientEncryptionDetectedEvent=procedure(Sender: TObject; CryptType: TCryptType; Phase: TCryptPhase) of object;
 
   TPacketStream=class
   protected
@@ -53,13 +55,15 @@ type
     {$ENDIF}
 
     FCryptObject: TNoEncryption;
-    FEncrypted: Boolean;
+//    FEncrypted: Boolean;
     FOnClientEncryptionDetected: TClientEncryptionDetectedEvent;
 
     function GetNetworkData:Boolean;
     function GetSeed:Boolean;
     procedure ProcessIncommingData; virtual;
     function DetectEncryption:Boolean;
+
+    procedure SetCryptObject(Value: TNoEncryption);
   public
     {$IFDEF Debug}
     property DebugPresend:String read FDebugPresent write FDebugPresent;
@@ -69,12 +73,14 @@ type
     property Seed:Cardinal read FSeed write FSeed;
     property Compression:Boolean read FCompression write FCompression;
     property IsCliServ:Boolean read FIsCliServ write FIsCliServ;
-    property Encrypted: Boolean read FEncrypted write FEncrypted;
+//    property Encrypted: Boolean read FEncrypted write FEncrypted;
     property OnClientEncryptionDetected: TClientEncryptionDetectedEvent read FOnClientEncryptionDetected write FOnClientEncryptionDetected;
-    property CryptObject: TNoEncryption read FCryptObject write FCryptObject;
+    property CryptObject: TNoEncryption read FCryptObject write SetCryptObject;
     property OnPacket:TPacketEvent read FOnPacketEvent write FOnPacketEvent;
+
     constructor Create(Incomming:TSocket; Outcomming:TSocket);
     destructor Destroy; override;
+
     function ProcessNetworkData:Boolean; virtual;
     function DoSendPacket(Data:Pointer; var Length: Cardinal; Direct, Validate: Boolean):Boolean;
     procedure EnQueueOutcommingPacket(Packet:Pointer; Length:Cardinal); virtual;
@@ -346,14 +352,12 @@ Begin
       If (Buffer^[00] = $80) and
         (Buffer^[30] = $00) and
         (Buffer^[60] = $00) Then Begin // no login encryption
-        FCryptObject := TNoEncryption.Create;
+        if Assigned(FOnClientEncryptionDetected) Then FOnClientEncryptionDetected(Self, ctNone, cpLogin);
         {$IFDEF Debug}
         WriteLn('No login encryption detected.');
         {$ENDIF}
       End Else Begin
-        FCryptObject := TLoginEncryption.Create(htonl(FSeed));
-        FCryptObject.NeedDecrypt := True;
-        FCryptObject.NeedEncrypt := ShardSetup.Encrypted;
+        if Assigned(FOnClientEncryptionDetected) Then FOnClientEncryptionDetected(Self, ctLogin, cpLogin);
         {$IFDEF Debug}
         WriteLn('Login encryption detected.');
         {$ENDIF}
@@ -366,16 +370,13 @@ Begin
          (Buffer^[03] = ((FSeed shr 16) and $FF)) and
          (Buffer^[02] = ((FSeed shr 8) and $FF)) and
          (Buffer^[01] = (FSeed and $FF)) Then Begin // no encryption
-        FCryptObject := TNoEncryption.Create;
+        if Assigned(FOnClientEncryptionDetected) Then FOnClientEncryptionDetected(Self, ctNone, cpGame);
         {$IFDEF Debug}
         WriteLn('No encryption detected.');
         {$ENDIF}
         Result := True;
       End Else Begin
-        FCryptObject := TGameEncryption.Create(htonl(FSeed));
-        FCryptObject.NeedDecrypt := True;
-        FCryptObject.NeedEncrypt := ShardSetup.Encrypted;
-        if Assigned(FOnClientEncryptionDetected) Then FOnClientEncryptionDetected(Self, True, True);
+        if Assigned(FOnClientEncryptionDetected) Then FOnClientEncryptionDetected(Self, ctGame, cpGame);
         {$IFDEF Debug}
         WriteLn('Game encryption detected.');
         {$ENDIF}
@@ -383,27 +384,10 @@ Begin
       End;
     End;
   End Else Begin
-(*    If ShardSetup.Encrypted Then Begin
-      If FIncommingBuffer.Amount >= 4 Then Begin // Login phase
-        If (Buffer^[0] = $A8) and
-           (Buffer^[1] = $00) and
-           (Buffer^[2] =  46) and
-           (Buffer^[3] = $00) Then Begin
-          FCryptObject := TNoEncryption.Create;
-        End Else Begin // Game phase
-          FCryptObject := TGameEncryption.Create(htonl(FSeed));
-          FCryptObject.NeedDecrypt := True;
-        End;
-        Result := True;
-      End;
-    End Else Begin
-      FCryptObject := TNoEncryption.Create;
-      Result := True;
-    End;*)
     Result := True;
-  End;
-  If Result and Assigned(FCryptObject) Then Begin
-    FCryptObject.Decrypt(FIncommingBuffer.Base, 0, FIncommingBuffer.Amount);
+    {$IFDEF Debug}
+    WriteLn('You can''t see this.');
+    {$ENDIF}
   End;
 End;
 
@@ -481,6 +465,14 @@ begin
     EnQueueOutcommingPacket(Data, Length);
   End;
 end;
+
+procedure TPacketStream.SetCryptObject(Value: TNoEncryption);
+Begin
+  If Value <> FCryptObject Then Begin
+    If not Assigned(FCryptObject) Then Value.Decrypt(FIncommingBuffer.Base, 0, FIncommingBuffer.Amount);
+    FCryptObject := Value;
+  End;
+End;
 
 initialization
   TV_Timeout.tv_usec:=100;
