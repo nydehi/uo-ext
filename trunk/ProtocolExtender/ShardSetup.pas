@@ -13,6 +13,7 @@ var
   ItemSerialMax:Cardinal = $7FFFFFFF;
   MobileSerialMin:Cardinal = $30000001;
   MobileSerialMax:Cardinal = $3FFFFFFF;
+  Encrypted:Boolean = False;
 
 implementation
 

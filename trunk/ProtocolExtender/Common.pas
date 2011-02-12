@@ -2,6 +2,10 @@ unit Common;
 
 interface
 
+type
+  TByteArray = Array [0..32767] of Byte;
+  PByteArray = ^TByteArray;
+  
 function IntToStr(Value: Integer): string; overload;
 function IntToStr(Value: Int64): string; overload;
 function IntToHex(Value: Int64; Digits: Integer): string;
@@ -11,6 +15,8 @@ function UpperCase(const S: string): string;
 function FileExists(const AFilePath: String): Boolean;
 
 function ExtractFilePath(const FileName: string): string;
+
+function Trim(const S: string): string;
 
 implementation
 
@@ -87,6 +93,20 @@ begin
     Result := Copy(FileName, 1, i);
     Break;
   End;
+end;
+
+function Trim(const S: string): string;
+var
+  I, L: Integer;
+begin
+  L := Length(S);
+  I := 1;
+  while (I <= L) and (S[I] <= ' ') do Inc(I);
+  if I > L then Result := '' else
+  begin
+    while S[L] <= ' ' do Dec(L);
+    Result := Copy(S, I, L - I + 1);
+  end;
 end;
 
 end.

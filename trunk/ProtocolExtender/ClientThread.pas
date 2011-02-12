@@ -21,6 +21,7 @@ type
     procedure Write(What:String);
     procedure OnCSPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
     procedure OnSCPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
+    procedure OnCryptDetected(Sender:Tobject; CryptType: TCryptType; Phase: TCryptPhase);
   protected
     function Execute:Integer; override;
   public
@@ -36,7 +37,7 @@ var
 
 implementation
 
-uses Common, Plugins;
+uses Common, Plugins, Encryption, ShardSetup;
 //uses SysUtils;
 
 var
@@ -69,7 +70,6 @@ function TClientThread.Execute:Integer;
 var
   fs:TFDSet;
   ITrue:Integer;
-  bForceBreak:Boolean;
 begin
   Result:=-1;
   CurrentClientThread := Self;
@@ -85,35 +85,27 @@ begin
   FCSObj.OnPacket:=OnCSPacket;
   FSCObj.IsCliServ:=False;
   FCSObj.IsCliServ:=True;
+  FCSObj.OnClientEncryptionDetected:=OnCryptDetected;
   {$IFDEF Debug}
   FSCObj.DebugPresend:=IntToStr(FServerIp shr 24) + '.' + IntToStr((FServerIp shr 16) and $FF) + '.' + IntToStr((FServerIp shr 8) and $FF) + '.' + IntToStr(FServerIp and $FF) + ':' + IntToStr(FServerPort) + ' ';
   FCSObj.DebugPresend:=FSCObj.DebugPresend;
   {$ENDIF}
   Write('Client thread ready to work.');
-  bForceBreak:=False;
   repeat
     FD_ZERO(fs);
     FD_SET(FClientConnection, fs);
     FD_SET(FServerConnection, fs);
     select(0, @fs, nil, nil, @TV_Timeout);
     If FD_ISSET(FClientConnection, fs) Then Begin
-      If not FCSObj.ProcessNetworkData Then Begin
-        bForceBreak:=True;
-        Break;
-      end else FCSObj.Flush;
+      If not FCSObj.ProcessNetworkData Then Break;
     End;
-//    FD_ZERO(fs);
-//    select(0, @fs, nil, nil, @TV_Timeout);
     If FD_ISSET(FServerConnection, fs) Then Begin
-      If not FSCObj.ProcessNetworkData Then Begin
-        bForceBreak:=True;
-        Break;
-      end else FSCObj.Flush;
+      If not FSCObj.ProcessNetworkData Then Break;
     end;
     FCSObj.Flush;
     FSCObj.Flush;
     PluginSystem.CheckSyncEvent;
-  until FNeedExit or bForceBreak;
+  until FNeedExit;
   Write('Connection terminated by some reason.');
   Result:=0;
   ITrue:=0;
@@ -186,6 +178,39 @@ begin
   {$ENDIF}
   Result := Valid;
 end;
+
+procedure TClientThread.OnCryptDetected(Sender:TObject; CryptType: TCryptType; Phase: TCryptPhase);
+var
+  CSCrypt, SCCrypt: TNoEncryption;
+Begin
+  CSCrypt := nil;
+  SCCrypt := nil;
+  if Phase = cpLogin Then Begin
+    // Client -> Server use Login Encryption
+    // Server -> Client not encrypted
+    If (CryptType = ctLogin) or ShardSetup.Encrypted Then Begin
+      CSCrypt := TLoginEncryption.Create(htonl(FCSObj.Seed));
+      CSCrypt.NeedDecrypt := (CryptType = ctLogin);
+      CSCrypt.NeedEncrypt := ShardSetup.Encrypted;
+    End;
+  End Else If Phase = cpGame Then Begin
+    // Both ways Encrypted.
+    If (CryptType = ctGame) or ShardSetup.Encrypted Then Begin
+      CSCrypt := TGameEncryptionCS.Create(htonl(FCSObj.Seed));
+      SCCrypt := TGameEncryptionSC.Create(htonl(FCSObj.Seed));
+
+      CSCrypt.NeedDecrypt := (CryptType = ctGame);
+      SCCrypt.NeedEncrypt := (CryptType = ctGame);
+
+      CSCrypt.NeedEncrypt := ShardSetup.Encrypted;
+      SCCrypt.NeedDecrypt := ShardSetup.Encrypted;
+    End;
+  End;
+  If CSCrypt = nil Then CSCrypt := TNoEncryption.Create;
+  If SCCrypt = nil Then SCCrypt := TNoEncryption.Create;
+  FCSObj.CryptObject := CSCrypt;
+  FSCObj.CryptObject := SCCrypt;
+End;
 
 initialization
   TV_Timeout.tv_usec:=100;
