@@ -56,16 +56,20 @@ End;
 function Compress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer;
 Begin
   If not Initted Then
-    If not InitZLib('zlib32.dll', 'zlib64.dll') Then
+    If not InitZLib('zlib32.dll', 'zlib64.dll') Then begin
       Result := -6; //VersionError
+      Exit;
+    End;
   Result := zCompress2(dest, destLength, source, sourceLength, quality);
 End;
 
 function Decompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer;
 Begin
   If not Initted Then
-    If not InitZLib('zlib32.dll', 'zlib64.dll') Then
+    If not InitZLib('zlib32.dll', 'zlib64.dll') Then Begin
       Result := -6; //VersionError
+      Exit;
+    End;
   Result := zDecompress(dest, destLength, source, sourceLength);
 End;
 

@@ -148,9 +148,7 @@ Begin
       If (bitMask and cutMask) = (cValue and cutMask) Then Begin
         If j=256 Then Begin
           bitSet:=bitSet+UOTable[j*2];
-          Dec(bitRemain, UOTable[j*2]);
           If bitSet>=8 then Begin
-//            Source:=Pointer(Cardinal(Source)+bitSet div 8);
             Readed:=Readed+bitSet div 8;
             bitSet:=bitSet mod 8;
           End;

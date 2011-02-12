@@ -22,8 +22,10 @@ type
     property CliServCount:Byte read FCSCount;
     property ServCliCount:Byte read FSCCount;
     constructor Create;
-    function GetCliServLength(Data:Pointer; Length:Cardinal):Cardinal;
-    function GetServCliLength(Data:Pointer; Length:Cardinal):Cardinal;
+    function GetCliServLength(Data:Pointer; Length:Cardinal):Cardinal; overload;
+    function GetCliServLength(Header: Byte):Cardinal; overload;
+    function GetServCliLength(Data:Pointer; Length:Cardinal):Cardinal; overload;
+    function GetServCliLength(Header: Byte):Cardinal; overload;
     procedure AddPacketInfo(IsCliServ:Boolean; Packet:Byte; Length:Cardinal); overload;
     procedure AddPacketInfo(IsCliServ:Boolean; Packet:Byte; Handler:TPacketLengthDefinition); overload;
   end;
@@ -255,6 +257,12 @@ Begin
   End;
 End;
 
+function TProtocolDescription.GetCliServLength(Header: Byte):Cardinal;
+Begin
+  Result:=FCliServ[Header].Length;
+  If Result = 0 Then Result := $FFFFFFFF else if Result >= 1048576 Then Result := 0;
+End;
+
 function TProtocolDescription.GetServCliLength(Data:Pointer; Length:Cardinal):Cardinal;
 Begin
   Result:=0;
@@ -264,6 +272,12 @@ Begin
   End Else Begin
     Result:=FServCli[PByte(Data)^].Handler(Data, Length);
   End;
+End;
+
+function TProtocolDescription.GetServCliLength(Header: Byte):Cardinal;
+Begin
+  Result:=FServCli[Header].Length;
+  If Result = 0 Then Result := $FFFFFFFF else if Result >= 1048576 Then Result := 0;
 End;
 
 procedure TProtocolDescription.AddPacketInfo(IsCliServ:Boolean; Packet:Byte; Length:Cardinal);
