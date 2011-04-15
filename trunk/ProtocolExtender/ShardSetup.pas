@@ -6,7 +6,7 @@ type
   TSerialSupplyMethods = (ssmStatic, ssmProxy, ssmServer);
 
 var
-  LoginIP:String = '127.0.0.1';
+  LoginIP:AnsiString = '127.0.0.1';
   LoginPort:Word = 2593;
   SerialSupplyMethod: TSerialSupplyMethods = ssmStatic;
   ItemSerialMin:Cardinal = $70000001;

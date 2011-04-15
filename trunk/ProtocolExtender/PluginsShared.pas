@@ -35,7 +35,9 @@ type
   End;
   PAPIFunc=^RAPIFunc;
 
-  TInitializationProc = procedure (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
+  TUOExtInit = procedure (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
+  TProxyStart = procedure; stdcall;
+  TProxyEnd = procedure; stdcall;
 
   TRegisterPacketHandler = procedure(Header:Byte; Handler: TPacketHandler) stdcall;
   TUnRegisterPacketHandler = procedure(Header: Byte; Handler: TPacketHandler) stdcall;

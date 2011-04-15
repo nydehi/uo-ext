@@ -7,7 +7,7 @@ uses
   Packet in 'Common\Packet.pas';
 
 {$E plg}
-exports InitializationProc;
+exports UOExtInit;
 begin
 end.
  

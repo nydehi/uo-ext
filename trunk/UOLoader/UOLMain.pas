@@ -30,7 +30,7 @@ type
   end;
 
 function EnableDebugPrivilege():Boolean;
-Function InjectDll(Process: dword; ModulePath: PChar): boolean;
+Function InjectDll(Process: dword; ModulePath, InitProcedureName: PAnsiChar): boolean;
 Function RunUO(ExeName, InjectDllName:String):Boolean;
 var
   FMain: TFMain;
@@ -67,52 +67,86 @@ begin
  Result:=true;
 end;
 
-Function InjectDll(Process: dword; ModulePath: PChar): boolean;
+Function InjectDll(Process: dword; ModulePath, InitProcedureName: PAnsiChar): Boolean;
+const
+  InjectThreadSize = 568;
 var
   Memory:pointer;
-  Code: dword;
+  Code, ICode: dword;
   BytesWritten: dword;
   ThreadId: dword;
   hThread: dword;
   hKernel32: dword;
-  Inject: packed record
-           PushCommand:byte;
-           PushArgument:DWORD;
-           CallCommand:WORD;
-           CallAddr:DWORD;
-           PushExitThread:byte;
-           ExitThreadArg:dword;
-           CallExitThread:word;
-           CallExitThreadAddr:DWord;
-           AddrLoadLibrary:pointer;
-           AddrExitThread:pointer;
-           LibraryName:array[0..MAX_PATH] of char;
-          end;
+  pInject: Pointer;
 begin
-  Result := false;
-  Memory := VirtualAllocEx(Process, nil, sizeof(Inject),
+// Here is codegenerate for CreateRemoteThread procedure
+// Main idea is:
+//   hLibrary := LoadLibraryA('<ProtocolExtender.dll>');
+//   @pProcedure := GetProcAddress(hLibrary, 'CoreInitialize');
+//   pProcedure(); // stdcall, no params.
+//   ExitThread(0);
+// Asm code:
+//   PUSH <PointerToDllName>        ; 68 GG GG GG GG
+//   CALL <PointerToLoadLibraryA>   ; 15 FF HH HH HH HH ; EAX = hLibrary
+//   PUSH <PointerToCoreInitialize> ; 68 II II II II
+//   PUSH EAX                       ; 50
+//   CALL <PointerToGetProcAddress> ; 15 FF JJ JJ JJ JJ ; EAX = @pProcedure
+//   CALL EAX                       ; D0 FF
+//   PUSH 0                         ; 00 6A
+//   CALL <PointerToExitThread>     ; 15 FF KK KK KK KK
+//
+// Addr  00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
+// 0000: 68 GG GG GG GG 15 FF HH HH HH HH 68 II II II II
+// 0010: 50 15 FF JJ JJ JJ JJ FF D0 6A 00 15 FF KK KK KK
+// 0020: KK
+// Code ends here. Data begins here.
+// 0020:    hh hh hh hh jj jj jj jj kk kk kk kk
+// 002D - 0132 : DllName: Array [0..MAX_PATH] of Byte; Addr of GG GG GG GG
+// 0133 - 0237 : DllInitProc: Array [0..MAX_PATH] of Byte; Addr of II II II II
+//
+// Needed memory: 568 bytes.
+
+
+  Result := False;
+  Memory := VirtualAllocEx(Process, nil, InjectThreadSize,
                            MEM_COMMIT, PAGE_EXECUTE_READWRITE);
   if Memory = nil then Exit;
 
   Code := dword(Memory);
-  //инициализация внедряемого кода:
-  Inject.PushCommand    := $68;
-  inject.PushArgument   := code + $1E;
-  inject.CallCommand    := $15FF;
-  inject.CallAddr       := code + $16;
-  inject.PushExitThread := $68;
-  inject.ExitThreadArg  := 0;
-  inject.CallExitThread := $15FF;
-  inject.CallExitThreadAddr := code + $1A;
+
+  pInject := GetMemory(InjectThreadSize);
+  ICode := DWord(pInject);
   hKernel32 := GetModuleHandle('kernel32.dll');
-  inject.AddrLoadLibrary := GetProcAddress(hKernel32, 'LoadLibraryA');
-  inject.AddrExitThread  := GetProcAddress(hKernel32, 'ExitThread');
-  lstrcpy(@inject.LibraryName, ModulePath);
+
+  PByte(pInject)^        := $68;          // PUSH OpCode
+  PDWord(ICode + $01)^   := Code + $2D;   // PUSH Argument
+  PWord(ICode  + $05)^   := $15FF;        // Call OpCode (LoadLibraryA)
+  PDWord(ICode + $07)^   := Code + $21;   // Call Argument
+  PByte(ICode  + $0B)^   := $68;          // PUSH OpCode
+  PDWord(ICode + $0C)^   := Code + $0133; // PUSH Argument
+  PByte(ICode  + $10)^   := $50;          // PUSH EAX OpCode
+  PWord(ICode  + $11)^   := $15FF;        // Call OpCode (GetProcAddr)
+  PDWord(ICode + $13)^   := Code + $25;   // Call Argument
+  PWord(ICode  + $17)^   := $D0FF;        // CALL EAX OpCode
+  PWord(ICode  + $19)^   := $006A;        // PUSH 0 OpCode
+  PWord(ICode  + $1B)^   := $15FF;        // Call OpCode (ExitThread)
+  PDWord(ICode + $1D)^   := Code + $29;   // Call Argument
+  // Code generation ends. Procedure pointers begin.
+  PDWord(ICode + $21)^   := DWord(GetProcAddress(hKernel32, 'LoadLibraryA'));
+  PDWord(ICode + $25)^   := DWord(GetProcAddress(hKernel32, 'GetProcAddress'));
+  PDWord(ICode + $29)^   := DWord(GetProcAddress(hKernel32, 'ExitThread'));
+  // Procedure pointers end. String constants begin.
+  lstrcpyA(PAnsiChar(ICode + $2D), ModulePath);
+  lstrcpyA(PAnsiChar(ICode + $0133), InitProcedureName);
+
   //записать машинный код по зарезервированному адресу
-  WriteProcessMemory(Process, Memory, @inject, sizeof(inject), BytesWritten);
+  WriteProcessMemory(Process, Memory, pInject, InjectThreadSize, BytesWritten);
+  FreeMemory(pInject);
   //выполнить машинный код
   hThread := CreateRemoteThread(Process, nil, 0, Memory, nil, 0, ThreadId);
+
   if hThread = 0 then Exit;
+  WaitForSingleObject(hThread, INFINITE);
   CloseHandle(hThread);
   Result := True;
 end;
@@ -122,6 +156,7 @@ var
   ExeDir:String;
   Si:STARTUPINFO;
   Pi:PROCESS_INFORMATION;
+  InjectDllPath: AnsiString;
 begin
   Result := False;
   if not EnableDebugPrivilege then begin
@@ -131,7 +166,8 @@ begin
   ExeDir:=ExtractFileDir(ExeName);
   GetStartupInfo(Si);
   CreateProcess(PChar(ExeName), nil, nil, nil, False, CREATE_SUSPENDED, nil, PChar(ExeDir), Si, Pi);
-  if not InjectDll(Pi.hProcess,  PCHar(IncludeTrailingPathDelimiter(ExtractFilePath(Application.ExeName))+InjectDllName)) then begin
+  InjectDllPath := AnsiString(IncludeTrailingPathDelimiter(ExtractFilePath(Application.ExeName))+InjectDllName) + #0;
+  if not InjectDll(Pi.hProcess,  @InjectDllPath[1], 'CoreInitialize') then begin
     MessageBox(0, PChar('Не удалось сделать инъекцию в '+ExeName+#13#10+'Возможно нет прав или не хватает ' + InjectDllName + #13#10+'УО запустится в обычном режиме.'), nil, MB_OK);
   end;
   ResumeThread(Pi.hThread);

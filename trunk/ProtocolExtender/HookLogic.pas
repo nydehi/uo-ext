@@ -2,24 +2,40 @@ unit HookLogic;
 
 interface
 
-uses Windows, APIHooker, ShardSetup, ListeningThread;
+uses Windows, APIHooker, ShardSetup, ListeningThread, PluginsShared;
+
+
 procedure HookIt;
 
 implementation
 
 uses Common, Plugins;
 
+type
+  TMappedFileInfo=record
+    FileName: PAnsiChar;
+    WantedWorkMethod: Cardinal;
+
+    Handle: THandle;
+    Access: Cardinal;
+    ShareMode: Cardinal;
+    MappingHandle: THandle;
+    MappingProtect: Cardinal;
+    ClientDataMap: Pointer;
+    DesiredAccess: Cardinal;
+  end;
+
 var
   hLoginCFG: THandle;
   cLoginCFGPos: Cardinal;
-  LoginCFG: String;
+  LoginCFG: AnsiString;
   filledBytes: Cardinal;
 
 function CreateFileAHook(lpFileName: PAnsiChar; dwDesiredAccess, dwShareMode: DWORD;
   lpSecurityAttributes: PSecurityAttributes; dwCreationDisposition, dwFlagsAndAttributes: DWORD;
   hTemplateFile: THandle): THandle; stdcall;
 var
-  s:String;
+  s:AnsiString;
   i:integer;
 begin
   s:=lpFileName;
@@ -33,9 +49,9 @@ begin
   until i=0;
   s := UpperCase(s);
 
-  Hooker.TrueAPI(@CreateFileAHook);
+  THooker.Hooker.TrueAPI;
   Result:=CreateFileA(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
-  Hooker.TrueAPIEnd(@CreateFileAHook);
+  THooker.Hooker.TrueAPIEnd;
 
   If s = 'LOGIN.CFG' Then Begin
     hLoginCFG := Result;
@@ -47,9 +63,6 @@ begin
     WriteLn('HookLogic: Login.cfg:');
     WriteLn('HookLogic: ', LoginCFG);
     {$ENDIF}
-    Hooker.TrueAPI;
-    PluginSystem.Initialize;
-    Hooker.TrueAPIEnd;
     filledBytes := 0;
   end;
 end;
@@ -69,18 +82,18 @@ begin
     CopyMemory(@Buffer, @LoginCFG[cLoginCFGPos + 1], lpNumberOfBytesRead);
     cLoginCFGPos := cLoginCFGPos + lpNumberOfBytesRead;
   End Else Begin
-    Hooker.TrueAPI(@ReadFileHook);
+    THooker.Hooker.TrueAPI;
     Result := ReadFile(hFile, Buffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped);
-    Hooker.TrueAPIEnd(@ReadFileHook);
+    THooker.Hooker.TrueAPIEnd;
   End;
 end;
 
 function CloseHandleHook(hObject: THandle): BOOL; stdcall;
 begin
-  Hooker.TrueAPI(@CloseHandleHook);
+  THooker.Hooker.TrueAPI;
   Result := CloseHandle(hObject);
-  Hooker.TrueAPIEnd(@CloseHandleHook);
-  If Result Then Begin
+  THooker.Hooker.TrueAPIEnd;
+  If Boolean(Result) Then Begin
     If hObject = hLoginCFG Then Begin
       hLoginCFG := INVALID_HANDLE_VALUE;
       cLoginCFGPos := 0;
@@ -94,10 +107,10 @@ end;
 
 procedure HookIt;
 begin
-  Hooker.HookFunction(@CreateFileAHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CreateFileA'));
-  Hooker.HookFunction(@ReadFileHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'ReadFile'));
-  Hooker.HookFunction(@CloseHandleHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CloseHandle'));
-  Hooker.InjectIt;
+  THooker.Hooker.HookFunction(@CreateFileAHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CreateFileA'));
+  THooker.Hooker.HookFunction(@ReadFileHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'ReadFile'));
+  THooker.Hooker.HookFunction(@CloseHandleHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CloseHandle'));
+  THooker.Hooker.InjectIt;
 end;
 
 end.

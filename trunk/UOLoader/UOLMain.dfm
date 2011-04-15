@@ -1,10 +1,10 @@
 object FMain: TFMain
   Left = 555
   Top = 160
-  Width = 320
-  Height = 150
   BorderIcons = [biSystemMenu]
   Caption = #1047#1072#1075#1088#1091#1079#1095#1080#1082
+  ClientHeight = 112
+  ClientWidth = 304
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText

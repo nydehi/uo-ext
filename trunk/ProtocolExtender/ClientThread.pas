@@ -18,7 +18,7 @@ type
     FCSObj:TPacketStream;
     FSCObj:TPacketStream;
     function ConnectToServer:Boolean;
-    procedure Write(What:String);
+    procedure Write(What:AnsiString);
     procedure OnCSPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
     procedure OnSCPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
     procedure OnCryptDetected(Sender:Tobject; CryptType: TCryptType; Phase: TCryptPhase);
@@ -38,12 +38,11 @@ var
 implementation
 
 uses Common, Plugins, Encryption, ShardSetup;
-//uses SysUtils;
 
 var
   TV_Timeout:timeval;
 
-procedure TClientThread.Write(What:String);
+procedure TClientThread.Write(What:AnsiString);
 begin
   {$IFDEF DEBUG}
   WriteLn(FServerIp shr 24, '.', (FServerIp shr 16) and $FF, '.', (FServerIp shr 8) and $FF, '.', FServerIp and $FF, ':', FServerPort, ' ', What);
@@ -74,6 +73,7 @@ begin
   Result:=-1;
   CurrentClientThread := Self;
   Write('Thread in.');
+  PluginSystem.ProxyStart;
   If not ConnectToServer Then Exit;
   ITrue:=1;
   ioctlsocket(FClientConnection, FIONBIO, ITrue);
@@ -116,12 +116,13 @@ begin
   FCSObj.Free;
   FSCObj.Free;
   If CurrentClientThread = Self Then CurrentClientThread := nil;
+  PluginSystem.ProxyEnd;
   Write('Thread out.');
 end;
 
 procedure TClientThread.OnCSPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
 begin
-  {$IFDEF Debug}
+  {$IFDEF WRITELOG}
   Write('C->S: Packet: Header: 0x' + IntToHex(PByte(Packet)^, 2) + ' Length: ' + IntToStr(Length));
   WriteDump(Packet, Length);
   {$ENDIF}
@@ -142,7 +143,7 @@ end;
 
 procedure TClientThread.OnSCPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
 begin
-  {$IFDEF Debug}
+  {$IFDEF WRITELOG}
   Write('S->C: Packet: Header: 0x' + IntToHex(PByte(Packet)^, 2) + ' Length: ' + IntToStr(Length));
   WriteDump(Packet, Length);
   {$ENDIF}
@@ -173,7 +174,9 @@ begin
   {$IFDEF DEBUG}
   If not Valid Then begin
     Write('Plugin''s packet is not correct. Size: ' + IntToStr(oldSize) + ' Expected: ' + IntToStr(Length));
+    {$IFDEF WRITELOG}
     WriteDump(Packet, oldSize);
+    {$ENDIF}
   End;
   {$ENDIF}
   Result := Valid;

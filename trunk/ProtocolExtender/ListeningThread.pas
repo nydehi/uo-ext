@@ -8,7 +8,6 @@ uses Windows, WinSock, AbstractThread, ClientThread, ShardSetup;
 implementation
 
 uses Common
-//, SysUtils
 ;
 
 type
