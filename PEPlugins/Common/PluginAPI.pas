@@ -6,6 +6,8 @@ uses PluginsShared;
 
 type
   TPluginInitialization = procedure;
+  TProxyStartEvent = procedure;
+  TProxyEndEvent = procedure;
 
   TPluginApi = class
   private
@@ -21,10 +23,17 @@ type
     FAskSyncEvent: TAskSyncEvent;
 
     FInterlockedValue: Pointer;
+
+    FProxyStart: TProxyStartEvent;
+    FProxyEnd: TProxyEndEvent;
   protected
     procedure RegisterAPIFuncs(APICount: Cardinal; anAPIDescriptors: PAPIFunc);
+    procedure DoProxyStart;
+    procedure DoProxyEnd;
   public
     property InterlockedValue: Pointer read FInterlockedValue;
+    property OnProxyStart: TProxyStartEvent read FProxyStart write FProxyStart;
+    property OnProxyEnd: TProxyEndEvent read FProxyEnd write FProxyEnd;
 
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
@@ -41,7 +50,9 @@ type
     constructor Create;
   end;
 
-  procedure InitializationProc (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
+  procedure UOExtInit (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
+  procedure ProxyStart; stdcall;
+  procedure ProxyEnd; stdcall;
 
 var
   API : TPluginApi;
@@ -53,11 +64,21 @@ uses SysUtils;
 
 // Procedures
 
-procedure InitializationProc (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
+procedure UOExtInit (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
 begin
   API.RegisterAPIFuncs(APICount, anAPIFunc);
   If Assigned(PluginInitialization) Then PluginInitialization();
 end;
+
+procedure ProxyStart stdcall;
+Begin
+  API.DoProxyStart;
+End;
+
+procedure ProxyEnd stdcall;
+Begin
+  API.DoProxyEnd;
+End;
 
 // TPluginApi
 
@@ -158,6 +179,16 @@ Begin
   If FInterlockedValue = nil Then Raise Exception.Create('You are trying to AskSyncEvent without supplying SyncEventHandler.');
   FAskSyncEvent(FInterlockedValue);
 End;
+
+procedure TPluginApi.DoProxyStart;
+begin
+  if Assigned(FProxyStart) then FProxyStart();
+end;
+
+procedure TPluginApi.DoProxyEnd;
+begin
+  if Assigned(FProxyEnd) then FProxyEnd();
+end;
 
 initialization
   API := TPluginApi.Create;

@@ -51,7 +51,7 @@ type
     FIsCliServ:Boolean;
 
     {$IFDEF Debug}
-    FDebugPresent:String;
+    FDebugPresent:AnsiString;
     {$ENDIF}
 
     FCryptObject: TNoEncryption;
@@ -66,7 +66,7 @@ type
     procedure SetCryptObject(Value: TNoEncryption);
   public
     {$IFDEF Debug}
-    property DebugPresend:String read FDebugPresent write FDebugPresent;
+    property DebugPresend:AnsiString read FDebugPresent write FDebugPresent;
     {$ENDIF}
     property IncommingSocket:TSocket read FIncommingSocket;
     property OutcommingSocket:TSocket read FOutcommingSocket;
@@ -87,7 +87,7 @@ type
     procedure Flush; virtual;
   end;
 
-  {$IFDEF Debug}
+  {$IFDEF WRITELOG}
   procedure WriteDump(Point:Pointer; Len:Cardinal);
   {$ENDIF}
 
@@ -100,10 +100,10 @@ var
 
 // Local procedures
 
-{$IFDEF DEBUG}
+{$IFDEF WRITELOG}
 procedure WriteDump(Point:Pointer; Len:Cardinal);
 var
-  cLine:String;
+  cLine:AnsiString;
   cPos:Cardinal;
 begin
   If Len>0 Then Begin
@@ -242,7 +242,7 @@ procedure TPacketStream.EnQueueOutcommingPacket(Packet:Pointer; Length:Cardinal)
 const
   EncodedLength:Cardinal=65536;
 var
-  Encoded:Array [0..65535] of Char;
+  Encoded:Array [0..65535] of AnsiChar;
   EncodedLen:Cardinal;
   pOldWork: Pointer;
 begin
@@ -299,7 +299,7 @@ begin
   Readed := recv(FIncommingSocket, FIncommingBuffer.WritePoint^, Readed, 0);
   If (Readed = SOCKET_ERROR) or (Readed = 0) Then Exit;
 
-  {$IFDEF Debug}
+  {$IFDEF WRITELOG}
   If FIsCliServ Then Begin
     WriteLn('Cli -> Srv: Packet recived. Length: ', Readed);
   End Else Begin
@@ -397,7 +397,7 @@ const
 var
   PacketLength:Cardinal;
 
-  Decoded:Array [0..70000] of Char;
+  Decoded:Array [0..70000] of AnsiChar;
   DecodedLen:Cardinal;
   SourceLen:Cardinal;
 begin

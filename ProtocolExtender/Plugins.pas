@@ -4,10 +4,12 @@ interface
 
 uses Windows, PluginsShared;
 
+const
+  MAXPLUGINIDONPAGE = 9;
 type
   PPluginPage = ^TPluginPage;
   TPluginPage = record
-    Plugins: Array [0..9] of TObject;
+    Plugins: Array [0..MAXPLUGINIDONPAGE] of TObject;
     Next: PPluginPage;
   end;
 
@@ -23,13 +25,20 @@ type
     FOnUnregisterPacketHandler: TOnRegisterPacketHandler;
     FOnRegisterPacketType: TOnRegisterPacketType;
     FSyncEventCount: Integer;
+
+    FCurrentPluginId: Byte;
+    FCurrentPluginPage: PPluginPage;
+    function First:Boolean;
+    function Next:Boolean;
   public
     property Count: Cardinal read FCount;
     property OnRegisterPacketHandler: TOnRegisterPacketHandler read FOnRegisterPacketHandler write FOnRegisterPacketHandler;
     property OnUnRegisterPacketHandler: TOnRegisterPacketHandler read FOnUnregisterPacketHandler write FOnUnregisterPacketHandler;
     property OnRegisterpacketType: TOnRegisterPacketType read FOnRegisterPacketType write FOnRegisterPacketType;
-    function AddPlugin(APluginPath: String): Boolean;
+    function AddPlugin(APluginPath: AnsiString): Boolean;
     procedure Initialize;
+    procedure ProxyStart;
+    procedure ProxyEnd;
     function ClienToServerPacket(Data: Pointer; var Size:Cardinal): Boolean;
     function ServerToClientPacket(Data: Pointer; var Size:Cardinal): Boolean;
     procedure CheckSyncEvent;
@@ -43,7 +52,6 @@ var
 implementation
 
 uses Common
-//, SysUtils
 , ClientThread, ProtocolDescription, Serials, zLib, HookLogic;
 
 type
@@ -51,19 +59,22 @@ type
 
   TPlugin=class
   private
-    FPluginPath: String;
+    FPluginPath: AnsiString;
     FHandlers: TProtocolHandlerArray;
     FDllHandle: THandle;
     FLoaded: Boolean;
     FSyncEventCount: Integer;
     FEventCallback: TSyncEvent;
+    function CallInitializationProc:Boolean;
   public
-    property PluginPath: String read FPluginPath;
+    property PluginPath: AnsiString read FPluginPath;
     property SyncEventCount: Integer read FSyncEventCount;
-    constructor Create(APluginPath: String);
+    constructor Create(APluginPath: AnsiString);
     destructor Destroy; override;
 
     function Load: Boolean;
+    procedure ProxyStart;
+    procedure ProxyEnd;
     function HandlePacket(Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean;
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
@@ -116,7 +127,7 @@ end;
 
 // TPlugin
 
-constructor TPlugin.Create(APluginPath: String);
+constructor TPlugin.Create(APluginPath: AnsiString);
 begin
   Inherited Create;
   FPluginPath := APluginPath;
@@ -129,22 +140,29 @@ begin
   Inherited;
 end;
 
-function TPlugin.Load: Boolean;
+function TPlugin.CallInitializationProc:Boolean;
 var
-  funcIp: TInitializationProc;
-begin
+  funcIp: TUOExtInit;
+Begin
   Result := False;
-  If not FileExists(FPluginPath) then Exit;
-  FDllHandle := LoadLibrary(PChar(FPluginPath));
-  If FDllHandle = INVALID_HANDLE_VALUE Then Exit;
-  @funcIp := GetProcAddress(FDllHandle, 'InitializationProc');
-  If not Assigned(funcIp) Then Begin
-    FreeLibrary(FDllHandle);
-    Exit;
-  End;
+  @funcIp := GetProcAddress(FDllHandle, 'UOExtInit');
+  If not Assigned(funcIp) Then Exit;
   aCurrentPlugin := Self;
   funcIp(LastAPIFuncNum, @API[0]);
   aCurrentPlugin := nil;
+  Result := True;
+End;
+
+function TPlugin.Load: Boolean;
+begin
+  Result := False;
+  If not FileExists(FPluginPath) then Exit;
+  FDllHandle := LoadLibraryA(PAnsiChar(FPluginPath));
+  If FDllHandle = INVALID_HANDLE_VALUE Then Exit;
+  If not CallInitializationProc Then Begin
+    FreeLibrary(FDllHandle);
+    Exit;
+  End;
   FLoaded := True;
   Result := True;
 end;
@@ -168,6 +186,30 @@ procedure TPlugin.UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
 begin
   FHandlers[Header] := nil;
 end;
+
+procedure TPlugin.ProxyEnd;
+var
+  funcCp: TProxyEnd;
+Begin
+  @funcCP := GetProcAddress(FDllHandle, 'ProxyEnd');
+  If Assigned(funcCP) Then Begin
+    aCurrentPlugin := Self;
+    funcCP;
+    aCurrentPlugin := nil;
+  End;
+End;
+
+procedure TPlugin.ProxyStart;
+var
+  funcCp: TProxyStart;
+Begin
+  @funcCP := GetProcAddress(FDllHandle, 'ProxyStart');
+  If Assigned(funcCP) Then Begin
+    aCurrentPlugin := Self;
+    funcCP;
+    aCurrentPlugin := nil;
+  End;
+End;
 
 // TPlugins
 
@@ -196,7 +238,37 @@ begin
   Inherited;
 end;
 
-function TPlugins.AddPlugin(APluginPath: String): Boolean;
+function TPlugins.First:Boolean;
+Begin
+  Result := FPlugins <> nil;
+  If Result Then Begin
+    FCurrentPluginPage := FPlugins;
+    FCurrentPluginId := 0;
+    If FPlugins^.Plugins[0] = nil Then Result := Next;
+  End;
+End;
+
+function TPlugins.Next:Boolean;
+var
+  i: Byte;
+Begin
+  Result := True;
+  If FCurrentPluginId <> MAXPLUGINIDONPAGE Then For i := FCurrentPluginId + 1 to MAXPLUGINIDONPAGE do Begin
+    If FCurrentPluginPage^.Plugins[i] <> nil Then Begin
+      FCurrentPluginId := i;
+      Exit;
+    End;
+  End;
+  If FCurrentPluginPage^.Next = nil Then Begin
+    Result := False;
+    Exit;
+  End;
+  FCurrentPluginPage := FCurrentPluginPage^.Next;
+  FCurrentPluginId := 0;
+  If FCurrentPluginPage^.Plugins[0] = nil Then Result := Next;
+End;
+
+function TPlugins.AddPlugin(APluginPath: AnsiString): Boolean;
 var
   CPlugins: PPluginPage;
   CPlugin: TPlugin;
@@ -241,14 +313,20 @@ end;
 
 procedure TPlugins.Initialize;
 var
-  sPlgFolder, sSearch: String;
-  SR: WIN32_FIND_DATA;
+  sPlgFolder, sSearch: AnsiString;
+  SR: WIN32_FIND_DATAA;
   hSearch: THandle;
 Begin
-  sPlgFolder := ExtractFilePath(ParamStr(0)) + 'Plugins\';
-  sSearch := sPlgFolder + '*.plg' + #0;
-  ZeroMemory(@SR, SizeOf(WIN32_FIND_DATA));
-  hSearch := FindFirstFile(@sSearch[1], SR);
+  if FInitialized then begin
+    MessageBox(0, 'You found it!', nil, MB_OK);
+  End;
+  {$IFDEF DEBUG}
+  WriteLn('Plugins: Loading plugins from HDD.');
+  {$ENDIF}
+  sPlgFolder := ExtractFilePath(AnsiString(ParamStr(0))) + 'Plugins\';
+  sSearch := sPlgFolder + '*.dll' + #0;
+  ZeroMemory(@SR, SizeOf(SR));
+  hSearch := FindFirstFileA(@sSearch[1], SR);
   If hSearch <> INVALID_HANDLE_VALUE Then Begin
     Repeat
       If (SR.dwFileAttributes AND FILE_ATTRIBUTE_DIRECTORY) = FILE_ATTRIBUTE_DIRECTORY Then Continue;
@@ -259,72 +337,64 @@ Begin
 {$IFDEF DEBUG}
       WriteLn('done.');
 {$ENDIF}
-    until not FindNextFile(hSearch, SR);
+    until not FindNextFileA(hSearch, SR);
     Windows.FindClose(hSearch);
   End;
+  FInitialized := True;
 End;
 
 function TPlugins.ClienToServerPacket(Data: Pointer; var Size:Cardinal): Boolean;
 var
-  CPlugins: PPluginPage;
-  i: Byte;
   bSend: Boolean;
 begin
-  Result := False;
   bSend := True;
-  If FPlugins = nil Then Exit;
-  CPlugins := FPlugins;
-  while (CPlugins <> nil) and (not Result) do Begin
-    For i:= 0 to 9 do If CPlugins^.Plugins[i] <> nil Then Begin
-      Result := TPlugin(CPlugins^.Plugins[i]).HandlePacket(Data, Size, bSend, False);
-      If Result or not bSend Then Break;
-    End;
-    CPlugins := CPlugins.Next;
-  End;
+  If First Then repeat
+    Result := TPlugin(FCurrentPluginPage^.Plugins[FCurrentPluginId]).HandlePacket(Data, Size, bSend, False);
+    If Result or not bSend Then Break;
+  until not Next;
   Result := bSend;
 end;
 
 function TPlugins.ServerToClientPacket(Data: Pointer; var Size:Cardinal): Boolean;
 var
-  CPlugins: PPluginPage;
-  i: Byte;
   bSend: Boolean;
 begin
-  Result := False;
   bSend := True;
-  If FPlugins = nil Then Exit;
-  CPlugins := FPlugins;
-  while (CPlugins <> nil) and not (Result or not bSend) do Begin
-    For i:= 0 to 9 do If CPlugins^.Plugins[i] <> nil Then Begin
-      Result := TPlugin(CPlugins^.Plugins[i]).HandlePacket(Data, Size, bSend, True);
-      If Result or not bSend Then Break;
-    End;
-    CPlugins := CPlugins.Next;
-  End;
+  If First Then repeat
+    Result := TPlugin(FCurrentPluginPage^.Plugins[FCurrentPluginId]).HandlePacket(Data, Size, bSend, True);
+    If Result or not bSend Then Break;
+  until not Next;
   Result := bSend;
 end;
 
 procedure TPlugins.CheckSyncEvent;
 var
-  CPlugins: PPluginPage;
-  i: Byte;
+  cPlugin: TPlugin;
 begin
   If InterlockedExchange(FSyncEventCount, 0) > 0 Then begin
-    If FPlugins = nil Then Exit;
-    CPlugins := FPlugins;
-    while (CPlugins <> nil) do Begin
-      For i:= 0 to 9 do If (CPlugins^.Plugins[i] <> nil) Then Begin
-        If InterlockedExchange(TPlugin(CPlugins^.Plugins[i]).FSyncEventCount, 0) > 0 Then Begin
-          If Assigned(TPlugin(CPlugins^.Plugins[i]).FEventCallback) Then Begin
-            aCurrentPlugin := TPlugin(CPlugins^.Plugins[i]);
-            TPlugin(CPlugins^.Plugins[i]).FEventCallback();
-            aCurrentPlugin := nil;
-          End;
+    If First Then repeat
+      cPlugin := TPlugin(FCurrentPluginPage^.Plugins[FCurrentPluginId]);
+      If InterlockedExchange(cPlugin.FSyncEventCount, 0) > 0 Then Begin
+        If Assigned(cPlugin.FEventCallback) Then Begin
+          cPlugin.FEventCallback();
         End;
       End;
-      CPlugins := CPlugins.Next;
-    End;
+    until not Next;
   End;
+end;
+
+procedure TPlugins.ProxyEnd;
+begin
+  If First Then repeat
+    TPlugin(FCurrentPluginPage^.Plugins[FCurrentPluginId]).ProxyEnd;
+  until not Next;
+end;
+
+procedure TPlugins.ProxyStart;
+begin
+  If First Then repeat
+    TPlugin(FCurrentPluginPage^.Plugins[FCurrentPluginId]).ProxyStart;
+  until not Next;
 end;
 
 initialization

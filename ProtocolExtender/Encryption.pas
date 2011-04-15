@@ -93,7 +93,7 @@ End;
 
 constructor TLoginEncryption.Create(Seed: Cardinal);
 var
-  ExeName : Array [0..MAX_PATH] of Char;
+  ExeName : Array [0..MAX_PATH] of AnsiChar;
   ExeNameLength, cTmp, cFVLen, cFileVersionLen: Cardinal;
   pFileVersion, pFileInfo: Pointer;
   cMajor, cMinor, cBuild: Cardinal;

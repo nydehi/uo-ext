@@ -17,76 +17,71 @@ type
     two: word;
   end;
 
-//  TFunctionHooker=class;
-{  private
+  TFunctionHooker=class
+  protected
     FHooked: Boolean;
     FTrueSetted: Boolean;
     FOldData: ROldCode;
     FInject: RInjectCode;
     FLock: TRTLCriticalSection;
     FOriginalFunction: Pointer;
-  protected
-    procedure Inject;
-    procedure BeginTrueFunction;
-    procedure EndTrueFunction;
+    FTrueFuncRequests: Integer;
   public
+    procedure Inject; virtual;
+    procedure BeginTrueFunction; virtual;
+    procedure EndTrueFunction; virtual;
     constructor Create(AInjectFunction, AOriginalFunction: Pointer);
     destructor Destroy; override;
-  end;}
+  end;
+
+  TFunctionHookerClass = class of TFunctionHooker;
 
   PHookRecord=^THookRecord;
   THookRecord=record
-    AHooks: Array [0..9] of TObject;
+    AHooks: Array [0..9] of TFunctionHooker;
     ANext: PHookRecord;
   end;
 
   THooker=class
   private
     FHooks:PHookRecord;
+  protected
+    constructor Create;
   public
-    procedure HookFunction(AInjectFunction, AOriginalFunction: Pointer);
+    procedure HookFunction(AInjectFunction, AOriginalFunction: Pointer); overload;
+    procedure HookFunction(AInjectFunction, AOriginalFunction: Pointer; HookClass: TFunctionHookerClass); overload;
     procedure InjectIt;
     procedure TrueAPI; overload;
     procedure TrueAPI(AFunction: Pointer); overload;
     procedure TrueAPIEnd; overload;
     procedure TrueAPIEnd(AFunction: Pointer); overload;
 
-    constructor Create;
     destructor Destroy; override;
-  end;
 
-var
-  Hooker : THooker;
+    class function Hooker: THooker;
+  end;
 
 implementation
 
-uses TLHelp32, Common;
+uses Common;
+
+var
+  HookerInstance : THooker;
+
 
 const
   THREAD_SUSPEND_RESUME = $0002;
 
-type
-  TFunctionHooker=class
-  private
-    FHooked: Boolean;
-    FTrueSetted: Boolean;
-    FOldData: ROldCode;
-    FInject: RInjectCode;
-    FLock: TRTLCriticalSection;
-    FOriginalFunction: Pointer;
-  protected
-    procedure Inject;
-    procedure BeginTrueFunction;
-    procedure EndTrueFunction;
-  public
-    constructor Create(AInjectFunction, AOriginalFunction: Pointer);
-    destructor Destroy; override;
-  end;
-
 Function OpenThread(dwDesiredAccess: dword; bInheritHandle: bool; dwThreadId: dword):dword;
                     stdcall; external 'kernel32.dll';
 
-  // TFunctionHooker
+// TFunctionHooker
+
+class function THooker.Hooker: THooker;
+Begin
+  If not Assigned(HookerInstance) Then HookerInstance := THooker.Create;
+  Result := HookerInstance;
+End;
 
 constructor TFunctionHooker.Create(AInjectFunction, AOriginalFunction: Pointer);
 begin
@@ -97,6 +92,7 @@ begin
   FHooked := False;
   FTrueSetted := False;
   FOriginalFunction := AOriginalFunction;
+  FTrueFuncRequests := 0;
   InitializeCriticalSection(FLock);
 end;
 
@@ -117,24 +113,37 @@ var
   Writen:Cardinal;
 begin
   ReadProcessMemory(GetCurrentProcess, FOriginalFunction, @FOldData, SizeOf(FOldData), Writen);
+  {$IFDEF DEBUG}
+  If Writen <> SizeOf(FOldData) Then Begin
+    MessageBox(0, 'Inject. Readed wrong size', nil, MB_OK);
+    Halt(1);
+  End;
+  {$ENDIF}
   WriteProcessMemory(GetCurrentProcess, FOriginalFunction, @FInject, SizeOf(FInject), Writen);
+  {$IFDEF DEBUG}
+  If Writen <> SizeOf(FInject) Then Begin
+    MessageBox(0, 'Inject. Written wrong size', nil, MB_OK);
+    Halt(1);
+  End;
+  {$ENDIF}
 end;
 
 procedure TFunctionHooker.BeginTrueFunction;
 var
   Writen:Cardinal;
 begin
-  EnterCriticalSection(FLock);
   WriteProcessMemory(GetCurrentProcess, FOriginalFunction, @FOldData, SizeOf(FOldData), Writen);
+  FTrueSetted := True;
 end;
 
 procedure TFunctionHooker.EndTrueFunction;
-var
-  Writen:Cardinal;
+//var
+//  Writen:Cardinal;
 begin
-  ReadProcessMemory(GetCurrentProcess, FOriginalFunction, @FOldData, SizeOf(FOldData), Writen);
-  WriteProcessMemory(GetCurrentProcess, FOriginalFunction, @FInject, SizeOf(FInject), Writen);
-  LeaveCriticalSection(FLock);
+  Inject;
+//  ReadProcessMemory(GetCurrentProcess, FOriginalFunction, @FOldData, SizeOf(FOldData), Writen);
+//  WriteProcessMemory(GetCurrentProcess, FOriginalFunction, @FInject, SizeOf(FInject), Writen);
+  FTrueSetted := False;
 end;
  // THooker
 
@@ -162,14 +171,14 @@ begin
   Inherited;
 end;
 
-procedure THooker.HookFunction(AInjectFunction, AOriginalFunction: Pointer);
+procedure THooker.HookFunction(AInjectFunction, AOriginalFunction: Pointer; HookClass: TFunctionHookerClass);
 var
   pCurrentRec: PHookRecord;
   Sentinel:THookRecord;
   i: Byte;
   AHook: TFunctionHooker;
 begin
-  AHook := TFunctionHooker.Create(AInjectFunction, AOriginalFunction);
+  AHook := HookClass.Create(AInjectFunction, AOriginalFunction);
   If FHooks = nil Then Begin
     FHooks := GetMemory(SizeOf(THookRecord));
     ZeroMemory(FHooks, SizeOf(THookRecord));
@@ -188,6 +197,12 @@ begin
   pCurrentRec^.ANext^.AHooks[0] := AHook;
 end;
 
+procedure THooker.HookFunction(AInjectFunction, AOriginalFunction: Pointer);
+begin
+  HookFunction(AInjectFunction, AOriginalFunction, TFunctionHooker);
+end;
+
+
 procedure THooker.TrueAPI;
 var
   pCurrentRec: PHookRecord;
@@ -200,7 +215,7 @@ begin
   repeat
     pCurrentRec := pCurrentRec^.ANext;
     For i:=0 to 9 do If pCurrentRec^.AHooks[i] <> nil Then Begin
-      TFunctionHooker(pCurrentRec^.AHooks[i]).BeginTrueFunction;
+      pCurrentRec^.AHooks[i].BeginTrueFunction;
     End;
   Until pCurrentRec^.ANext = nil;
 end;
@@ -216,8 +231,8 @@ begin
   Sentinel.ANext := FHooks;
   repeat
     pCurrentRec := pCurrentRec^.ANext;
-    For i:=0 to 9 do If (pCurrentRec^.AHooks[i] <> nil) and (TFunctionHooker(pCurrentRec^.AHooks[i]).FInject.PushArg = AFunction) Then Begin
-      TFunctionHooker(pCurrentRec^.AHooks[i]).BeginTrueFunction;
+    For i:=0 to 9 do If (pCurrentRec^.AHooks[i] <> nil) and (pCurrentRec^.AHooks[i].FInject.PushArg = AFunction) Then Begin
+      pCurrentRec^.AHooks[i].BeginTrueFunction;
       Exit;
     End;
   Until pCurrentRec^.ANext = nil;
@@ -235,7 +250,7 @@ begin
   repeat
     pCurrentRec := pCurrentRec^.ANext;
     For i:=0 to 9 do If pCurrentRec^.AHooks[i] <> nil Then Begin
-      TFunctionHooker(pCurrentRec^.AHooks[i]).EndTrueFunction;
+      pCurrentRec^.AHooks[i].EndTrueFunction;
     End;
   Until pCurrentRec^.ANext = nil;
 end;
@@ -251,8 +266,8 @@ begin
   Sentinel.ANext := FHooks;
   repeat
     pCurrentRec := pCurrentRec^.ANext;
-    For i:=0 to 9 do If (pCurrentRec^.AHooks[i] <> nil) and (TFunctionHooker(pCurrentRec^.AHooks[i]).FInject.PushArg = AFunction) Then Begin
-      TFunctionHooker(pCurrentRec^.AHooks[i]).EndTrueFunction;
+    For i:=0 to 9 do If (pCurrentRec^.AHooks[i] <> nil) and (pCurrentRec^.AHooks[i].FInject.PushArg = AFunction) Then Begin
+      pCurrentRec^.AHooks[i].EndTrueFunction;
       Exit;
     End;
   Until pCurrentRec^.ANext = nil;
@@ -260,70 +275,20 @@ end;
 
 procedure THooker.InjectIt;
 var
-{  h, CurrTh, ThrHandle, CurrPr: dword;
-  Thread: TThreadEntry32;}
   pCurrentRec: PHookRecord;
   Sentinel:THookRecord;
   i: Byte;
-//  ThreadsCount: Cardinal;
-//  Data, CData: Pointer;
 begin
-{
-  ThreadsCount := 0;
-  CurrTh := GetCurrentThreadId;
-  CurrPr := GetCurrentProcessId;
-  h := CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-  if h <> INVALID_HANDLE_VALUE then begin
-    Thread.dwSize := SizeOf(TThreadEntry32);
-    if Thread32First(h, Thread) then repeat
-      if (Thread.th32ThreadID <> CurrTh) and (Thread.th32OwnerProcessID = CurrPr) then Inc(ThreadsCount);
-    until not Thread32Next(h, Thread);
-    Data := GetMemory(SizeOf(THandle) * ThreadsCount);
-    CData := Data;
-//    MessageBox(0, PChar('Threads count: ' + IntToStr(ThreadsCount)), nil, MB_OK);
-    if Thread32First(h, Thread) then repeat
-      if (Thread.th32ThreadID <> CurrTh) and (Thread.th32OwnerProcessID = CurrPr) then;
-      begin
-        ThrHandle := OpenThread(THREAD_SUSPEND_RESUME, false, Thread.th32ThreadID);
-        if ThrHandle>0 then begin
-          THandle(CData^) := ThrHandle;
-          CData := Pointer(Cardinal(CData) + SizeOf(THandle));
-          SuspendThread(ThrHandle);
-        end;
-      end;
-    until not Thread32Next(h, Thread);
-    CloseHandle(h);
-  end;
-}
-
-  pCurrentRec := @Sentinel;
-  Sentinel.ANext := FHooks;
-  repeat
-    pCurrentRec := pCurrentRec^.ANext;
-    For i:=0 to 9 do If pCurrentRec^.AHooks[i] <> nil Then Begin
-      TFunctionHooker(pCurrentRec^.AHooks[i]).Inject;
-    End;
-  Until pCurrentRec^.ANext = nil;
-{
-  h := CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-  if h <> INVALID_HANDLE_VALUE then begin
-    Thread.dwSize := SizeOf(TThreadEntry32);
-    if Thread32First(h, Thread) then repeat
-      if (Thread.th32ThreadID <> CurrTh) and (Thread.th32OwnerProcessID = CurrPr) then begin
-        ThrHandle := OpenThread(THREAD_SUSPEND_RESUME, false, Thread.th32ThreadID);
-        if ThrHandle>0 then begin
-          ResumeThread(ThrHandle);
-          CloseHandle(ThrHandle);
-        end;
-      end;
-    until not Thread32Next(h, Thread);
-    CloseHandle(h);
-  end;
-}
+  If FHooks <> nil Then Begin
+    pCurrentRec := @Sentinel;
+    Sentinel.ANext := FHooks;
+    repeat
+      pCurrentRec := pCurrentRec^.ANext;
+      For i:=0 to 9 do If pCurrentRec^.AHooks[i] <> nil Then Begin
+        pCurrentRec^.AHooks[i].Inject;
+      End;
+    Until pCurrentRec^.ANext = nil;
+  End;
 end;
 
-initialization
-  Hooker := THooker.Create;
-finalization
-  Hooker.Free;
 end.

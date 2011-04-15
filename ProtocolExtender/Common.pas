@@ -5,44 +5,44 @@ interface
 type
   TByteArray = Array [0..32767] of Byte;
   PByteArray = ^TByteArray;
-  
-function IntToStr(Value: Integer): string; overload;
-function IntToStr(Value: Int64): string; overload;
-function IntToHex(Value: Int64; Digits: Integer): string;
-function StrToInt(const S: string): Integer;
-function UpperCase(const S: string): string;
 
-function FileExists(const AFilePath: String): Boolean;
+function IntToStr(Value: Integer): AnsiString; overload;
+function IntToStr(Value: Int64): AnsiString; overload;
+function IntToHex(Value: Int64; Digits: Integer): AnsiString;
+function StrToInt(const S: AnsiString): Integer;
+function UpperCase(const S: AnsiString): AnsiString;
 
-function ExtractFilePath(const FileName: string): string;
+function FileExists(const AFilePath: AnsiString): Boolean;
 
-function Trim(const S: string): string;
+function ExtractFilePath(const FileName: AnsiString): AnsiString;
+
+function Trim(const S: AnsiString): AnsiString;
 
 implementation
 
-function IntToStr(Value: Int64): string;
+function IntToStr(Value: Int64): AnsiString;
 begin
   Str(Value, Result);
 end;
 
-function IntToStr(Value: Integer): string;
+function IntToStr(Value: Integer): AnsiString;
 begin
   Str(Value, Result);
 end;
 
-function StrToInt(const S: string): Integer;
+function StrToInt(const S: AnsiString): Integer;
 var
   E: Integer;
 begin
-  Val(S, Result, E);
+  Val(String(S), Result, E);
   if E <> 0 then Result := 0;
 end;
 
-function IntToHex(Value: Int64; Digits: Integer): string;
+function IntToHex(Value: Int64; Digits: Integer): AnsiString;
 var
   i: Integer;
 const
-  Hex: String = '0123456789ABCDEF';
+  Hex: AnsiString = '0123456789ABCDEF';
 begin
   Result := '';
   For i := 0 to Digits - 1 do begin
@@ -51,11 +51,11 @@ begin
   end;
 end;
 
-function UpperCase(const S: string): string;
+function UpperCase(const S: AnsiString): AnsiString;
 var
-  Ch: Char;
+  Ch: AnsiChar;
   L: Integer;
-  Source, Dest: PChar;
+  Source, Dest: PAnsiChar;
 begin
   L := Length(S);
   SetLength(Result, L);
@@ -72,11 +72,11 @@ begin
   end;
 end;
 
-function FileExists(const AFilePath: String): Boolean;
+function FileExists(const AFilePath: AnsiString): Boolean;
 var
   F: File;
 Begin
-  AssignFile(F, AFilePath);
+  AssignFile(F, String(AFilePath));
   {$I-}
   Reset(F, 1);
   {$I+}
@@ -84,7 +84,7 @@ Begin
   If Result Then CloseFile(F);
 End;
 
-function ExtractFilePath(const FileName: string): string;
+function ExtractFilePath(const FileName: AnsiString): AnsiString;
 var
   i: Integer;
 begin
@@ -95,7 +95,7 @@ begin
   End;
 end;
 
-function Trim(const S: string): string;
+function Trim(const S: AnsiString): AnsiString;
 var
   I, L: Integer;
 begin

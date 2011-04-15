@@ -2,7 +2,7 @@ unit zLib;
 
 interface
 
-function InitZLib(zLib32Path, zLib64Path: String): Boolean;
+function InitZLib(zLib32Path, zLib64Path: AnsiString): Boolean;
 
 type
   ZLibError = Integer;
@@ -23,7 +23,7 @@ var
   Initted:Boolean;
   hDll: THandle;
 
-function InitZLib(zLib32Path, zLib64Path: String): Boolean;
+function InitZLib(zLib32Path, zLib64Path: AnsiString): Boolean;
 var
   bIs64:Boolean;
 
@@ -36,13 +36,13 @@ Begin
     If not FileExists(zLib64Path) Then Begin
       bIs64 := False;
     End Else Begin
-      hDll := LoadLibrary(PChar(zLib64Path));
+      hDll := LoadLibraryA(PAnsiChar(zLib64Path));
       If hDll = INVALID_HANDLE_VALUE Then bIs64 := False;
     End;
   End;
   If not bIs64 Then Begin
     If not FileExists(zLib32Path) Then Exit;
-    hDll := LoadLibrary(PChar(zLib32Path));
+    hDll := LoadLibraryA(PAnsiChar(zLib32Path));
     If hDll = INVALID_HANDLE_VALUE Then Exit;
   End;
 
