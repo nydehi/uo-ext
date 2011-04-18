@@ -1,4 +1,4 @@
-library ProtocolExtender;
+library UOExt;
 
 {$R *.res}
 

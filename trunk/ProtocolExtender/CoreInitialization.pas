@@ -9,6 +9,10 @@ implementation
 uses Windows, HookLogic, Plugins, TLHelp32, Common;
 
 {$IFDEF DEBUG}
+  {$DEFINE DEBUGWINDOW}
+{$ENDIF}
+
+{$IFDEF DEBUGWINDOW}
 function HandlerRoutine(dwCtrlType: cardinal): bool; stdcall;
 begin
   case dwCtrlType of
@@ -35,13 +39,24 @@ procedure InProcess;
 type
   TSimpleProc= procedure;
 Begin
-  {$IFDEF DEBUG}
+  {$IFDEF DEBUGWINDOW}
   AllocConsole;
   TTextRec(Output).Handle := GetStdHandle(STD_OUTPUT_HANDLE);
   TTextRec(ErrOutput).Handle := GetStdHandle(STD_ERROR_HANDLE);
   SetConsoleCtrlHandler(@HandlerRoutine, True);
   oldDllProc := DllProc;
   DllProc := @Terminator;
+  WriteLn('UOExt.dll Ultima Online (C) protocol and client patch system.');
+  WriteLn('Core: Debug window started.');
+  WriteLn;
+  Write('Compile time directives: DEBUGWINDOW');
+  {$ENDIF}
+  {$IFDEF DEBUG} Write(', DEBUG'); {$ENDIF}
+  {$IFDEF RELEASE} Write(', RELEASE');{$ENDIF}
+  {$IFDEF WRITELOG} Write(', WRITELOG');{$ENDIF}
+  {$IFDEF DEBUGWINDOW}
+  Writeln;
+  Writeln;
   {$ENDIF}
   HookIt;
   {$IFDEF DEBUG}
