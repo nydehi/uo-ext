@@ -55,7 +55,6 @@ type
     {$ENDIF}
 
     FCryptObject: TNoEncryption;
-//    FEncrypted: Boolean;
     FOnClientEncryptionDetected: TClientEncryptionDetectedEvent;
 
     function GetNetworkData:Boolean;
@@ -73,7 +72,6 @@ type
     property Seed:Cardinal read FSeed write FSeed;
     property Compression:Boolean read FCompression write FCompression;
     property IsCliServ:Boolean read FIsCliServ write FIsCliServ;
-//    property Encrypted: Boolean read FEncrypted write FEncrypted;
     property OnClientEncryptionDetected: TClientEncryptionDetectedEvent read FOnClientEncryptionDetected write FOnClientEncryptionDetected;
     property CryptObject: TNoEncryption read FCryptObject write SetCryptObject;
     property OnPacket:TPacketEvent read FOnPacketEvent write FOnPacketEvent;
@@ -186,6 +184,7 @@ End;
 procedure TBuffer.Pushed(AnAmount: Cardinal);
 Begin
   FAmount := FAmount + AnAmount;
+  FWritePoint := Pointer(Cardinal(FWritePoint) + AnAmount);
 End;
 
 procedure TBuffer.Shift(AnAmount: Cardinal);
@@ -200,6 +199,9 @@ Begin
     FAmount := FAmount - AnAmount;
     FWritePoint := Pointer( Cardinal(FData) + FAmount);
   End Else Begin
+    {$IFDEF Debug}
+    if AnAmount > FAmount then WriteLn('Buffer: Shift(', AnAmount, ') called. While there is only ', FAmount, ' left.');
+    {$ENDIF}
     FAmount := 0;
     FWritePoint := FData;
   End;
@@ -432,6 +434,9 @@ begin
         DoSendPacket(@Decoded, DecodedLen, False, False);
         FIncommingBuffer.Shift(SourceLen);
       End Else Begin
+        {$IFDEF Debug}
+        WriteLn(FDebugPresent, 'Compressed protocol: Can''t decompress data in buffer. Size := ', SourceLen);
+        {$ENDIF}
         Break;
       End;
     End;
