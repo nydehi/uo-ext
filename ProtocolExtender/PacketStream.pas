@@ -251,6 +251,10 @@ begin
   If FCompression Then Begin
     EncodedLen:=EncodedLength;
     If not Huffman.compress(@Encoded[0], EncodedLen, Packet, Length) Then Begin
+      {$IFDEF Debug}
+      WriteLn('Core: EnQueue: compress failed.');
+      ReadLn;
+      {$ENDIF}
       Halt;
     End;
     Packet:=@Encoded;
@@ -281,13 +285,20 @@ begin
         select(0, nil, @fs, nil, @TV_Timeout);
       until FD_ISSET(FOutcommingSocket, fs);
       Sended := send(FOutcommingSocket, CurrentPoint^, CurrentLength, 0);
-      If Sended = SOCKET_ERROR Then
-        Exit;
+      If Sended = SOCKET_ERROR Then Begin
+        {$IFDEF Debug}
+          WriteLn('Core: PacketStream: Send returned SOCK_ERR. WSAGLE = ', WSAGetLastError);
+          Readln;
+        {$ENDIF}
+        FOutcommingBuffer.Shift(FOutcommingBuffer.Amount - CurrentLength);
+        Break;
+      End;
+
       CurrentPoint := Pointer(Cardinal(CurrentPoint) + Sended);
       CurrentLength := CurrentLength - Sended;
     until CurrentLength = 0;
+    FOutcommingBuffer.Shift(FOutcommingBuffer.Amount);
   End;
-  FOutcommingBuffer.Shift(FOutcommingBuffer.Amount);
 end;
 
 function TPacketStream.GetNetworkData:Boolean;
