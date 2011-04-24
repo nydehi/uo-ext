@@ -18,6 +18,9 @@ function ExtractFilePath(const FileName: AnsiString): AnsiString;
 
 function Trim(const S: AnsiString): AnsiString;
 
+function SwapBytes2(Value: Word): Word;
+function SwapBytes4(Value: Cardinal): Cardinal;
+
 implementation
 
 function IntToStr(Value: Int64): AnsiString;
@@ -108,5 +111,19 @@ begin
     Result := Copy(S, I, L - I + 1);
   end;
 end;
+
+function SwapBytes2(Value: Word): Word;
+Begin
+  Result := (Value SHR 8) OR ((Value AND $FF) SHL 8);
+End;
+
+function SwapBytes4(Value: Cardinal): Cardinal;
+Begin
+  Result := (Value SHR 24) OR
+            ((Value SHR 8) AND $FF00) OR
+            ((Value AND $FF00) SHL 8) OR
+            ((Value AND $FF) SHL 24);
+End;
+
 
 end.

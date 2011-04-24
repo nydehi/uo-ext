@@ -40,28 +40,68 @@ begin
   Result := Serial;
 end;
 
-procedure FreeSerial(Serial: Cardinal);
+procedure FreeMobileSerial(MobileSerial: Cardinal);
 var
-  cSerialsPage: PFreeSerialsPage;
+  cPage: PFreeSerialsPage;
   i: Cardinal;
+Begin
+  cPage := FreeItemSerials;
+  if cPage = nil then begin
+    cPage := GetMemory(SizeOf(TFreeSerialsPage));
+    ZeroMemory(cPage, SizeOf(TFreeSerialsPage));
+    For i:=0 to SERIALS_PER_PAGE do cPage^.FreeSerials[i] := INVALID_SERIAL;
+    cPage^.FreeSerials[0] := MobileSerial;
+    FreeMobileSerials := cPage;
+  end else Begin
+    repeat
+      for i := 0 to SERIALS_PER_PAGE do if cPage^.FreeSerials[i] = INVALID_SERIAL then Begin
+        cPage^.FreeSerials[i] := MobileSerial;
+        Exit;
+      end;
+      if cPage^.NextPage = nil then Break;
+      cPage := cPage^.NextPage;
+    until cPage = nil;
+    cPage^.NextPage := GetMemory(SizeOf(TFreeSerialsPage));
+    ZeroMemory(cPage^.NextPage, SizeOf(TFreeSerialsPage));
+    For i:=0 to SERIALS_PER_PAGE do cPage^.NextPage^.FreeSerials[i] := INVALID_SERIAL;
+    cPage^.NextPage^.FreeSerials[0] := MobileSerial;
+  End;
+End;
+
+procedure FreeItemSerial(ItemSerial: Cardinal);
+var
+  cPage: PFreeSerialsPage;
+  i: Cardinal;
+Begin
+  cPage := FreeItemSerials;
+  if cPage = nil then begin
+    cPage := GetMemory(SizeOf(TFreeSerialsPage));
+    ZeroMemory(cPage, SizeOf(TFreeSerialsPage));
+    For i:=0 to SERIALS_PER_PAGE do cPage^.FreeSerials[i] := INVALID_SERIAL;
+    cPage^.FreeSerials[0] := ItemSerial;
+    FreeItemSerials := cPage;
+  end else Begin
+    repeat
+      for i := 0 to SERIALS_PER_PAGE do if cPage^.FreeSerials[i] = INVALID_SERIAL then Begin
+        cPage^.FreeSerials[i] := ItemSerial;
+        Exit;
+      end;
+      if cPage^.NextPage = nil then Break;
+      cPage := cPage^.NextPage;
+    until cPage = nil;
+    cPage^.NextPage := GetMemory(SizeOf(TFreeSerialsPage));
+    ZeroMemory(cPage^.NextPage, SizeOf(TFreeSerialsPage));
+    For i:=0 to SERIALS_PER_PAGE do cPage^.NextPage^.FreeSerials[i] := INVALID_SERIAL;
+    cPage^.NextPage^.FreeSerials[0] := ItemSerial;
+  End;
+End;
+
+procedure FreeSerial(Serial: Cardinal);
 begin
-  cSerialsPage := nil;
-  repeat
-    If cSerialsPage = nil Then Begin
-      If Serial < $40000000 Then
-        cSerialsPage := FreeMobileSerials
-      Else
-        cSerialsPage := FreeItemSerials;
-    End Else cSerialsPage := cSerialsPage^.NextPage;
-    For i:= 0 to SERIALS_PER_PAGE do If cSerialsPage^.FreeSerials[i] = 0 Then Begin
-      cSerialsPage^.FreeSerials[i] := Serial;
-      Exit;
-    End;
-  Until cSerialsPage^.NextPage = nil;
-  cSerialsPage^.NextPage := GetMemory(SizeOf(TFreeSerialsPage));
-  ZeroMemory(cSerialsPage^.NextPage, SizeOf(TFreeSerialsPage));
-  For i:=0 to SERIALS_PER_PAGE do cSerialsPage^.NextPage^.FreeSerials[i] := INVALID_SERIAL;
-  cSerialsPage^.NextPage^.FreeSerials[0] := Serial;
+  If Serial < $40000000 Then
+    FreeMobileSerial(Serial)
+  Else
+    FreeItemSerial(Serial);
 end;
 
 function GetNewSerial(IsMobile:Boolean):Cardinal;
