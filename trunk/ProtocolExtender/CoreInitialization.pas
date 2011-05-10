@@ -50,11 +50,14 @@ Begin
   WriteLn('Core: Debug window started.');
   WriteLn;
   Write('Compile time directives: DEBUGWINDOW');
-  {$ENDIF}
   {$IFDEF DEBUG} Write(', DEBUG'); {$ENDIF}
   {$IFDEF RELEASE} Write(', RELEASE');{$ENDIF}
   {$IFDEF WRITELOG} Write(', WRITELOG');{$ENDIF}
-  {$IFDEF DEBUGWINDOW}
+  Writeln;
+
+  Write('Plugins supply methods: Internal');
+  {$IFDEF PLUGINS_HDD} Write(', HDD');{$ENDIF}
+  {$IFDEF PLUGINS_SERVER} Write(', Server');{$ENDIF}
   Writeln;
   Writeln;
   {$ENDIF}

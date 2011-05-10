@@ -30,6 +30,12 @@ type
     FCurrentPluginPage: PPluginPage;
     function First:Boolean;
     function Next:Boolean;
+    {$IFDEF PLUGINS_HDD}
+    procedure LoadFromHDD;
+    {$ENDIF}
+    {$IFDEF PLUGINS_SERVER}
+    procedure LoadFromServer;
+    {$ENDIF}
   public
     property Count: Cardinal read FCount;
     property OnRegisterPacketHandler: TOnRegisterPacketHandler read FOnRegisterPacketHandler write FOnRegisterPacketHandler;
@@ -169,12 +175,12 @@ end;
 
 function TPlugin.HandlePacket(Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean;
 begin
-  aCurrentPlugin := Self;
-  If Assigned(FHandlers[PByte(Data)^]) Then
-    Result := FHandlers[PByte(Data)^](Data, Size, Send, IsFromServerToClient)
-  else
+  If Assigned(FHandlers[PByte(Data)^]) Then Begin
+    aCurrentPlugin := Self;
+    Result := FHandlers[PByte(Data)^](Data, Size, Send, IsFromServerToClient);
+    aCurrentPlugin := nil;
+  End else
     Result := False;
-  aCurrentPlugin := nil;
 end;
 
 procedure TPlugin.RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
@@ -312,14 +318,22 @@ begin
 end;
 
 procedure TPlugins.Initialize;
+begin
+  {$IFDEF PLUGINS_SERVER}
+  LoadFromServer;
+  {$ENDIF}
+  {$IFDEF PLUGINS_HDD}
+  LoadFromHDD;
+  {$ENDIF}
+end;
+
+{$IFDEF PLUGINS_HDD}
+procedure TPlugins.LoadFromHDD;
 var
   sPlgFolder, sSearch: AnsiString;
   SR: WIN32_FIND_DATAA;
   hSearch: THandle;
 Begin
-  if FInitialized then begin
-    MessageBox(0, 'You found it!', nil, MB_OK);
-  End;
   {$IFDEF DEBUG}
   WriteLn('Plugins: Loading plugins from HDD.');
   {$ENDIF}
@@ -342,6 +356,14 @@ Begin
   End;
   FInitialized := True;
 End;
+{$ENDIF}
+
+{$IFDEF PLUGINS_SERVER}
+procedure TPlugins.LoadFromServer;
+begin
+
+end;
+{$ENDIF}
 
 function TPlugins.ClienToServerPacket(Data: Pointer; var Size:Cardinal): Boolean;
 var

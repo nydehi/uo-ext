@@ -22,9 +22,21 @@ uses
   DCPcrypt in 'ProtocolExtender\DCPcrypt.pas',
   Twofish in 'ProtocolExtender\Twofish.pas',
   md5 in 'ProtocolExtender\md5.pas',
-  CoreInitialization in 'ProtocolExtender\CoreInitialization.pas';
+  CoreInitialization in 'ProtocolExtender\CoreInitialization.pas'{$IFDEF RUNUO_API},
+  Executable in 'ProtocolExtender\Executable.pas'{$ENDIF};
 
-exports CoreInitialization.CoreInitialize;
+exports
+  CoreInitialization.CoreInitialize{$IFDEF RUNUO_API},
+
+
+  Executable.RunUOReg,
+  Executable.RunUOA,
+  Executable.PrepareToRunUO,
+  Executable.StartSuspendedA,
+  Executable.InjectThisDll,
+  Executable.InjectDllA,
+  Executable.ResumeLoading{$ENDIF}
+;
 
 begin
 end.
