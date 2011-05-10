@@ -14,6 +14,8 @@ var
   MobileSerialMin:Cardinal = $30000001;
   MobileSerialMax:Cardinal = $3FFFFFFF;
   Encrypted:Boolean = False;
+  EnableIntertalProtocol: Boolean = False;
+  InternalProtocolHeader: Byte = $FF;
 
 implementation
 
