@@ -31,10 +31,14 @@ exports
 
   Executable.RunUOReg,
   Executable.RunUOA,
+  Executable.RunUOW,
   Executable.PrepareToRunUO,
   Executable.StartSuspendedA,
-  Executable.InjectThisDll,
+  Executable.StartSuspendedW,
+  Executable.InjectThisDllA,
+  Executable.InjectThisDllW,
   Executable.InjectDllA,
+  Executable.InjectDllW,
   Executable.ResumeLoading{$ENDIF}
 ;
 
