@@ -32,6 +32,8 @@ type
   end;
 
   TPacketEvent=procedure(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean) of object;
+  TPacketProcessedEvent=procedure(Sender:TObject; PacketHeader:Byte) of object;
+
   TCryptType = (ctNone, ctLogin, ctGame);
   TCryptPhase = (cpLogin, cpGame);
   TClientEncryptionDetectedEvent=procedure(Sender: TObject; CryptType: TCryptType; Phase: TCryptPhase) of object;
@@ -39,6 +41,7 @@ type
   TPacketStream=class
   protected
     FOnPacketEvent:TPacketEvent;
+    FOnPacketProcessedEvent: TPacketProcessedEvent;
 
     FIncommingBuffer:TBuffer;
     FIncommingSocket:TSocket;
@@ -75,6 +78,7 @@ type
     property OnClientEncryptionDetected: TClientEncryptionDetectedEvent read FOnClientEncryptionDetected write FOnClientEncryptionDetected;
     property CryptObject: TNoEncryption read FCryptObject write SetCryptObject;
     property OnPacket:TPacketEvent read FOnPacketEvent write FOnPacketEvent;
+    property OnPacketProcessed: TPacketProcessedEvent read FOnPacketProcessedEvent write FOnPacketProcessedEvent;
 
     constructor Create(Incomming:TSocket; Outcomming:TSocket);
     destructor Destroy; override;
@@ -458,6 +462,7 @@ function TPacketStream.DoSendPacket(Data:Pointer; var Length: Cardinal; Direct, 
 var
   Process: Boolean;
   NewSize: Cardinal;
+  Head: Byte;
 begin
   Result := not Validate;
   If Validate Then Begin
@@ -475,8 +480,11 @@ begin
     Process := True;
     NewSize := Length;
     FOnPacketEvent(Self, Data, NewSize, Process);
-    If Process Then
+    Head := PByte(Data)^;
+    If Process Then Begin
       EnQueueOutcommingPacket(Data, NewSize);
+      if Assigned(FOnPacketProcessedEvent) then FOnPacketProcessedEvent(Self, Head);
+    End;
   End Else Begin
     EnQueueOutcommingPacket(Data, Length);
   End;

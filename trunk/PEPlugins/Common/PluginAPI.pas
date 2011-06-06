@@ -8,6 +8,7 @@ type
   TPluginInitialization = procedure;
   TProxyStartEvent = procedure;
   TProxyEndEvent = procedure;
+  TPacketProcessed = procedure(Header:Byte; lParam: Pointer; IsFromServerToClient: Boolean);
 
   TPluginApi = class
   private
@@ -21,11 +22,14 @@ type
     FGetClientSerial: TGetClientSerial;
     FRegisterSyncEventHandler: TRegisterSyncEventHandler;
     FAskSyncEvent: TAskSyncEvent;
+    FAfterPacketCallback:TAfterPacketCallback;
 
     FInterlockedValue: Pointer;
 
     FProxyStart: TProxyStartEvent;
     FProxyEnd: TProxyEndEvent;
+    FPacketProcessed: TPacketProcessed;
+    FPacketProcessedParam: Pointer;
   protected
     procedure RegisterAPIFuncs(APICount: Cardinal; anAPIDescriptors: PAPIFunc);
     procedure DoProxyStart;
@@ -34,6 +38,8 @@ type
     property InterlockedValue: Pointer read FInterlockedValue;
     property OnProxyStart: TProxyStartEvent read FProxyStart write FProxyStart;
     property OnProxyEnd: TProxyEndEvent read FProxyEnd write FProxyEnd;
+    property OnPacketProcessed: TPacketProcessed read FPacketProcessed write FPacketProcessed;
+    property OnPacketProcessedParam: Pointer Read FPacketProcessedParam Write FPacketProcessedParam;
 
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
@@ -46,6 +52,10 @@ type
     function RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
     procedure AskSyncEvent(InterlockedValue: Pointer); overload;
     procedure AskSyncEvent; overload;
+    procedure AskPacketProcessedEvent(AHandler: TPacketProcessed; lParam: Pointer); overload;
+    procedure AskPacketProcessedEvent(AHandler: TPacketProcessed); overload;
+    procedure AskPacketProcessedEvent(lParam: Pointer); overload;
+    procedure AskPacketProcessedEvent; overload;
 
     constructor Create;
   end;
@@ -80,6 +90,11 @@ Begin
   API.DoProxyEnd;
 End;
 
+procedure PacketSendedCallback(APackeHead: Byte; lParam: Pointer; IsFromServerToClient: Boolean); stdcall;
+Begin
+  API.OnPacketProcessed(APackeHead, lParam, IsFromServerToClient);
+End;
+
 // TPluginApi
 
 constructor TPluginApi.Create;
@@ -108,6 +123,7 @@ begin
       PF_GETCLIENTSERIAL         : FGetClientSerial         := pAPI^.Func;
       PF_REGISTERSYNCEVENTHANDLER: FRegisterSyncEventHandler:= pAPI^.Func;
       PF_ASKSYNCEVENT            : FAskSyncEvent            := pAPI^.Func;
+      PF_AFTERPACKETCALLBACK     : FAfterPacketCallback     := pAPI^.Func;
     end;
   End;
 end;
@@ -179,6 +195,31 @@ Begin
   If FInterlockedValue = nil Then Raise Exception.Create('You are trying to AskSyncEvent without supplying SyncEventHandler.');
   FAskSyncEvent(FInterlockedValue);
 End;
+
+procedure TPluginApi.AskPacketProcessedEvent(AHandler: TPacketProcessed; lParam: Pointer);
+begin
+  FPacketProcessed := AHandler;
+  FPacketProcessedParam := lParam;
+  AskPacketProcessedEvent;
+end;
+
+procedure TPluginApi.AskPacketProcessedEvent(AHandler: TPacketProcessed);
+begin
+  FPacketProcessed := AHandler;
+  AskPacketProcessedEvent;
+end;
+
+procedure TPluginApi.AskPacketProcessedEvent(lParam: Pointer);
+begin
+  FPacketProcessedParam := lParam;
+  AskPacketProcessedEvent;
+end;
+
+procedure TPluginApi.AskPacketProcessedEvent;
+begin
+  if @FAfterPacketCallback = nil then raise Exception.Create('AfterPacketCallback not supplied by host');
+  FAfterPacketCallback(@PacketSendedCallback, FPacketProcessedParam);
+end;
 
 procedure TPluginApi.DoProxyStart;
 begin

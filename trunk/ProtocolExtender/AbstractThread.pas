@@ -21,6 +21,8 @@ type
     procedure Stop;
     procedure ForceStop;
     procedure Run;
+
+    destructor Destory;
   end;
 
 implementation
@@ -28,6 +30,15 @@ implementation
 function ThreadProc(Who:TAbstractThread):Integer;
 begin
   Result:=Who.MainProc;
+end;
+
+destructor TAbstractThread.Destory;
+begin
+  if FRunning then Stop;
+  If WaitForSingleObject(FHandle, 1000) = WAIT_TIMEOUT Then
+    if FRunning then ForceStop;
+  CloseHandle(FHandle);
+  inherited;
 end;
 
 procedure TAbstractThread.Run;

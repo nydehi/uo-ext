@@ -48,9 +48,11 @@ type
     function ClienToServerPacket(Data: Pointer; var Size:Cardinal): Boolean;
     function ServerToClientPacket(Data: Pointer; var Size:Cardinal): Boolean;
     procedure CheckSyncEvent;
+    procedure PacketSended(Header: Byte; IsFromServerToClient: Boolean);
     constructor Create;
     destructor Destroy; override;
   end;
+
 
 var
   PluginSystem: TPlugins;
@@ -71,6 +73,9 @@ type
     FLoaded: Boolean;
     FSyncEventCount: Integer;
     FEventCallback: TSyncEvent;
+    FOnPacketSended: TPacketSendedCallback;
+    FOnPacketSendedParam: Pointer;
+
     function CallInitializationProc:Boolean;
   public
     property PluginPath: AnsiString read FPluginPath;
@@ -81,8 +86,10 @@ type
     function Load: Boolean;
     procedure ProxyStart;
     procedure ProxyEnd;
+    procedure PacketSended(Header:Byte; IsFromServerToClient: Boolean);
     function HandlePacket(Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean;
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
+    function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
   end;
 
@@ -103,6 +110,11 @@ procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler) stdcall;
 begin
   aCurrentPlugin.UnRegisterPacketHandler(Header, Handler);
 end;
+
+procedure AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer); stdcall;
+Begin
+  aCurrentPlugin.AfterPacketCallback(ACallBack, lParam);
+End;
 
 function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean; stdcall;
 begin
@@ -154,7 +166,7 @@ Begin
   @funcIp := GetProcAddress(FDllHandle, 'UOExtInit');
   If not Assigned(funcIp) Then Exit;
   aCurrentPlugin := Self;
-  funcIp(LastAPIFuncNum, @API[0]);
+  funcIp(LastAPIFuncNum + 1, @API[0]);
   aCurrentPlugin := nil;
   Result := True;
 End;
@@ -191,6 +203,28 @@ end;
 procedure TPlugin.UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
 begin
   FHandlers[Header] := nil;
+end;
+
+function TPlugin.AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
+begin
+  Result := not Assigned(FOnPacketSended);
+  if Result then Begin
+    FOnPacketSended := ACallBack;
+    FOnPacketSendedParam := lParam;
+  End;
+end;
+
+procedure TPlugin.PacketSended(Header: Byte; IsFromServerToClient: Boolean);
+var
+  PSC: TPacketSendedCallback;
+begin
+  if Assigned(FOnPacketSended) then Begin
+    aCurrentPlugin := Self;
+    PSC := FOnPacketSended;
+    FOnPacketSended := nil;
+    PSC(Header, FOnPacketSendedParam, IsFromServerToClient);
+    aCurrentPlugin := nil;
+  End;
 end;
 
 procedure TPlugin.ProxyEnd;
@@ -419,6 +453,13 @@ begin
   until not Next;
 end;
 
+procedure TPlugins.PacketSended(Header: Byte; IsFromServerToClient: Boolean);
+begin
+  If First Then repeat
+    TPlugin(FCurrentPluginPage^.Plugins[FCurrentPluginId]).PacketSended(Header, IsFromServerToClient);
+  until not Next;
+end;
+
 initialization
   PluginSystem := TPlugins.Create;
   API[0].FuncType := PF_REGISTERPACKETHANDLER;
@@ -445,8 +486,8 @@ initialization
   API[10].Func := @zLib.zCompress2;
   API[11].FuncType := PF_ZLIBDECOMPRESS;
   API[11].Func := @zLib.zDecompress;
-//  API[12].FuncType := PF_GETOPENEDHANDLEFORDOSNAME;
-//  API[12].Func := @HookLogic.GetOpenedHandleForDOSName;
+  API[12].FuncType := PF_AFTERPACKETCALLBACK;
+  API[12].Func := @AfterPacketCallback;
 finalization
   PluginSystem.Free;
 end.

@@ -40,7 +40,10 @@ type
   TSimpleProc= procedure;
 Begin
   {$IFDEF DEBUGWINDOW}
-  AllocConsole;
+  If not AllocConsole Then Begin
+    MessageBoxA(0, PAnsiChar(IntToStr(GetLastError)), nil, MB_OK);
+    Exit;
+  End;
   TTextRec(Output).Handle := GetStdHandle(STD_OUTPUT_HANDLE);
   TTextRec(ErrOutput).Handle := GetStdHandle(STD_ERROR_HANDLE);
   SetConsoleCtrlHandler(@HandlerRoutine, True);

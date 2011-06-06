@@ -16,6 +16,7 @@ type
     OD: TOpenDialog;
     EDLLName: TEdit;
     LDLLName: TLabel;
+    CBUseUOExt: TCheckBox;
     procedure BRunClick(Sender: TObject);
     procedure BPathSelectClick(Sender: TObject);
     procedure NeedSaveOptions(Sender: TObject);
@@ -29,9 +30,11 @@ type
     { Public declarations }
   end;
 
-function EnableDebugPrivilege():Boolean;
+Function EnableDebugPrivilege():Boolean;
 Function InjectDll(Process: dword; ModulePath, InitProcedureName: PAnsiChar): boolean;
 Function RunUO(ExeName, InjectDllName:String):Boolean;
+Function RunUODll(ExeName, InjectDllName: String): Boolean;
+
 var
   FMain: TFMain;
 
@@ -39,9 +42,11 @@ implementation
 
 {$R *.dfm}
 
+{ Local procedures }
+
 function EnableDebugPrivilege():Boolean;
 var
- hToken: dword;
+ hToken: THANDLE;
  SeDebugNameValue: Int64;
  tkp: TOKEN_PRIVILEGES;
  ReturnLength: dword;
@@ -49,9 +54,10 @@ begin
  Result:=false;
  //Добавляем привилегию SeDebugPrivilege
  //Получаем токен нашего процесса
- OpenProcessToken(INVALID_HANDLE_VALUE, TOKEN_ADJUST_PRIVILEGES
-                  or TOKEN_QUERY, hToken);
+ hToken:=INVALID_HANDLE_VALUE;
+ If not OpenProcessToken(INVALID_HANDLE_VALUE, TOKEN_ADJUST_PRIVILEGES or TOKEN_QUERY, hToken) Then Exit;
  //Получаем LUID привилегии
+ SeDebugNameValue:=0;
  if not LookupPrivilegeValue(nil, 'SeDebugPrivilege', SeDebugNameValue) then
   begin
    CloseHandle(hToken);
@@ -61,6 +67,7 @@ begin
  tkp.Privileges[0].Luid := SeDebugNameValue;
  tkp.Privileges[0].Attributes := SE_PRIVILEGE_ENABLED;
  //Добавляем привилегию к процессу
+ ReturnLength:=0;
  AdjustTokenPrivileges(hToken, false, tkp, SizeOf(TOKEN_PRIVILEGES),
                        tkp, ReturnLength);
  if GetLastError() <> ERROR_SUCCESS then exit;
@@ -139,10 +146,10 @@ begin
   lstrcpyA(PAnsiChar(ICode + $2D), ModulePath);
   lstrcpyA(PAnsiChar(ICode + $0133), InitProcedureName);
 
-  //записать машинный код по зарезервированному адресу
+  //???????? ???????? ??? ?? ?????????????????? ??????
   WriteProcessMemory(Process, Memory, pInject, InjectThreadSize, BytesWritten);
   FreeMemory(pInject);
-  //выполнить машинный код
+  //????????? ???????? ???
   hThread := CreateRemoteThread(Process, nil, 0, Memory, nil, 0, ThreadId);
 
   if hThread = 0 then Exit;
@@ -164,7 +171,9 @@ begin
     Exit;
   end;
   ExeDir:=ExtractFileDir(ExeName);
+  Si.cb:=SizeOf(Si);
   GetStartupInfo(Si);
+  Pi.dwProcessId:=0;
   CreateProcess(PChar(ExeName), nil, nil, nil, False, CREATE_SUSPENDED, nil, PChar(ExeDir), Si, Pi);
   InjectDllPath := AnsiString(IncludeTrailingPathDelimiter(ExtractFilePath(Application.ExeName))+InjectDllName) + #0;
   if not InjectDll(Pi.hProcess,  @InjectDllPath[1], 'CoreInitialize') then begin
@@ -174,9 +183,30 @@ begin
   Result := True;
 end;
 
+function RunUODll(ExeName, InjectDllName: String): Boolean;
+Type
+  TRunUOA = function (AExecutablePath: PAnsiChar): Boolean; stdcall;
+  TRunUOW = function (AExecutablePath: PWideChar): Boolean; stdcall;
+Var
+  hDll: THandle;
+  Func: TRunUOW;
+Begin
+  Result := False;
+  hDll := LoadLibrary(PChar(InjectDllName));
+  if hDll = INVALID_HANDLE_VALUE then Exit;
+  @Func := GetProcAddress(hDll, 'RunUOW');
+  if @Func = nil then Exit;
+  Result := Func(PWideChar(ExeName));
+End;
+
+{ TFMain }
+
 procedure TFMain.BRunClick(Sender: TObject);
 begin
-  RunUO(EUOPath.Text, EDLLName.Text);
+  if not CBUseUOExt.Checked then
+    RunUO(EUOPath.Text, EDLLName.Text)
+  Else
+    RunUODll(EUOPath.Text, EDLLName.Text);
   If CBCloseAfter.Checked then Close;
 end;
 
@@ -196,6 +226,7 @@ begin
   Ini:=TIniFile.Create(IncludeTrailingPathDelimiter(ExtractFilePath(Application.ExeName))+ 'Options.ini');
   Ini.WriteString('Options','UOPath',EUOPath.Text);
   Ini.WriteBool('Options','CloseAfter',CBCloseAfter.Checked);
+  Ini.WriteBool('Options','UseDllRun',CBUseUOExt.Checked);
   Ini.UpdateFile;
   Ini.Free;
 end;
@@ -207,6 +238,7 @@ begin
   Ini:=TIniFile.Create(IncludeTrailingPathDelimiter(ExtractFilePath(Application.ExeName))+ 'Options.ini');
   EUOPath.Text:=Ini.ReadString('Options','UOPath','');
   CBCloseAfter.Checked:=Ini.ReadBool('Options','CloseAfter',False);
+  CBUseUOExt.Checked:=Ini.ReadBool('Options','UseDllRun',False);
   Ini.Free;
 end;
 
@@ -223,3 +255,5 @@ begin
 end;
 
 end.
+
+
