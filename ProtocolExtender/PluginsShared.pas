@@ -15,6 +15,7 @@ const
   PF_ASKSYNCEVENT = 10;
   PF_ZLIBCOMPRESS2 = 11;
   PF_ZLIBDECOMPRESS = 12;
+  PF_AFTERPACKETCALLBACK = 13;
 
 type
   TPacketHandler = function (Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean; stdcall;
@@ -23,6 +24,8 @@ type
     Result - If true - this event breaks bubbling.
     If Send = false then Result forced to true.
   **)
+
+  TPacketSendedCallback = procedure(APackeHead: Byte; lParam: Pointer; IsFromServerToClient: Boolean); stdcall;
 
   TPacketLengthDefinition=function(Packet:Pointer; Length:Cardinal):Cardinal; stdcall;
   (**
@@ -59,6 +62,7 @@ type
   TFreeSerial = procedure(Serial: Cardinal); stdcall;
   TGetServerSerial = function(Serial:Cardinal):Cardinal; stdcall;
   TGetClientSerial = function(Serial:Cardinal):Cardinal; stdcall;
+  TAfterPacketCallback = procedure(ACallBack: TPacketSendedCallback; lParam: Pointer); stdcall;
 
   TSyncEvent = procedure; stdcall;
   TRegisterSyncEventHandler = function(Event: TSyncEvent): Pointer; stdcall;

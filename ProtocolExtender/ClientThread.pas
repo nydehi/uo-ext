@@ -20,7 +20,9 @@ type
     function ConnectToServer:Boolean;
     procedure Write(What:AnsiString);
     procedure OnCSPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
+    procedure OnCSPacketDone(Sender:TObject; PacketHeader:Byte);
     procedure OnSCPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
+    procedure OnSCPacketDone(Sender:TObject; PacketHeader:Byte);
     procedure OnCryptDetected(Sender:Tobject; CryptType: TCryptType; Phase: TCryptPhase);
   protected
     function Execute:Integer; override;
@@ -83,6 +85,8 @@ begin
   FSCObj.Seed:=1;
   FSCObj.OnPacket:=OnSCPacket;
   FCSObj.OnPacket:=OnCSPacket;
+  FSCObj.OnPacketProcessed:=OnSCPacketDone;
+  FCSObj.OnPacketProcessed:=OnCSPacketDone;
   FSCObj.IsCliServ:=False;
   FCSObj.IsCliServ:=True;
   FCSObj.OnClientEncryptionDetected:=OnCryptDetected;
@@ -156,6 +160,16 @@ begin
     {$ENDIF}
   End;
   Process := PluginSystem.ServerToClientPacket(Packet, Length);
+end;
+
+procedure TClientThread.OnSCPacketDone(Sender: TObject; PacketHeader: Byte);
+begin
+  PluginSystem.PacketSended(PacketHeader, True);
+end;
+
+procedure TClientThread.OnCSPacketDone(Sender: TObject; PacketHeader: Byte);
+begin
+  PluginSystem.PacketSended(PacketHeader, False);
 end;
 
 function TClientThread.SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean;

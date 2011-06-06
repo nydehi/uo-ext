@@ -7,7 +7,7 @@ uses
   Packet in 'Common\Packet.pas';
 
 {$E plg}
-exports UOExtInit;
+exports PluginAPI.UOExtInit, PluginAPI.ProxyStart, PluginAPI.ProxyEnd;
 begin
 end.
  
