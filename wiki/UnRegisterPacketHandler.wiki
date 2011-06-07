@@ -1,0 +1,26 @@
+#sidebar TableOfContents
+*!UnRegisterPacketHandler* - Registers a handler for packet
+
+----
+
+*!UnRegisterPacketHandler* - Регистрирует обработчик пакета.
+
+==Синтаксис==
+{{{
+procedure UnRegisterPacketHandler(
+	Header: Byte;
+	Handler: TPacketHandler
+) stdcall;
+}}}
+==Параметры==
+Header
+ * *Тип*: Byte
+ * *Описание*: Заголовок пакета, который необходимо прекратить перехватывать
+Handler
+ * *Тип*: T[PacketHandler]
+ * *Описание*: Процедура-обработчик перехватываемого пакета
+==Замечания==
+Убирает регистрирацию обработчика пакета типа [PacketHandler] для пакета с заголовком Header.
+
+Один и тот-же обработчик пакетов может быть зарегистрировать для нескольких пакетов.
+==Требования==
