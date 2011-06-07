@@ -1,6 +1,5 @@
 #sidebar TableOfContents
 *!RegisterPacketType* - Registers a packet type for packet
-RegisterPacketType = procedure(IsCliServ:Boolean; Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition) stdcall;
 ----
 
 *!RegisterPacketType* - Регистрирует тип или обработчик пакета для обределенного заголовка.
