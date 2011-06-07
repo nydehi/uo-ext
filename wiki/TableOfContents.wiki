@@ -1,3 +1,17 @@
-  * [PluginsAPI Plug-ins API]
-    * RegisterPacketHandler
-    * UnRegisterPacketHandler
+ * [PluginsAPI Plug-ins API]
+   * Packets
+     * [RegisterPacketHandler]
+     * [UnRegisterPacketHandler]
+     * [RegisterPacketType]
+     * [SendPacket]
+  * Serials
+    * [GetNewSerial]
+    * [FreeSerial]
+    * [GetServerSerial]
+    * [GetClientSerial]
+  * Events
+    * [RegisterSyncEventHandler]
+    * [AskSyncEvent]
+  * zLib
+    * [zLibCompress2]
+    * [zLibDecompress]
