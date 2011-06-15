@@ -4,6 +4,7 @@
      * [UnRegisterPacketHandler]
      * [RegisterPacketType]
      * [SendPacket]
+     * [AfterPacketCallback]
   * Serials
     * [GetNewSerial]
     * [FreeSerial]
