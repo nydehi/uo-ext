@@ -75,7 +75,7 @@ begin
   Result:=-1;
   CurrentClientThread := Self;
   Write('Thread in.');
-  PluginSystem.ProxyStart;
+  TPluginSystem.Instance.ProxyStart;
   If not ConnectToServer Then Exit;
   ITrue:=1;
   ioctlsocket(FClientConnection, FIONBIO, ITrue);
@@ -108,7 +108,7 @@ begin
     end;
     FCSObj.Flush;
     FSCObj.Flush;
-    PluginSystem.CheckSyncEvent;
+    TPluginSystem.Instance.CheckSyncEvent;
   until FNeedExit;
   Write('Connection terminated by some reason.');
   Result:=0;
@@ -120,7 +120,7 @@ begin
   FCSObj.Free;
   FSCObj.Free;
   If CurrentClientThread = Self Then CurrentClientThread := nil;
-  PluginSystem.ProxyEnd;
+  TPluginSystem.Instance.ProxyEnd;
   Write('Thread out.');
 end;
 
@@ -142,7 +142,7 @@ begin
     Write('S->C: Compression enabled.');
     {$ENDIF}
   End;
-  Process := PluginSystem.ClienToServerPacket(Packet, Length);
+  Process := TPluginSystem.Instance.ClientToServerPacket(Packet, Length);
 end;
 
 procedure TClientThread.OnSCPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
@@ -159,17 +159,17 @@ begin
     Write('S->C: Logging into game server with Auth_ID: '+IntToStr(PCardinal(Cardinal(Packet) + 7)^));
     {$ENDIF}
   End;
-  Process := PluginSystem.ServerToClientPacket(Packet, Length);
+  Process := TPluginSystem.Instance.ServerToClientPacket(Packet, Length);
 end;
 
 procedure TClientThread.OnSCPacketDone(Sender: TObject; PacketHeader: Byte);
 begin
-  PluginSystem.PacketSended(PacketHeader, True);
+  TPluginSystem.Instance.PacketSended(PacketHeader, True);
 end;
 
 procedure TClientThread.OnCSPacketDone(Sender: TObject; PacketHeader: Byte);
 begin
-  PluginSystem.PacketSended(PacketHeader, False);
+  TPluginSystem.Instance.PacketSended(PacketHeader, False);
 end;
 
 function TClientThread.SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean;

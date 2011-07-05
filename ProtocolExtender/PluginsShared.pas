@@ -3,6 +3,13 @@ unit PluginsShared;
 interface
 
 const
+  {PluginEvents}
+  PE_INIT: Cardinal = 1; {Init Event. Arg is APIInfo}
+  PE_FREE: Cardinal = 2; {Free plugin}
+  PE_PROXYSTART: Cardinal = 3;
+  PE_PROXYEND: Cardinal = 4;
+
+  {API Entries}
   PF_REGISTERPACKETHANDLER = 1;
   PF_UNREGISTERPACKETHANDLER = 2;
   PF_REGISTERPACKETTYPE = 3;
@@ -18,6 +25,40 @@ const
   PF_AFTERPACKETCALLBACK = 13;
 
 type
+
+  TPluginDescriptor=packed record
+    Descriptor: Cardinal;
+    Value: Cardinal;
+  end;
+
+  TPluginInfo=packed record
+    InitProcedure: Pointer;
+    DescriptorsCount: Cardinal;
+    Descriptors: Array [0..0] of TPluginDescriptor;
+  end;
+  PPluginInfo=^TPluginInfo;
+
+  TDllPlugins=packed record
+    PluginsCount: Cardinal;
+    Plugins: Array [0..0] of PPluginInfo;
+  end;
+  PDllPlugins=^TDllPlugins;
+
+  TDllInit = function: PDllPlugins; stdcall;
+  {***
+    Procedure in Dll with name 'DllInit', that runs after LoadLibrary, returns Plugins entry point list.
+  ***}
+  TDllInitDone = procedure; stdcall;
+  {***
+    Procedure in Dll with name 'DllInitDone', that runs after DllInit to free data from Plugins pointer.
+    May not present in Dll, if Plugin not need to free memory from Plugins pointer.
+  ***}
+
+  TPluginProcedure = function (APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; stdcall;
+  {***
+    Defines in dll. One procedure inits one plugin.
+  ***}
+
   TPacketHandler = function (Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean; stdcall;
   (**
     Send - Send this package to reciver.
@@ -32,15 +73,15 @@ type
     In this procedure you can't register or unregister handlers.
   **)
 
-  RAPIFunc = packed record
+  TAPIFunc = packed record
     FuncType: Cardinal;
     Func: Pointer;
   End;
-  PAPIFunc=^RAPIFunc;
-
-  TUOExtInit = procedure (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
-  TProxyStart = procedure; stdcall;
-  TProxyEnd = procedure; stdcall;
+  TAPI = packed record
+    APICount: Cardinal;
+    APIs: Array [0..0] of TAPIFunc;
+  end;
+  PAPI=^TAPI;
 
   TRegisterPacketHandler = procedure(Header:Byte; Handler: TPacketHandler) stdcall;
   TUnRegisterPacketHandler = procedure(Header: Byte; Handler: TPacketHandler) stdcall;

@@ -36,8 +36,6 @@ end;
 {$ENDIF}
 
 procedure InProcess;
-type
-  TSimpleProc= procedure;
 Begin
   {$IFDEF DEBUGWINDOW}
   If not AllocConsole Then Begin
@@ -68,10 +66,7 @@ Begin
   {$IFDEF DEBUG}
   WriteLn('Hook completed. Initializing plugins.');
   {$ENDIF}
-  PluginSystem.Initialize;
-  {$IFDEF DEBUG}
-  WriteLn('Initializing done.');
-  {$ENDIF}
+  TPluginSystem.Instance.Initialize;
 End;
 
 procedure CoreInitialize; stdcall;
