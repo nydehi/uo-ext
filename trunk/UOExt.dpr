@@ -22,9 +22,10 @@ uses
   DCPcrypt in 'ProtocolExtender\DCPcrypt.pas',
   Twofish in 'ProtocolExtender\Twofish.pas',
   md5 in 'ProtocolExtender\md5.pas',
-  CoreInitialization in 'ProtocolExtender\CoreInitialization.pas' {$IFDEF RUNUO_API},
-  Executable in 'ProtocolExtender\Executable.pas' {$ENDIF},
-  PluginsDownloader in 'ProtocolExtender\PluginsDownloader.pas';
+  CoreInitialization in 'ProtocolExtender\CoreInitialization.pas'
+  {$IFDEF PLUGINS_SERVER}, PluginsDownloader in 'ProtocolExtender\PluginsDownloader.pas'{$ENDIF}
+  {$IFDEF RUNUO_API}, Executable in 'ProtocolExtender\Executable.pas'{$ENDIF}
+  ;
 
 exports
   CoreInitialization.CoreInitialize{$IFDEF RUNUO_API},
@@ -38,7 +39,10 @@ exports
   Executable.InjectDllA,
   Executable.InjectDllW,
   Executable.ResumeLoading,
-  Executable.RunUO32{$ENDIF}
+  Executable.RunUO32,
+  Executable.Infect32,
+  Executable.InfectA,
+  Executable.InfectW{$ENDIF}
 ;
 
 begin

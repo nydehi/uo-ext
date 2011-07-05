@@ -8,6 +8,10 @@ type
 var
   LoginIP:AnsiString = '127.0.0.1';
   LoginPort:Word = 2593;
+  {$IFDEF PLUGINS_SERVER}
+  UpdateIP: AnsiString = '127.0.0.1';
+  UpdatePort: Word = 2594;
+  {$ENDIF}
   SerialSupplyMethod: TSerialSupplyMethods = ssmStatic;
   ItemSerialMin:Cardinal = $70000001;
   ItemSerialMax:Cardinal = $7FFFFFFF;
