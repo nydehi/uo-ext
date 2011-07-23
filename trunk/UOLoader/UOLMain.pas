@@ -202,7 +202,16 @@ End;
 { TFMain }
 
 procedure TFMain.BRunClick(Sender: TObject);
+type
+  TData = Array [0..0] of Byte;
+  TStrange = packed record
+    Data: TData
+  end;
+  PStrange = ^TStrange;
+var
+  st : PStrange;
 begin
+  ShowMessage(IntToStr(st.Data[5]);
   if not CBUseUOExt.Checked then
     RunUO(EUOPath.Text, EDLLName.Text)
   Else

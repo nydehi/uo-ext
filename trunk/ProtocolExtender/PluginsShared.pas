@@ -4,10 +4,10 @@ interface
 
 const
   {PluginEvents}
-  PE_INIT: Cardinal = 1; {Init Event. Arg is APIInfo}
-  PE_FREE: Cardinal = 2; {Free plugin}
-  PE_PROXYSTART: Cardinal = 3;
-  PE_PROXYEND: Cardinal = 4;
+  PE_INIT        = 1; {Init Event. Arg is APIInfo}
+  PE_FREE        = 2; {Free plugin}
+  PE_PROXYSTART  = 3;
+  PE_PROXYEND    = 4;
 
   {API Entries}
   PF_REGISTERPACKETHANDLER = 1;
@@ -31,10 +31,13 @@ type
     Value: Cardinal;
   end;
 
+  TPluginDescriptors = Array [0..0] of TPluginDescriptor;
+  PPluginDescriptors = ^TPluginDescriptors;
+
   TPluginInfo=packed record
     InitProcedure: Pointer;
     DescriptorsCount: Cardinal;
-    Descriptors: Array [0..0] of TPluginDescriptor;
+    Descriptors: PPluginDescriptors;
   end;
   PPluginInfo=^TPluginInfo;
 

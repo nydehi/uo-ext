@@ -5,10 +5,10 @@ interface
 uses PluginsShared;
 
 type
-  TPluginInitialization = procedure;
-  TProxyStartEvent = procedure;
-  TProxyEndEvent = procedure;
-  TPacketProcessed = procedure(Header:Byte; lParam: Pointer; IsFromServerToClient: Boolean);
+
+
+//  TPacketProcessed = procedure(Header:Byte; lParam: Pointer; IsFromServerToClient: Boolean);
+
 
   TPluginApi = class
   private
@@ -24,216 +24,169 @@ type
     FAskSyncEvent: TAskSyncEvent;
     FAfterPacketCallback:TAfterPacketCallback;
 
-    FInterlockedValue: Pointer;
-
-    FProxyStart: TProxyStartEvent;
-    FProxyEnd: TProxyEndEvent;
-    FPacketProcessed: TPacketProcessed;
-    FPacketProcessedParam: Pointer;
-  protected
-    procedure RegisterAPIFuncs(APICount: Cardinal; anAPIDescriptors: PAPIFunc);
-    procedure DoProxyStart;
-    procedure DoProxyEnd;
   public
-    property InterlockedValue: Pointer read FInterlockedValue;
-    property OnProxyStart: TProxyStartEvent read FProxyStart write FProxyStart;
-    property OnProxyEnd: TProxyEndEvent read FProxyEnd write FProxyEnd;
-    property OnPacketProcessed: TPacketProcessed read FPacketProcessed write FPacketProcessed;
-    property OnPacketProcessedParam: Pointer Read FPacketProcessedParam Write FPacketProcessedParam;
+    procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
+    procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
+    function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean; virtual;
+    procedure RegisterPacketType(IsCliServ:Boolean; Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition); virtual;
+    function GetNewSerial(IsMobile:Boolean): Cardinal; virtual;
+    procedure FreeSerial(Serial: Cardinal); virtual;
+    function GetServerSerial(Serial:Cardinal):Cardinal; virtual;
+    function GetClientSerial(Serial:Cardinal):Cardinal; virtual;
+    function RegisterSyncEventHandler(Event: TSyncEvent): Pointer; virtual;
+    procedure AskSyncEvent(InterlockedValue: Pointer); virtual;
+    procedure AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer); virtual;
 
-    procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
-    procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
-    function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean;
-    procedure RegisterPacketType(IsCliServ:Boolean; Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition);
-    function GetNewSerial(IsMobile:Boolean): Cardinal;
-    procedure FreeSerial(Serial: Cardinal);
-    function GetServerSerial(Serial:Cardinal):Cardinal;
-    function GetClientSerial(Serial:Cardinal):Cardinal;
-    function RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
-    procedure AskSyncEvent(InterlockedValue: Pointer); overload;
-    procedure AskSyncEvent; overload;
-    procedure AskPacketProcessedEvent(AHandler: TPacketProcessed; lParam: Pointer); overload;
-    procedure AskPacketProcessedEvent(AHandler: TPacketProcessed); overload;
-    procedure AskPacketProcessedEvent(lParam: Pointer); overload;
-    procedure AskPacketProcessedEvent; overload;
+    function HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; virtual;
 
     constructor Create;
   end;
 
-  procedure UOExtInit (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
-  procedure ProxyStart; stdcall;
-  procedure ProxyEnd; stdcall;
+  function DllInit: PDllPlugins; stdcall;
+  procedure DllInitDone; stdcall;
 
-var
-  API : TPluginApi;
-  PluginInitialization : TPluginInitialization;
+  function AddPlugin(APluginInfo: PPluginInfo): Boolean;
 
 implementation
 
-uses SysUtils;
+uses Windows;
+
+var
+  Plugins: Array of PPluginInfo;
+  PluginsCount: Cardinal;
+
+  DllInitInfo: PDllPlugins;
 
 // Procedures
 
-procedure UOExtInit (APICount: Cardinal; anAPIFunc: PAPIFunc) stdcall;
-begin
-  API.RegisterAPIFuncs(APICount, anAPIFunc);
-  If Assigned(PluginInitialization) Then PluginInitialization();
-end;
-
-procedure ProxyStart stdcall;
+function AddPlugin(APluginInfo: PPluginInfo): Boolean;
 Begin
-  API.DoProxyStart;
+  SetLength(Plugins, PluginsCount + 1);
+  Plugins[PluginsCount] := APluginInfo;
+  PluginsCount := PluginsCount + 1;
+  Result := True;
 End;
 
-procedure ProxyEnd stdcall;
+function DllInit: PDllPlugins; stdcall;
 Begin
-  API.DoProxyEnd;
+  if PluginsCount = 0 then Begin
+    Result := nil;
+    DllInitInfo := nil;
+  End else Begin
+    DllInitInfo := GetMemory(SizeOf(TDllPlugins) + SizeOf(PPluginInfo) * (PluginsCount - 1));
+    Result := DllInitInfo;
+    DllInitInfo^.PluginsCount := PluginsCount;
+    CopyMemory(@DllInitInfo^.Plugins, @Plugins[0], SizeOf(PPluginInfo) * PluginsCount);
+    SetLength(Plugins, 0);
+    PluginsCount := 0;
+  End;
 End;
 
-procedure PacketSendedCallback(APackeHead: Byte; lParam: Pointer; IsFromServerToClient: Boolean); stdcall;
+procedure DllInitDone; stdcall;
 Begin
-  API.OnPacketProcessed(APackeHead, lParam, IsFromServerToClient);
+  if DllInitInfo <> nil then FreeMemory(DllInitInfo);
 End;
 
 // TPluginApi
 
 constructor TPluginApi.Create;
 Begin
-  Inherited Create;
-  FInterlockedValue := nil;
+  Inherited;
 End;
 
-procedure TPluginApi.RegisterAPIFuncs(APICount: Cardinal; anAPIDescriptors: PAPIFunc);
+function TPluginApi.HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean;
 var
-  pAPI: PAPIFunc;
-  cFuncType: Cardinal;
   i: Cardinal;
 begin
-  For i := 0 to APICount - 1 do Begin
-    pAPI := PAPIFunc(Cardinal(anAPIDescriptors) + i * SizeOf(RAPIFunc));
-    cFuncType := pAPI^.FuncType;
-    case cFuncType of
-      PF_REGISTERPACKETHANDLER   : FRegisterPacketHandler   := pAPI^.Func;
-      PF_UNREGISTERPACKETHANDLER : FUnRegisterPacketHandler := pAPI^.Func;
-      PF_SENDPACKET              : FSendPacket              := pAPI^.Func;
-      PF_REGISTERPACKETTYPE      : FRegisterPacketType      := pAPI^.Func;
-      PF_GETNEWSERIAL            : FGetNewSerial            := pAPI^.Func;
-      PF_FREESERIAL              : FFreeSerial              := pAPI^.Func;
-      PF_GETSERVERSERIAL         : FGetServerSerial         := pAPI^.Func;
-      PF_GETCLIENTSERIAL         : FGetClientSerial         := pAPI^.Func;
-      PF_REGISTERSYNCEVENTHANDLER: FRegisterSyncEventHandler:= pAPI^.Func;
-      PF_ASKSYNCEVENT            : FAskSyncEvent            := pAPI^.Func;
-      PF_AFTERPACKETCALLBACK     : FAfterPacketCallback     := pAPI^.Func;
-    end;
-  End;
+  Result := False;
+  case APluginEvent of
+    PE_INIT       : Begin
+      for i := 0 to PAPI(APluginEventData)^.APICount -1 do case PAPI(APluginEventData)^.APIs[i].FuncType of
+        PF_REGISTERPACKETHANDLER   : FRegisterPacketHandler   := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_UNREGISTERPACKETHANDLER : FUnRegisterPacketHandler := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_SENDPACKET              : FSendPacket              := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_REGISTERPACKETTYPE      : FRegisterPacketType      := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_GETNEWSERIAL            : FGetNewSerial            := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_FREESERIAL              : FFreeSerial              := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_GETSERVERSERIAL         : FGetServerSerial         := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_GETCLIENTSERIAL         : FGetClientSerial         := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_REGISTERSYNCEVENTHANDLER: FRegisterSyncEventHandler:= PAPI(APluginEventData)^.APIs[i].Func;
+        PF_ASKSYNCEVENT            : FAskSyncEvent            := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_AFTERPACKETCALLBACK     : FAfterPacketCallback     := PAPI(APluginEventData)^.APIs[i].Func;
+      End;
+      Result := True;
+    End;
+
+    PE_FREE       : Begin
+      Result := True;
+    End;
+
+    PE_PROXYSTART : Begin
+      Result := True;
+    End;
+
+    PE_PROXYEND   : Begin
+      Result := True;
+    End;
+  end;
 end;
 
 procedure TPluginApi.RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
 begin
-  If @FRegisterPacketHandler = nil Then Raise Exception.Create('RegisterPacketHandler not supplied by host');
   FRegisterPacketHandler(Header, Handler);
 end;
 
 procedure TPluginApi.UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
 begin
-  If @FUnRegisterPacketHandler = nil Then Raise Exception.Create('UnRegisterPacketHandler not supplied by host');
   FUnRegisterPacketHandler(Header, Handler);
 end;
 
 function TPluginApi.SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean;
 begin
-  If @FSendPacket = nil Then Raise Exception.Create('SendPacket not supplied by host');
   Result := FSendPacket(Packet, Length, ToServer, Direct, Valid);
 end;
 
 procedure TPluginApi.RegisterPacketType(IsCliServ:Boolean; Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition);
 begin
-  If @FRegisterPacketType = nil Then Raise Exception.Create('RegisterPacketType not supplied by host');
   FRegisterPacketType(IsCliServ, Header, Size, HandleProc);
 end;
 
 function TPluginApi.GetNewSerial(IsMobile:Boolean): Cardinal;
 Begin
-  If @FGetNewSerial = nil Then Raise Exception.Create('GetNewSerial not supplied by host');
   Result := FGetNewSerial(IsMobile);
 End;
 
 procedure TPluginApi.FreeSerial(Serial: Cardinal);
 Begin
-  If @FFreeSerial = nil Then Raise Exception.Create('FreeSerial not supplied by host');
   FFreeSerial(Serial);
 End;
 
 function TPluginApi.GetServerSerial(Serial:Cardinal):Cardinal;
 Begin
-  If @FGetServerSerial = nil Then Raise Exception.Create('GetServerSerial not supplied by host');
   Result := FGetServerSerial(Serial);
 End;
 
 function TPluginApi.GetClientSerial(Serial:Cardinal):Cardinal;
 Begin
-  If @FGetClientSerial = nil Then Raise Exception.Create('GetClientSerial not supplied by host');
   Result := FGetClientSerial(Serial);
 End;
 
 function TPluginApi.RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
 Begin
-  If @FRegisterSyncEventHandler = nil Then Raise Exception.Create('RegisterSyncEventHandler not supplied by host');
   Result := FRegisterSyncEventHandler(Event);
-  FInterlockedValue := Result;
 End;
 
 procedure TPluginApi.AskSyncEvent(InterlockedValue: Pointer);
 Begin
-  If @FAskSyncEvent = nil Then Raise Exception.Create('AskSyncEvent not supplied by host');
   FAskSyncEvent(InterlockedValue);
 End;
 
-procedure TPluginApi.AskSyncEvent;
-Begin
-  If @FAskSyncEvent = nil Then Raise Exception.Create('AskSyncEvent not supplied by host');
-  If FInterlockedValue = nil Then Raise Exception.Create('You are trying to AskSyncEvent without supplying SyncEventHandler.');
-  FAskSyncEvent(FInterlockedValue);
-End;
-
-procedure TPluginApi.AskPacketProcessedEvent(AHandler: TPacketProcessed; lParam: Pointer);
+procedure TPluginApi.AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer);
 begin
-  FPacketProcessed := AHandler;
-  FPacketProcessedParam := lParam;
-  AskPacketProcessedEvent;
-end;
-
-procedure TPluginApi.AskPacketProcessedEvent(AHandler: TPacketProcessed);
-begin
-  FPacketProcessed := AHandler;
-  AskPacketProcessedEvent;
-end;
-
-procedure TPluginApi.AskPacketProcessedEvent(lParam: Pointer);
-begin
-  FPacketProcessedParam := lParam;
-  AskPacketProcessedEvent;
-end;
-
-procedure TPluginApi.AskPacketProcessedEvent;
-begin
-  if @FAfterPacketCallback = nil then raise Exception.Create('AfterPacketCallback not supplied by host');
-  FAfterPacketCallback(@PacketSendedCallback, FPacketProcessedParam);
-end;
-
-procedure TPluginApi.DoProxyStart;
-begin
-  if Assigned(FProxyStart) then FProxyStart();
-end;
-
-procedure TPluginApi.DoProxyEnd;
-begin
-  if Assigned(FProxyEnd) then FProxyEnd();
+  FAfterPacketCallback(ACallBack, lParam);
 end;
 
 initialization
-  API := TPluginApi.Create;
-  PluginInitialization := nil;
-finalization
-  API.Free;
+  SetLength(Plugins, 0);
+  PluginsCount := 0;
 end.

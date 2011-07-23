@@ -253,7 +253,7 @@ Begin
   WriteLn('Plugins: Loading libraries from HDD.');
   {$ENDIF}
   sPlgFolder := ExtractFilePath(AnsiString(ParamStr(0))) + 'Plugins\';
-  sSearch := sPlgFolder + '*.dll' + #0;
+  sSearch := sPlgFolder + '*.plg' + #0;
   ZeroMemory(@SR, SizeOf(SR));
   hSearch := FindFirstFileA(@sSearch[1], SR);
   If hSearch <> INVALID_HANDLE_VALUE Then Begin
@@ -275,7 +275,7 @@ var
 Begin
   Result := 0;
   sPlgFolder := ExtractFilePath(AnsiString(ParamStr(0))) + 'Plugins\';
-  sSearch := sPlgFolder + '*.dll' + #0;
+  sSearch := sPlgFolder + '*.plg' + #0;
   ZeroMemory(@SR, SizeOf(SR));
   hSearch := FindFirstFileA(@sSearch[1], SR);
   If hSearch <> INVALID_HANDLE_VALUE Then Begin
@@ -359,7 +359,9 @@ begin
   iDllsCount := FDllCount;
   If FDllCount > 0 Then For i := 0 to FDllCount - 1 do Begin
     FDlls[i].FirstPluginOffset := iPluginsPos;
-    for j := 0 to FDlls[i].PluginsAmount do Begin
+    If FDlls[i].PluginsAmount > 0 Then for j := 0 to FDlls[i].PluginsAmount - 1 do Begin
+      FActivePlugin := iPluginsPos;
+      ZeroMemory(@FPlugins[iPluginsPos], SizeOf(TPluginInfo));
       If TPluginProcedure(FDlls[i].PluginsInfo^.Plugins[j].InitProcedure)(PE_INIT, @API) Then Begin
         FPlugins[iPluginsPos].InitProc := FDlls[i].PluginsInfo^.Plugins[j].InitProcedure;
         iPluginsPos := iPluginsPos + 1;
@@ -369,6 +371,7 @@ begin
         WriteLn('Plugins: One of plugins library (', i, ') failed to initialize plugin (', j, ').');
         {$ENDIF}
       End;
+      FActivePlugin := MAXWORD;
     End;
     FDlls[i].PluginsInfo := nil;
     InitDone := GetProcAddress(FDlls[i].Handle, 'DllInitDone');

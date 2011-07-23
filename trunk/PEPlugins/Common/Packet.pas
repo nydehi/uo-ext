@@ -42,7 +42,7 @@ type
 
 implementation
 
-uses SysUtils;
+//uses SysUtils;
 
 var
   PacketReader: TPacketReader;
@@ -76,7 +76,7 @@ end;
 
 procedure TPacketReader.Read(Destination: Pointer; Length: Cardinal);
 begin
-  If FLength < (FOffset + Length) Then raise Exception.CreateFmt('Can''t read %d bytes from packet %d. There is only %d left ', [Length, PByte(FBuffer)^, FLength - FOffset]);
+  If FLength < (FOffset + Length) Then Exit; //raise Exception.CreateFmt('Can''t read %d bytes from packet %d. There is only %d left ', [Length, PByte(FBuffer)^, FLength - FOffset]);
   CopyMemory(Destination, Pointer(Cardinal(FBuffer) + FOffset), Length);
   FOffset := FOffset + Length;
 end;
@@ -126,7 +126,7 @@ begin
       Exit;
     End;
   End;
-  raise Exception.Create('Can''t find #0 while reading AsiiNull string');
+//  raise Exception.Create('Can''t find #0 while reading AsiiNull string');
 end;
 
 class function TPacketReader.GetPacketReader: TPacketReader;
