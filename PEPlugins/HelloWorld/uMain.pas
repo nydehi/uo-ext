@@ -4,15 +4,17 @@ interface
 
 implementation
 
-uses Windows, WinSock, PluginAPI;
+uses Windows, WinSock, PluginAPI, PluginsShared;
 
 var
   HelloWorldPacket: Array [0..56] of Byte;
+  API: TPluginApi;
 
 function HelloHandler(Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean stdcall;
 var
   isValid: Boolean;
 begin
+  MessageBox(0, 'Hello2!', nil, MB_OK);
   API.UnRegisterPacketHandler($3A, @HelloHandler);
   API.SendPacket(@HelloWorldPacket, 57, False, True, isValid);
   Result := False;
@@ -20,7 +22,7 @@ end;
 
 procedure Init;
 var
-  sDummy: String;
+  sDummy: AnsiString;
 Begin
   API.RegisterPacketHandler($3A, @HelloHandler);
 
@@ -39,6 +41,20 @@ Begin
   CopyMemory(PChar(Cardinal(@HelloWorldPacket) + 44), @sDummy[1], 12); // Message (Various)
 End;
 
+function PluginInit(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; stdcall;
+Begin
+  if APluginEvent = PE_INIT then API := TPluginApi.Create;
+  Result := API.HandlePluginEvent(APluginEvent, APluginEventData);
+  if APluginEvent = PE_INIT then Init;
+  if APluginEvent = PE_FREE Then API.Free;
+End;
+
+const
+  PluginInfo:TPluginInfo = (
+    InitProcedure    : @PluginInit;
+    DescriptorsCount : 0;
+    Descriptors      : nil
+  );
 initialization
-  PluginInitialization := @Init;
+  PluginAPI.AddPlugin(@PluginInfo);
 end.
