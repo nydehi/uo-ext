@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+//using System.Linq;
+using System.IO;
 using System.Text;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -11,8 +12,17 @@ using System.Runtime.InteropServices;
 
 namespace UOExtDomain
 {
-    public class UOExtServer
+    public static class UOExtServer
     {
+        public static bool Is64BitProcess
+        {
+#if (NET_4_0)
+            get { return Environment.Is64BitProcess; }
+#else
+            get { return (IntPtr.Size == 8); }
+#endif
+        }
+
         private static SocketServer m_SocketServer;
         private static String m_PluginsPath;
         private static String m_SearchMask;
@@ -21,6 +31,8 @@ namespace UOExtDomain
         {
             m_SearchMask  = searchMask;
             m_PluginsPath = pluginsPath;
+            if (!Directory.Exists(m_PluginsPath))
+                Directory.CreateDirectory(m_PluginsPath);
             Console.WriteLine("new SendPluginsPacket");
             new SendPluginsPacket(m_PluginsPath, m_SearchMask);
             Console.WriteLine("new SocketServer");
@@ -31,6 +43,11 @@ namespace UOExtDomain
 			                    new SocketServer.AcceptHandler(AcceptHandler),
 			                    new CloseHandler(CloseHandler),
 			                    new ErrorHandler(ErrorHandler));
+        }
+
+        public static void SloseServer()
+        {
+            m_SocketServer.Dispose();
         }
 
         public static void AcceptHandler(SocketClient pSocket)
@@ -55,7 +72,7 @@ namespace UOExtDomain
          
         
 
-        #if !LIBRARY
+#if !LIBRARY
 
         /// <summary>
         /// Ограничивает доступ к сети только по локальной сети
@@ -88,37 +105,7 @@ namespace UOExtDomain
         /// </summary>
         private static int Port = Localhost ? 2585 : 2595; 
  
-        #if !TESTCENTER
-        #region Application UOExtDomain (exe)
-		/// <summary>
-		/// Точка входа в приложение
-		/// </summary>
-		[STAThread]
-		static void Main() 
-		{
-            var _address = IniFile.Default.ReadString("network", "ip", LocalEntry.AddressList[0].ToString());
-            var _port    = IniFile.Default.ReadInt("network", "port", Port);
-
-            var valid_address = String.Equals(_address, "127.0.0.1");
-            foreach (var address in LocalEntry.AddressList)
-                if (String.Equals(address.ToString(), _address)) {
-                    valid_address = true;
-                    break;
-                }
-            if (!valid_address)
-                throw new Exception(String.Format("Указан не разрешенный аддресс \"{0}\"", _address));
-
-            var endPoint = new IPEndPoint(IPAddress.Parse(_address), _port);
-            StartServer(endPoint);
-            Console.WriteLine("[uoexts] Listening: {0}:{1}", endPoint.Address, endPoint.Port);
-			
-			// Ждём... =) 
-			Console.ReadLine();
-            Console.WriteLine("[uoexts] Closing.");
-			m_SocketServer.Dispose();
-		}
-        #endregion Application UOExtDomain (exe)
-        #else
+#if TESTCENTER
         #region Application UOExtTestClient (exe)   
         static public void MessageHandlerClient(SocketBase socket, int iNumberOfBytes)
         {

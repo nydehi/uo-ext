@@ -27,11 +27,11 @@ using System.Runtime.InteropServices;
 #else
 
 #if DEBUG
-[assembly: AssemblyTitle("AppDomain (exe) - DEBUG")]
+[assembly: AssemblyTitle("AppLuncher (exe) - DEBUG")]
 #else
-[assembly: AssemblyTitle("AppDomain (exe)")]
+[assembly: AssemblyTitle("AppLuncher (exe)")]
 #endif
-[assembly: AssemblyProduct("AppDomain (exe)")]
+[assembly: AssemblyProduct("AppLuncher (exe)")]
 
 #endif
 
@@ -61,5 +61,5 @@ using System.Runtime.InteropServices;
 // Можно задать все значения или принять номер построения и номер редакции по умолчанию, 
 // используя "*", как показано ниже:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("0.46.*")]
-[assembly: AssemblyFileVersion("0.46.*")]
+[assembly: AssemblyVersion("0.47.*")]
+[assembly: AssemblyFileVersion("0.47.*")]

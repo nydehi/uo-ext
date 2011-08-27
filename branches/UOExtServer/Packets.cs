@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
+//using System.Linq;
 using System.Text;
 using System.IO;
-using ICSharpCode.SharpZipLib.Checksums;
 using UOExtDomain.Utilities;
 
 namespace UOExtDomain.Network
@@ -106,7 +105,7 @@ namespace UOExtDomain.Network
                 var reader = new BinaryReader(new FileStream(file, FileMode.Open));
                 var bytes  = (byte[])reader.ReadBytes((int)reader.BaseStream.Length);
                 reader.Close();
-                reader.Dispose();
+                //reader.Dispose();
 
                 var FileSize = (uint)bytes.Length;
                 var crc32  = new Crc32();
@@ -234,7 +233,7 @@ namespace UOExtDomain.Network
             Console.WriteLine("[uoexts] {0} sended Packet: 0x{1:X2} <ErrorCode = 0x{2:X8} in packet = 0x{3:X2}>", client.IpAddress, PrimaryID, ErrorID, ErrorInPrimaryID);
             #endif
 
-            if (ErrorID.HasFlag(ErrorCode.ClosingSocket))
+            if ((ErrorID & ErrorCode.ClosingSocket) == ErrorCode.ClosingSocket)
                 client.Disconnect();
         }
 

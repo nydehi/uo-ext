@@ -1,4 +1,4 @@
-// CRC32.cs - Computes CRC32 data checksum of a data stream
+﻿// CRC32.cs - Computes CRC32 data checksum of a data stream
 // Copyright (C) 2001 Mike Krueger
 //
 // This file was translated from java, it was part of the GNU Classpath
@@ -37,9 +37,59 @@
 
 using System;
 
-namespace ICSharpCode.SharpZipLib.Checksums 
+namespace UOExtDomain.Utilities
 {
-	
+	/// <summary>
+	/// Interface to compute a data checksum used by checked input/output streams.
+	/// A data checksum can be updated by one byte or with a byte array. After each
+	/// update the value of the current checksum can be returned by calling
+	/// <code>getValue</code>. The complete checksum object can also be reset
+	/// so it can be used again with new data.
+	/// </summary>
+	public interface IChecksum
+	{
+		/// <summary>
+		/// Returns the data checksum computed so far.
+		/// </summary>
+		long Value { get; }
+		
+		/// <summary>
+		/// Resets the data checksum as if no update was ever called.
+		/// </summary>
+		void Reset();
+		
+		/// <summary>
+		/// Adds one byte to the data checksum.
+		/// </summary>
+		/// <param name = "value">
+		/// the data value to add. The high byte of the int is ignored.
+		/// </param>
+		void Update(int value);
+		
+		/// <summary>
+		/// Updates the data checksum with the bytes taken from the array.
+		/// </summary>
+		/// <param name="buffer">
+		/// buffer an array of bytes
+		/// </param>
+		void Update(byte[] buffer);
+		
+		/// <summary>
+		/// Adds the byte array to the data checksum.
+		/// </summary>
+		/// <param name = "buffer">
+		/// The buffer which contains the data
+		/// </param>
+		/// <param name = "offset">
+		/// The offset in the buffer where the data starts
+		/// </param>
+		/// <param name = "count">
+		/// the number of data bytes to add.
+		/// </param>
+		void Update(byte[] buffer, int offset, int count);
+	}
+
+
 	/// <summary>
 	/// Generate a table for a byte-wise 32-bit CRC calculation on the polynomial:
 	/// x^32+x^26+x^23+x^22+x^16+x^12+x^11+x^10+x^8+x^7+x^5+x^4+x^2+x+1.
@@ -137,12 +187,8 @@ namespace ICSharpCode.SharpZipLib.Checksums
 		/// Returns the CRC32 data checksum computed so far.
 		/// </summary>
 		public long Value {
-			get {
-				return (long)crc;
-			}
-			set {
-				crc = (uint)value;
-			}
+			get { return (long)crc; }
+			set { crc = (uint)value; }
 		}
 		
 		/// <summary>

@@ -1,11 +1,18 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UOExtDomain (dll)", "..\UOExtDomain (dll).csproj", "{62AF05C3-568D-49E3-8860-3913F4CEBBD1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UOExtDomain (.Net2.0)", "..\UOExtDomain (.Net2.0).csproj", "{62AF05C3-568D-49E3-8860-3913F4CEBBD1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UOExtDomain (exe)", "..\UOExtDomain (exe).csproj", "{F4681C2F-47F2-4601-9623-C15DA9B98A3E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UOExtLuncher (.Net2.0)", "..\UOExtLuncher (.Net2.0).csproj", "{F4681C2F-47F2-4601-9623-C15DA9B98A3E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{62AF05C3-568D-49E3-8860-3913F4CEBBD1} = {62AF05C3-568D-49E3-8860-3913F4CEBBD1}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UOExtTestClient (exe)", "..\UOExtTestClient (exe).csproj", "{8DFEA144-0088-41A5-8AB8-51DAACC48E95}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UOExtDomain (.Net4.0)", "..\UOExtDomain (.Net4.0).csproj", "{22061AEE-00EC-47E5-8E17-1EB8E0764543}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UOExtLuncher (.Net4.0)", "..\UOExtLuncher (.Net4.0).csproj", "{E0E9E001-B003-475C-9235-18C2DAE34CCB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -25,6 +32,14 @@ Global
 		{8DFEA144-0088-41A5-8AB8-51DAACC48E95}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8DFEA144-0088-41A5-8AB8-51DAACC48E95}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8DFEA144-0088-41A5-8AB8-51DAACC48E95}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22061AEE-00EC-47E5-8E17-1EB8E0764543}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22061AEE-00EC-47E5-8E17-1EB8E0764543}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22061AEE-00EC-47E5-8E17-1EB8E0764543}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22061AEE-00EC-47E5-8E17-1EB8E0764543}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E0E9E001-B003-475C-9235-18C2DAE34CCB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E0E9E001-B003-475C-9235-18C2DAE34CCB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E0E9E001-B003-475C-9235-18C2DAE34CCB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E0E9E001-B003-475C-9235-18C2DAE34CCB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
