@@ -16,7 +16,6 @@ using System.IO;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
-using SharpZipLib = ICSharpCode.SharpZipLib.Zip;
 
 namespace UOExtDomain.Utilities
 {
@@ -192,12 +191,12 @@ namespace UOExtDomain.Utilities
 
         public ZipNativeCompressor()
         {
-            string dllName = Environment.Is64BitProcess ? "zlib(x64).dll" : "zlib(x86).dll";
+            string dllName = UOExtServer.Is64BitProcess ? "zlib(x64).dll" : "zlib(x86).dll";
             string dllPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), dllName);
             if (!File.Exists(dllPath))
                 throw new DllNotFoundException(String.Format("Не найдена библиотека {0}.", dllName));
 
-            m_Version = Environment.Is64BitProcess ? _LibVersion64() : _LibVersion86();
+            m_Version = UOExtServer.Is64BitProcess ? _LibVersion64() : _LibVersion86();
             //if (Version != "1.2.5, 10-Dec-2007")
             //    throw new DllNotFoundException(String.Format("Версия \"{0}\" библиотеки \"{1}\" не поддерживается.", Version, dllName));
         }
@@ -218,7 +217,7 @@ namespace UOExtDomain.Utilities
                 byte[] result = new byte[length];
 
                 fixed (byte* p1 = &data[0], p2 = &result[0]) {
-                    var status = Environment.Is64BitProcess 
+                    var status = UOExtServer.Is64BitProcess 
                         ? _Compress64(result, ref length, data, (Int32)data.Length, ZLibQuality.Default)
                         : _Compress86(result, ref length, data, (Int32)data.Length, ZLibQuality.Default);
 
@@ -246,7 +245,7 @@ namespace UOExtDomain.Utilities
                 byte[] result = new byte[length];
 
                 fixed (byte* p1 = &data[0], p2 = &result[0]) {
-                    var status = Environment.Is64BitProcess
+                    var status = UOExtServer.Is64BitProcess
                                  ? _Decompress64(result, ref length, data, (Int32)data.Length)
                                  : _Decompress86(result, ref length, data, (Int32)data.Length);
                     if (status != ZLibError.Okay) {
@@ -288,12 +287,12 @@ namespace UOExtDomain.Utilities
 
         public BZ2NativeCompressor()
         {
-            string dllName = Environment.Is64BitProcess ? "bzip2(x64).dll" : "bzip2(x86).dll";
+            string dllName = UOExtServer.Is64BitProcess ? "bzip2(x64).dll" : "bzip2(x86).dll";
             string dllPath = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), dllName);
             if (!File.Exists(dllPath))
                 throw new DllNotFoundException(String.Format("Не найдена библиотека {0}.", dllName));
 
-            m_Version = Environment.Is64BitProcess ? _LibVersion64() : _LibVersion86();
+            m_Version = UOExtServer.Is64BitProcess ? _LibVersion64() : _LibVersion86();
             //if (Version != "1.0.6, 6-Sept-2010")
             //    throw new DllNotFoundException(String.Format("Версия \"{0}\" библиотеки \"{1}\" не поддерживается.", Version, dllName));
         }
@@ -318,7 +317,7 @@ namespace UOExtDomain.Utilities
                     Int32 status = Int32.MaxValue;
                     while (status != 0)
                     {
-                        status = Environment.Is64BitProcess
+                        status = UOExtServer.Is64BitProcess
                                  ? _Compress64(result, ref length, data, (UInt32)data.Length, 9, 0, 0)
                                  : _Compress86(result, ref length, data, (UInt32)data.Length, 9, 0, 0);
                         if (status == -8)
@@ -356,7 +355,7 @@ namespace UOExtDomain.Utilities
                     Int32 status = Int32.MaxValue;
                     while (status != 0)
                     {
-                        status = Environment.Is64BitProcess
+                        status = UOExtServer.Is64BitProcess
                                  ? _Decompress64(result, ref length, data, (UInt32)data.Length, 0, 0)
                                  : _Decompress86(result, ref length, data, (UInt32)data.Length, 0, 0);
                         if (status == -8)

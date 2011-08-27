@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+//using System.Linq;
 using System.Text;
 using System.IO;
 using System.Collections;
@@ -77,7 +77,7 @@ namespace UOExtDomain.Network
         public SocketPacket(byte[] rawdata)
         {
             #if !TESTCENTER
-            if (!Type.HasFlag(PacketType.Incoming))
+            if ((Type & PacketType.Incoming) != PacketType.Incoming)
                 throw new Exception(String.Format("Получение не разрешенного пакета {0}", StringID));
             #endif
 
@@ -89,7 +89,7 @@ namespace UOExtDomain.Network
         public bool Send(SocketClient client) 
         {
             #if !TESTCENTER
-            if (!this.Type.HasFlag(PacketType.Outgoing))
+            if ((this.Type & PacketType.Outgoing) != PacketType.Outgoing)
                 throw new Exception(String.Format("Попытка отправки не разрешенного пакета {0}", StringID));
             #endif
 
@@ -125,7 +125,7 @@ namespace UOExtDomain.Network
             this.OnSend(client);
 
             rawData.Close();
-            rawData.Dispose();
+            //rawData.Dispose();
             return result;
         }
 
@@ -142,7 +142,7 @@ namespace UOExtDomain.Network
             #endif
 
             #if !TESTCENTER
-            if (!Type.HasFlag(PacketType.Outgoing))
+            if ((Type & PacketType.Outgoing) != PacketType.Outgoing)
                 throw new Exception(String.Format("Отправка не разрешенного пакета {0}", StringID));
             #endif
             // ...
@@ -156,7 +156,7 @@ namespace UOExtDomain.Network
             #endif
 
             #if !TESTCENTER
-            if (!Type.HasFlag(PacketType.Incoming))
+            if ((Type & PacketType.Incoming) != PacketType.Incoming)
                 throw new Exception(String.Format("Получение не разрешенного пакета {0}", StringID));
             #endif
 

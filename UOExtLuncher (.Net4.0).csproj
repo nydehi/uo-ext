@@ -5,22 +5,21 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{8DFEA144-0088-41A5-8AB8-51DAACC48E95}</ProjectGuid>
+    <ProjectGuid>{E0E9E001-B003-475C-9235-18C2DAE34CCB}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>UOExtDomain</RootNamespace>
-    <AssemblyName>UOExtTestClient</AssemblyName>
-    <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
+    <AssemblyName>UOExtLuncher</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile>
-    </TargetFrameworkProfile>
+    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;TESTCENTER</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET_4_0, LIBRARY</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -29,30 +28,31 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE;TESTCENTER</DefineConstants>
+    <DefineConstants>TRACE;NET_4_0, LIBRARY</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup>
-    <StartupObject>UOExtDomain.UOExtServer</StartupObject>
+    <StartupObject>
+    </StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Utilities\Compressor.cs" />
-    <Compile Include="Utilities\DExecutor.cs" />
-    <Compile Include="Network\SocketPacket.cs" />
-    <Compile Include="Packets.cs" />
-    <Compile Include="UOExtServer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Network\SocketBase.cs" />
-    <Compile Include="Network\SocketClient.cs" />
-    <Compile Include="Network\SocketServer.cs" />
+    <Compile Include="UOExtLuncher.cs" />
+    <Compile Include="Utilities\IniFile.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <None Include="app.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="UOExtDomain %28.Net4.0%29.csproj">
+      <Project>{22061AEE-00EC-47E5-8E17-1EB8E0764543}</Project>
+      <Name>UOExtDomain %28.Net4.0%29</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
