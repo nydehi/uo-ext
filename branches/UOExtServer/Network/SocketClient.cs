@@ -308,28 +308,41 @@ namespace UOExtDomain.Network
 		/// </summary>
 		public void Receive()
 		{
+            try
+			{
 Console.WriteLine("Receive ");
-            // Обработка полученных пакетов
-			while(packetQueue.Count != 0) {
-                var packet = packetQueue.Dequeue() as SocketPacket;
-                packet.Receive(this);
-				//this.messageHandler(this, RawBuffer.Length);
-			}
+                // Обработка полученных пакетов
+			    while(packetQueue.Count != 0) {
+                    var packet = packetQueue.Dequeue() as SocketPacket;
+                    packet.Receive(this);
+				    //this.messageHandler(this, RawBuffer.Length);
+			    }
 
-            if (!this.Connected && this.disposed)
-                return; // Соединение закрыто, прерываем процесс чтения данных
+                if (!this.Connected && this.disposed)
+                    return; // Соединение закрыто, прерываем процесс чтения данных
 
-            // Асинхроное чтение
-            if ( this.networkStream != null && this.networkStream.CanRead) {      
-				this.RawBuffer  = new Byte[this.SizeOfRawBuffer];
-                //if (/*&&*/ (this.networkStream.DataAvailable))
+                // Асинхроное чтение
+                if ( this.networkStream != null && this.networkStream.CanRead) {      
+				    this.RawBuffer  = new Byte[this.SizeOfRawBuffer];
+                    //if (/*&&*/ (this.networkStream.DataAvailable))
 Console.WriteLine("BeginRead ");
-                // Ансинхронное чтение                                                вызов  ReceiveComplete()                  
-				this.networkStream.BeginRead(this.RawBuffer, 0, this.SizeOfRawBuffer, this.callbackReadMethod, null);
-			} else {      // Cокет не доступен для чтения
-                throw new Exception(String.Format("{0} Error: Socket not available for reading.", base.IpAddress));
+                    // Ансинхронное чтение                                                вызов  ReceiveComplete()                  
+				    this.networkStream.BeginRead(this.RawBuffer, 0, this.SizeOfRawBuffer, this.callbackReadMethod, null);
+			    } else {      // Cокет не доступен для чтения
+                    throw new Exception(String.Format("{0} Error: Socket not available for reading.", base.IpAddress));
+                    this.Disconnect();
+                }
+            } catch(Exception e) {
+                //throw new Exception("ОШИБКа ОШИБКА!!!");
+                //throw e;
+
+                Console.WriteLine("{0} Error: Can't receive socket data.", base.IpAddress);
+                #if DEBUG
+                Console.WriteLine("Description: {1}{0}StackTrace:{0}{2}{0}{0}", Environment.NewLine, e.Message, e.StackTrace);
+                #endif
                 this.Disconnect();
-            }
+				try { System.Diagnostics.Debugger.Break(); } catch { ; }
+			}
 		}
 
         /// <summary> 
