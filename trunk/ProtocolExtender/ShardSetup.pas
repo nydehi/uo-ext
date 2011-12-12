@@ -2,6 +2,10 @@ unit ShardSetup;
 
 interface
 
+{$IFNDEF PLUGINS_SERVER}
+  {$UNDEF LOGIN_CFG}
+{$ENDIF}
+
 type
   TSerialSupplyMethods = (ssmStatic, ssmProxy, ssmServer);
 
@@ -20,6 +24,9 @@ var
   Encrypted:Boolean = False;
   EnableIntertalProtocol: Boolean = False;
   InternalProtocolHeader: Byte = $FF;
+
+
+  ReadLoginCfg: Boolean = {$IFDEF LOGIN_CFG}True{$ELSE}False{$ENDIF};
 
 implementation
 

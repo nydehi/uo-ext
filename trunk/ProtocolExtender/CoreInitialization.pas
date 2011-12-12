@@ -6,7 +6,7 @@ procedure CoreInitialize; stdcall;
 
 implementation
 
-uses Windows, HookLogic, Plugins, TLHelp32, Common;
+uses Windows, HookLogic, Plugins, TLHelp32, Common, LoginConfReader;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}
@@ -66,6 +66,7 @@ Begin
   {$IFDEF DEBUG}
   WriteLn('Hook completed. Initializing plugins.');
   {$ENDIF}
+  LoginConfReader.TryReadLoginCfg;
   TPluginSystem.Instance.Initialize;
 End;
 
