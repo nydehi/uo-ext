@@ -211,7 +211,6 @@ type
 var
   st : PStrange;
 begin
-  ShowMessage(IntToStr(st.Data[5]);
   if not CBUseUOExt.Checked then
     RunUO(EUOPath.Text, EDLLName.Text)
   Else

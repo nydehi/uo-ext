@@ -43,7 +43,7 @@ type
     FEventData: TPluginDownloadEventArgs;
 
     procedure HandlePackets; inline;
-    function ConnectToServer: TSocket; inline;
+    function ConnectToServer: TSocket;{ inline;}
     procedure Disconnect(ASocket: TSocket);
     function TryRead(Dest: Pointer; Length, Offset: Cardinal; var Readed: Cardinal):Boolean;
 
@@ -118,7 +118,7 @@ begin
   ZeroMemory(@SockAddr, SizeOf(SockAddr));
   SockAddr.sin_family:=AF_INET;
   SockAddr.sin_port:=htons(FPort);
-  SockAddr.sin_addr.S_addr:=htonl(FIP);
+  SockAddr.sin_addr.S_addr:=FIP;//htonl(FIP);
   If connect(Result, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Begin
     closesocket(Result);
     Result := INVALID_SOCKET;
@@ -143,15 +143,18 @@ var
   fs:TFDSet;
   TV_Timeout:TTimeVal;
   iRecived: Integer;
+  WSAData:TWSAData;
 begin
   Result := -1;
+  WSAStartup($101, WSAData);
   ASocket := ConnectToServer;
   if ASocket = INVALID_SOCKET then Exit;
 
 
   FBuffer := GetMemory(65536);
   PByte(FBuffer)^ := 01;
-  send(ASocket, FBuffer^, 1, 0);
+  PCardinal(Cardinal(FBuffer) + 1)^ := 01;
+  send(ASocket, FBuffer^, 5, 0);
   TV_Timeout.tv_usec := 100;
   repeat
     FD_ZERO(fs);
@@ -165,6 +168,7 @@ begin
     End;
   until not Self.FNeedExit;
   Disconnect(ASocket);
+  WSACleanup();
 end;
 
 procedure TPluginsDownloader.HandlePackets;
@@ -176,7 +180,7 @@ begin
     cProcessedAmount := 0;
     if FEventData.TotalItems = 0 then Begin
       if FBufferPosition > 0 then Begin
-        If PByte(FBuffer)^ <> 0 then Begin {Wrong stream type}
+        If PByte(FBuffer)^ <> 2 then Begin {Wrong stream type}
           FNeedExit := True;
           Exit;
         End;

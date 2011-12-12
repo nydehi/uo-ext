@@ -25,6 +25,7 @@ uses
   CoreInitialization in 'ProtocolExtender\CoreInitialization.pas'
   {$IFDEF PLUGINS_SERVER}, PluginsDownloader in 'ProtocolExtender\PluginsDownloader.pas'{$ENDIF}
   {$IFDEF RUNUO_API}, Executable in 'ProtocolExtender\Executable.pas'{$ENDIF}
+  , LoginConfReader in 'ProtocolExtender\LoginConfReader.pas'
   ;
 
 exports
