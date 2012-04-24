@@ -4,14 +4,7 @@ interface
 
 uses Windows, WinSock, AbstractThread, ClientThread, ShardSetup;
 
-  function RunListeningThread:Word;
-implementation
-
-uses Common
-;
-
 type
-
   TServerThread=class(TAbstractThread)
   private
     FRemoteIP: Cardinal;
@@ -27,21 +20,13 @@ type
     constructor Create;
   end;
 
+implementation
+
+uses Common
+;
+
 var
   Tv:TTimeVal;
-
-// Interface Procedures
-
-function RunListeningThread:Word;
-begin
-  with TServerThread.Create do begin
-    Run;
-    repeat
-      Sleep(1);
-      Result := LocalPort;
-    until (Result <> 0) or not Running;
-  end;
-end;
 
 // TServerThread
 
@@ -83,6 +68,8 @@ begin
     If fs.fd_count>0 Then begin
       cSocket:=accept(FServerSocket, nil, nil);
       If cSocket<>INVALID_SOCKET Then begin
+        while ClientThread.CurrentClientThread <> nil do Sleep(1);
+
         with TClientThread.Create do begin
           ServerIP:=FRemoteIP;
           ServerPort:=FRemotePort;

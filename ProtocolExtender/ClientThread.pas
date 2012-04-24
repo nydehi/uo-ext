@@ -2,7 +2,7 @@ unit ClientThread;
 
 interface
 
-uses Windows, WinSock, AbstractThread, PacketStream, ProtocolDescription;
+uses Windows, WinSock, AbstractThread, PacketStream, ProtocolDescription, APIHooker;
 
 type
   TClientThread=class(TAbstractThread)
@@ -35,6 +35,7 @@ type
   end;
 
 var
+  CCTLock: TRTLCriticalSection;
   CurrentClientThread: TClientThread;
 
 implementation
@@ -55,6 +56,7 @@ function TClientThread.ConnectToServer:Boolean;
 var
   SockAddr:TSockAddr;
 begin
+  THooker.Hooker.TrueAPI;
   Result:=False;
   FServerConnection:=socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   IF FServerConnection=INVALID_SOCKET Then Exit;
@@ -65,6 +67,7 @@ begin
   If connect(FServerConnection, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Exit;
   Write('Connection to server established.');
   Result:=True;
+  THooker.Hooker.TrueAPIEnd;
 end;
 
 function TClientThread.Execute:Integer;
@@ -73,10 +76,15 @@ var
   ITrue:Integer;
 begin
   Result:=-1;
-  CurrentClientThread := Self;
   Write('Thread in.');
+  EnterCriticalSection(CCTLock);
+  CurrentClientThread := Self;
+  LeaveCriticalSection(CCTLock);
+  Write('CCT set.');
   TPluginSystem.Instance.ProxyStart;
+  Write('ProxyStart done');
   If not ConnectToServer Then Exit;
+  Write('Connected to server');
   ITrue:=1;
   ioctlsocket(FClientConnection, FIONBIO, ITrue);
   ioctlsocket(FServerConnection, FIONBIO, ITrue);
@@ -111,16 +119,20 @@ begin
     TPluginSystem.Instance.CheckSyncEvent;
   until FNeedExit;
   Write('Connection terminated by some reason.');
+  EnterCriticalSection(CCTLock);
   Result:=0;
   ITrue:=0;
   ioctlsocket(FClientConnection, FIONBIO, ITrue);
   ioctlsocket(FServerConnection, FIONBIO, ITrue);
   closesocket(FClientConnection);
   closesocket(FServerConnection);
+  Write('Proxy end event');
+  TPluginSystem.Instance.ProxyEnd;
+  Write('Ready to free objects');
   FCSObj.Free;
   FSCObj.Free;
   If CurrentClientThread = Self Then CurrentClientThread := nil;
-  TPluginSystem.Instance.ProxyEnd;
+  LeaveCriticalSection(CCTLock);
   Write('Thread out.');
 end;
 
@@ -232,4 +244,5 @@ End;
 initialization
   TV_Timeout.tv_usec:=100;
   CurrentClientThread := nil;
+  InitializeCriticalSection(CCTLock);
 end.

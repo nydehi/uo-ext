@@ -122,9 +122,9 @@ begin
   TPluginSystem.Instance.UnRegisterPacketHandler(Header, Handler);
 end;
 
-procedure AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer); stdcall;
+function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer):Boolean; stdcall;
 Begin
-  TPluginSystem.Instance.AfterPacketCallback(ACallBack, lParam);
+  Result := TPluginSystem.Instance.AfterPacketCallback(ACallBack, lParam);
 End;
 
 function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean; stdcall;
@@ -456,8 +456,17 @@ var
   iPluginPos: Cardinal;
 begin
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
+    ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
     FActivePlugin := iPluginPos;
-    TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYSTART, nil);
+    try
+      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYSTART, nil);
+    except
+      {$IFDEF DEBUG}
+        WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
+        ReadLn;
+      {$ENDIF}
+      Halt(1);
+    end;
     FActivePlugin := MAXDWORD;
   End;
 end;
@@ -468,7 +477,16 @@ var
 begin
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
     FActivePlugin := iPluginPos;
-    TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYEND, nil);
+    try
+      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYEND, nil);
+    except
+      {$IFDEF DEBUG}
+        WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
+        ReadLn;
+      {$ENDIF}
+      Halt(1);
+    end;
+    ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
     FActivePlugin := MAXDWORD;
   End;
 end;
@@ -480,7 +498,15 @@ begin
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
     if Assigned(FPlugins[iPluginPos].OnPacketSended) then Begin
       FActivePlugin := iPluginPos;
-      TPacketSendedCallback(FPlugins[iPluginPos].OnPacketSended)(Header, FPlugins[iPluginPos].OnPacketSendedParam, IsFromServerToClient);
+      try
+        TPacketSendedCallback(FPlugins[iPluginPos].OnPacketSended)(Header, FPlugins[iPluginPos].OnPacketSendedParam, IsFromServerToClient);
+      except
+        {$IFDEF DEBUG}
+          WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
+          ReadLn;
+        {$ENDIF}
+        Halt(1);
+      end;
       FPlugins[iPluginPos].OnPacketSended := nil;
       FActivePlugin := MAXDWORD;
     End;

@@ -11,7 +11,6 @@ uses
   HuffmanAlgo in 'ProtocolExtender\HuffmanAlgo.pas',
   ProtocolDescription in 'ProtocolExtender\ProtocolDescription.pas',
   ClientThread in 'ProtocolExtender\ClientThread.pas',
-  APIHooker in 'ProtocolExtender\APIHooker.pas',
   HookLogic in 'ProtocolExtender\HookLogic.pas',
   ShardSetup in 'ProtocolExtender\ShardSetup.pas',
   Plugins in 'ProtocolExtender\Plugins.pas',
@@ -22,28 +21,31 @@ uses
   DCPcrypt in 'ProtocolExtender\DCPcrypt.pas',
   Twofish in 'ProtocolExtender\Twofish.pas',
   md5 in 'ProtocolExtender\md5.pas',
-  CoreInitialization in 'ProtocolExtender\CoreInitialization.pas'
-  {$IFDEF PLUGINS_SERVER}, PluginsDownloader in 'ProtocolExtender\PluginsDownloader.pas'{$ENDIF}
-  {$IFDEF RUNUO_API}, Executable in 'ProtocolExtender\Executable.pas'{$ENDIF}
-  , LoginConfReader in 'ProtocolExtender\LoginConfReader.pas'
-  ;
+  CoreInitialization in 'ProtocolExtender\CoreInitialization.pas' {$IFDEF PLUGINS_SERVER},
+  PluginsDownloader in 'ProtocolExtender\PluginsDownloader.pas' {$ENDIF}{$IFDEF RUNUO_API},
+  Executable in 'ProtocolExtender\Executable.pas' {$ENDIF},
+  LoginConfReader in 'ProtocolExtender\LoginConfReader.pas',
+  APIHooker in 'ProtocolExtender\APIHooker.pas';
 
 exports
-  CoreInitialization.CoreInitialize{$IFDEF RUNUO_API},
-  Executable.RunUOReg name 'RunUOReg',
-  Executable.RunUOA name 'RunUOA',
-  Executable.RunUOW name 'RunUOW',
-  Executable.StartSuspendedA,
-  Executable.StartSuspendedW,
-  Executable.InjectThisDllA,
-  Executable.InjectThisDllW,
-  Executable.InjectDllA,
-  Executable.InjectDllW,
-  Executable.ResumeLoading,
-  Executable.RunUO32,
-  Executable.Infect32,
-  Executable.InfectA,
-  Executable.InfectW{$ENDIF}
+  CoreInitialization.CoreInitialize
+{$IFDEF RUNUO_API}
+  , Executable.RunUOReg name 'RunUOReg'
+  , Executable.RunUOA name 'RunUOA'
+  , Executable.RunUOW name 'RunUOW'
+  , Executable.StartSuspendedA
+  , Executable.StartSuspendedW
+  , Executable.InjectThisDllA
+  , Executable.InjectThisDllW
+  , Executable.InjectDllA
+  , Executable.InjectDllW
+  , Executable.ResumeLoading
+  , Executable.RunUO32
+  , Executable.Infect32
+  , Executable.InfectA
+  , Executable.InfectW
+{$ENDIF}
+
 ;
 
 begin

@@ -106,7 +106,7 @@ type
   TFreeSerial = procedure(Serial: Cardinal); stdcall;
   TGetServerSerial = function(Serial:Cardinal):Cardinal; stdcall;
   TGetClientSerial = function(Serial:Cardinal):Cardinal; stdcall;
-  TAfterPacketCallback = procedure(ACallBack: TPacketSendedCallback; lParam: Pointer); stdcall;
+  TAfterPacketCallback = function(ACallBack: TPacketSendedCallback; lParam: Pointer):Boolean; stdcall;
 
   TSyncEvent = procedure; stdcall;
   TRegisterSyncEventHandler = function(Event: TSyncEvent): Pointer; stdcall;

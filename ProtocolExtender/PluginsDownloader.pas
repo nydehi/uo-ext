@@ -2,7 +2,7 @@ unit PluginsDownloader;
 
 interface
 
-uses Windows, WinSock, Common;
+uses Windows, WinSock, APIHooker, Common;
 
 type
   TPluginDownloadEventArgs=packed record
@@ -113,6 +113,7 @@ var
   SockAddr: TSockAddrIn;
   ITrue: Integer;
 begin
+  THooker.Hooker.TrueAPI;
   Result := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if Result = INVALID_SOCKET then Exit;
   ZeroMemory(@SockAddr, SizeOf(SockAddr));
@@ -126,6 +127,7 @@ begin
   End;
   ITrue := 1;
   ioctlsocket(Result, FIONBIO, ITrue);
+  THooker.Hooker.TrueAPIEnd;
 end;
 
 procedure TPluginsDownloader.Disconnect(ASocket: Integer);

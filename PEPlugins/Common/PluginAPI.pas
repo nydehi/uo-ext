@@ -35,7 +35,7 @@ type
     function GetClientSerial(Serial:Cardinal):Cardinal; virtual;
     function RegisterSyncEventHandler(Event: TSyncEvent): Pointer; virtual;
     procedure AskSyncEvent(InterlockedValue: Pointer); virtual;
-    procedure AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer); virtual;
+    function AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean; virtual;
 
     function HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; virtual;
 
@@ -181,9 +181,9 @@ Begin
   FAskSyncEvent(InterlockedValue);
 End;
 
-procedure TPluginApi.AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer);
+function TPluginApi.AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
 begin
-  FAfterPacketCallback(ACallBack, lParam);
+  Result := FAfterPacketCallback(ACallBack, lParam);
 end;
 
 initialization
