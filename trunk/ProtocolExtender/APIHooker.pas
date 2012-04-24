@@ -111,18 +111,21 @@ end;
 procedure TFunctionHooker.Inject;
 var
   Writen:Cardinal;
+  Msg: AnsiString;
 begin
   ReadProcessMemory(GetCurrentProcess, FOriginalFunction, @FOldData, SizeOf(FOldData), Writen);
   {$IFDEF DEBUG}
   If Writen <> SizeOf(FOldData) Then Begin
-    MessageBox(0, 'Inject. Readed wrong size', nil, MB_OK);
+    Msg := 'Inject. Readed wrong size ('+IntToStr(Writen)+')';
+    MessageBoxA(0, @Msg[1], nil, MB_OK);
     Halt(1);
   End;
   {$ENDIF}
   WriteProcessMemory(GetCurrentProcess, FOriginalFunction, @FInject, SizeOf(FInject), Writen);
   {$IFDEF DEBUG}
   If Writen <> SizeOf(FInject) Then Begin
-    MessageBox(0, 'Inject. Written wrong size', nil, MB_OK);
+    Msg := 'Inject. Written wrong size ('+IntToStr(Writen)+')';
+    MessageBoxA(0, @Msg[1], nil, MB_OK);
     Halt(1);
   End;
   {$ENDIF}

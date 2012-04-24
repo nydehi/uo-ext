@@ -2,7 +2,7 @@ unit HookLogic;
 
 interface
 
-uses Windows, APIHooker, ShardSetup, ListeningThread, PluginsShared;
+uses Windows, APIHooker, ShardSetup, AbstractThread, ListeningThread, PluginsShared, WinSock, Messages;
 
 
 procedure HookIt;
@@ -12,104 +12,58 @@ implementation
 uses Common, Plugins;
 
 type
-  TMappedFileInfo=record
-    FileName: PAnsiChar;
-    WantedWorkMethod: Cardinal;
-
-    Handle: THandle;
-    Access: Cardinal;
-    ShareMode: Cardinal;
-    MappingHandle: THandle;
-    MappingProtect: Cardinal;
-    ClientDataMap: Pointer;
-    DesiredAccess: Cardinal;
-  end;
+  TWndProc = function(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
 
 var
-  hLoginCFG: THandle;
-  cLoginCFGPos: Cardinal;
-  LoginCFG: AnsiString;
-  filledBytes: Cardinal;
+  WndProc: TWndProc;
+  ListeningThread: TServerThread;
 
-function CreateFileAHook(lpFileName: PAnsiChar; dwDesiredAccess, dwShareMode: DWORD;
-  lpSecurityAttributes: PSecurityAttributes; dwCreationDisposition, dwFlagsAndAttributes: DWORD;
-  hTemplateFile: THandle): THandle; stdcall;
+function connectHook(s: TSocket; var name: TSockAddr; namelen: Integer): Integer; stdcall;
 var
-  s:AnsiString;
-  i:integer;
-begin
-  s:=lpFileName;
-  i:=Length(s);
+  ConnInfo: TSockAddr;
+Begin
+  ListeningThread := TServerThread.Create;
+  ListeningThread.Run;
+
+  CopyMemory(@ConnInfo, @name, SizeOf(ConnInfo));
+  ConnInfo.sin_addr.S_addr := htonl(INADDR_LOOPBACK);
+
   repeat
-    if s[i]='\' then begin
-      s:=Copy(s, i + 1, Length(s));
-      Break;
-    end;
-    Dec(i);
-  until i=0;
-  s := UpperCase(s);
+    ConnInfo.sin_port := htons(ListeningThread.LocalPort);
+  until (ConnInfo.sin_port<>0) or not ListeningThread.Running;
+
 
   THooker.Hooker.TrueAPI;
-  Result:=CreateFileA(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+  Result := connect(s, ConnInfo, namelen);
   THooker.Hooker.TrueAPIEnd;
+End;
 
-  If s = 'LOGIN.CFG' Then Begin
-    hLoginCFG := Result;
-    cLoginCFGPos := 0;
+function MyWindowProcA(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
+Begin
+  if Msg = WM_QUIT then TAbstractThread.AllStop;
+  Result := WndProc(hWnd, Msg, wParam, lParam);
+End;
 
-    LoginCFG := 'LoginServer=127.0.0.1,' + IntToStr(RunListeningThread);
-    {$IFDEF DEBUG}
-    WriteLn('HookLogic: Proxy server started.');
-    WriteLn('HookLogic: Login.cfg:');
-    WriteLn('HookLogic: ', LoginCFG);
-    {$ENDIF}
-    filledBytes := 0;
-  end;
-end;
 
-function ReadFileHook(hFile: THandle; var Buffer: Pointer; nNumberOfBytesToRead: DWORD;
-  var lpNumberOfBytesRead: DWORD; lpOverlapped: POverlapped): BOOL; stdcall;
-begin
-  if hFile = hLoginCFG Then Begin
-    Result := True;
-    if (Length(LoginCFG) - cLoginCFGPos) > 0 Then
-      lpNumberOfBytesRead := Length(LoginCFG) - cLoginCFGPos
-    else Begin
-      lpNumberOfBytesRead := 0;
-      Exit;
-    End;
-    filledBytes := filledBytes + lpNumberOfBytesRead;
-    CopyMemory(@Buffer, @LoginCFG[cLoginCFGPos + 1], lpNumberOfBytesRead);
-    cLoginCFGPos := cLoginCFGPos + lpNumberOfBytesRead;
-  End Else Begin
-    THooker.Hooker.TrueAPI;
-    Result := ReadFile(hFile, Buffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped);
-    THooker.Hooker.TrueAPIEnd;
-  End;
-end;
-
-function CloseHandleHook(hObject: THandle): BOOL; stdcall;
-begin
+function CreateWindowExAHook(dwExStyle: DWORD; lpClassName: PAnsiChar; lpWindowName: PAnsiChar;
+  dwStyle: DWORD; X, Y, nWidth, nHeight: Integer; hWndParent: HWND;
+  hMenu: HMENU; hInstance: HINST; lpParam: Pointer): HWND; stdcall;
+Begin
   THooker.Hooker.TrueAPI;
-  Result := CloseHandle(hObject);
+  Result := CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
   THooker.Hooker.TrueAPIEnd;
-  If Boolean(Result) Then Begin
-    If hObject = hLoginCFG Then Begin
-      hLoginCFG := INVALID_HANDLE_VALUE;
-      cLoginCFGPos := 0;
-      {$IFDEF DEBUG}
-      WriteLn('HookLogic: Client filled with fake login.cfg');
-      WriteLn('HookLogic: Filled ', filledBytes, ' of ', Length(LoginCFG));
-      {$ENDIF}
-    End;
-  End;
-end;
+  if Result = INVALID_HANDLE_VALUE then Exit;
+
+  WndProc := TWndProc(GetWindowLongPtrA(Result, GWLP_WNDPROC));
+  SetWindowLongPtrA(Result, GWLP_WNDPROC, 0);
+End;
+
+
 
 procedure HookIt;
 begin
-  THooker.Hooker.HookFunction(@CreateFileAHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CreateFileA'));
-  THooker.Hooker.HookFunction(@ReadFileHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'ReadFile'));
-  THooker.Hooker.HookFunction(@CloseHandleHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CloseHandle'));
+  THooker.Hooker.HookFunction(@connectHook, GetProcAddress(GetModuleHandle('wsock32.dll'), 'connect'));
+  THooker.Hooker.HookFunction(@CreateWindowExAHook, GetProcAddress(GetModuleHandle('user32.dll'), 'CreateWindowExA'));
   THooker.Hooker.InjectIt;
 end;
 

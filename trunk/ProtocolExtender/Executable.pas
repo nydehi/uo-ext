@@ -22,6 +22,9 @@ function Infect32(Wnd: HWnd; Instance: HInst; CmdLine: PAnsiChar; nCmdShow: Inte
 function InfectA(AExecutablePath: PAnsiChar):Boolean; stdcall;
 function InfectW(AExecutablePath: PWideChar):Boolean; stdcall;
 
+Function InjectDllAInvoke(ASuspendedProcess:THandle; ADllPath, AInitProcedure: PAnsiChar): THandle;
+Function InjectDllWInvoke(ASuspendedProcess:THandle; ADllPath: PWideChar; AInitProcedure: PAnsiChar): THandle;
+
 implementation
 
 {$REGION 'Injection'}
@@ -478,7 +481,7 @@ End;
 {$ENDREGION}
 
 {$REGION 'Infection'}
-function InjectProc(KernBase: Cardinal; SearchAPI: Pointer): Pointer; asm
+procedure InjectProc(); asm
          MOV ESI, [ESP]
          CALL @__End
          INC EAX
@@ -517,7 +520,6 @@ function InjectProc(KernBase: Cardinal; SearchAPI: Pointer): Pointer; asm
          ADD EDX, 019h // EDX pointer to CoreInitialize
          CALL @GPA // EAX now pointer to CoreInitialize func
          CALL EAX
-         POPA
          PUSH 012345678h // Change this for real EntryPoint
          RET
 
@@ -653,13 +655,13 @@ const
   UOE : Array [0..9]  of AnsiChar = 'UOExt.dll' + #0;
   CI  : Array [0..14] of AnsiChar = 'CoreInitialize' + #0;
 Begin
-  Size := $113;
+  Size := $111;
   Result := GetMemory(Size);
   CopyMemory(Result, @InjectProc, Size);
-  PCardinal(Cardinal(Result) + $62)^ := RealStartPoint;
-  CopyMemory(Pointer(Cardinal(Result) + $EB), @LLE[0], 15);
-  CopyMemory(Pointer(Cardinal(Result) + $FA), @UOE[0], 10);
-  CopyMemory(Pointer(Cardinal(Result) + $104), @CI[0], 15);
+  PCardinal(Cardinal(Result) + $60)^ := RealStartPoint;
+  CopyMemory(Pointer(Cardinal(Result) + $E9), @LLE[0], 15);
+  CopyMemory(Pointer(Cardinal(Result) + $F8), @UOE[0], 10);
+  CopyMemory(Pointer(Cardinal(Result) + $102), @CI[0], 15);
 End;
 
 function Align(Value, Factor: Cardinal): Cardinal;
