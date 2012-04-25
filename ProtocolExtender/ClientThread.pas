@@ -45,6 +45,27 @@ uses Common, Plugins, Encryption, ShardSetup;
 var
   TV_Timeout:timeval;
 
+// Local procedures
+
+function SocketClosedReason(Sock: TSocket): Integer;
+var
+  Sock_Set: TFDSet;
+  Buff: Byte;
+  Size: Integer;
+Begin
+  Result := 1;
+  FD_ZERO(Sock_Set);
+  FD_SET(Sock, Sock_Set);
+  select(0, @Sock_Set, nil, nil, @TV_Timeout);
+  If FD_ISSET(Sock, Sock_Set) then Begin
+    Size := recv(Sock, Buff, 1, MSG_PEEK);
+    if Size = 0 then Result := 0;
+    if Size = SOCKET_ERROR then Result := WSAGetLastError;
+  End;
+End;
+
+// TClientThread
+
 procedure TClientThread.Write(What:AnsiString);
 begin
   {$IFDEF DEBUG}
@@ -74,13 +95,12 @@ function TClientThread.Execute:Integer;
 var
   fs:TFDSet;
   ITrue:Integer;
+  Buffer: Array [0..1] of Byte;
+  Valid: Boolean;
 begin
   Result:=-1;
   Write('Thread in.');
-  EnterCriticalSection(CCTLock);
   CurrentClientThread := Self;
-  LeaveCriticalSection(CCTLock);
-  Write('CCT set.');
   TPluginSystem.Instance.ProxyStart;
   Write('ProxyStart done');
   If not ConnectToServer Then Exit;
@@ -119,20 +139,23 @@ begin
     TPluginSystem.Instance.CheckSyncEvent;
   until FNeedExit;
   Write('Connection terminated by some reason.');
-  EnterCriticalSection(CCTLock);
+  TPluginSystem.Instance.ProxyEnd(SocketClosedReason(FServerConnection), SocketClosedReason(FClientConnection));
+  If SocketClosedReason(FClientConnection) = 1 then Begin
+    Buffer[0] := $82;
+    Buffer[1] := $FF;
+    SendPacket(@Buffer, 2, False, True, Valid);
+    FSCObj.Flush;
+  End;
+
   Result:=0;
   ITrue:=0;
   ioctlsocket(FClientConnection, FIONBIO, ITrue);
   ioctlsocket(FServerConnection, FIONBIO, ITrue);
   closesocket(FClientConnection);
   closesocket(FServerConnection);
-  Write('Proxy end event');
-  TPluginSystem.Instance.ProxyEnd;
-  Write('Ready to free objects');
   FCSObj.Free;
   FSCObj.Free;
   If CurrentClientThread = Self Then CurrentClientThread := nil;
-  LeaveCriticalSection(CCTLock);
   Write('Thread out.');
 end;
 
@@ -244,5 +267,4 @@ End;
 initialization
   TV_Timeout.tv_usec:=100;
   CurrentClientThread := nil;
-  InitializeCriticalSection(CCTLock);
 end.
