@@ -6,8 +6,8 @@ const
   {PluginEvents}
   PE_INIT        = 1; {Init Event. Arg is APIInfo}
   PE_FREE        = 2; {Free plugin}
-  PE_PROXYSTART  = 3;
-  PE_PROXYEND    = 4;
+  PE_PROXYSTART  = 3; {Proxy start}
+  PE_PROXYEND    = 4; {Proxy end}
 
   {API Entries}
   PF_REGISTERPACKETHANDLER = 1;
@@ -85,6 +85,14 @@ type
     APIs: Array [0..0] of TAPIFunc;
   end;
   PAPI=^TAPI;
+
+  TPE_ProxyEndEvent = packed record
+    ConnectedToServer: Boolean;
+    ConnectedToClient: Boolean;
+    ServerCloseReason: Integer;
+    ClientCloseReason: Integer;
+  end;
+  PPE_ProxyEndEvent = ^ TPE_ProxyEndEvent;
 
   TRegisterPacketHandler = procedure(Header:Byte; Handler: TPacketHandler) stdcall;
   TUnRegisterPacketHandler = procedure(Header: Byte; Handler: TPacketHandler) stdcall;

@@ -17,12 +17,19 @@ type
 var
   WndProc: TWndProc;
   ListeningThread: TServerThread;
+  iIP: Integer;
+  iPort: Word;
 
 function connectHook(s: TSocket; var name: TSockAddr; namelen: Integer): Integer; stdcall;
 var
   ConnInfo: TSockAddr;
 Begin
-  ListeningThread := TServerThread.Create;
+  if(iIP = 0) Then Begin
+    iIP := htonl(name.sin_addr.S_addr);
+    iPort := htons(name.sin_port);
+  End;
+
+  ListeningThread := TServerThread.Create(iIP, iPort);
   ListeningThread.Run;
 
   CopyMemory(@ConnInfo, @name, SizeOf(ConnInfo));
@@ -31,7 +38,6 @@ Begin
   repeat
     ConnInfo.sin_port := htons(ListeningThread.LocalPort);
   until (ConnInfo.sin_port<>0) or not ListeningThread.Running;
-
 
   THooker.Hooker.TrueAPI;
   Result := connect(s, ConnInfo, namelen);
@@ -55,13 +61,15 @@ Begin
   if Result = INVALID_HANDLE_VALUE then Exit;
 
   WndProc := TWndProc(GetWindowLongPtrA(Result, GWLP_WNDPROC));
-  SetWindowLongPtrA(Result, GWLP_WNDPROC, 0);
+  SetWindowLongPtrA(Result, GWLP_WNDPROC, Integer(@MyWindowProcA));
 End;
 
 
 
 procedure HookIt;
 begin
+  iIP := 0;
+  iPort := 0;
   THooker.Hooker.HookFunction(@connectHook, GetProcAddress(GetModuleHandle('wsock32.dll'), 'connect'));
   THooker.Hooker.HookFunction(@CreateWindowExAHook, GetProcAddress(GetModuleHandle('user32.dll'), 'CreateWindowExA'));
   THooker.Hooker.InjectIt;

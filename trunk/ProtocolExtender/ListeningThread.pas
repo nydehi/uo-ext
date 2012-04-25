@@ -17,7 +17,8 @@ type
     property RemoteIP: Cardinal read FRemoteIP;
     property RemotePort: Word read FRemotePort;
     property LocalPort: Word read FLocalPort;
-    constructor Create;
+    constructor Create; overload;
+    constructor Create(IP:Cardinal; Port: Word); overload;
   end;
 
 implementation
@@ -35,6 +36,13 @@ begin
   Inherited;
   FRemoteIP := htonl(inet_addr(@ShardSetup.LoginIP[1]));
   FRemotePort := ShardSetup.LoginPort;
+end;
+
+constructor TServerThread.Create(IP:Cardinal; Port: Word);
+begin
+  Inherited Create;
+  FRemoteIP := IP;
+  FRemotePort := Port;
 end;
 
 function TServerThread.Execute;

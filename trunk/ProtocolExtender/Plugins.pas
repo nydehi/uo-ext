@@ -46,7 +46,6 @@ type
 
 
     constructor Create;
-    destructor Destory;
     {$IFDEF PLUGINS_HDD}
     function GetHDDDLLsCount: Cardinal;
     procedure LoadFromHDD;
@@ -56,7 +55,7 @@ type
     procedure OnPlgLoad(Sender: TObject; APath: String);
     procedure OnPlgCount(Sender: TObject; Amount: Cardinal);
     {$ENDIF}
-    function LoadDll(ADllPath: String): Boolean;
+    function LoadDll(ADllPath: AnsiString): Boolean;
     procedure LoadAPI;
 
   private
@@ -78,7 +77,7 @@ type
     {Control from UOExt}
     procedure Initialize;
     procedure ProxyStart;
-    procedure ProxyEnd;
+    procedure ProxyEnd(ServStatus, CliStatus: Integer);
     function ClientToServerPacket(Data: Pointer; var Size:Cardinal): Boolean;
     function ServerToClientPacket(Data: Pointer; var Size:Cardinal): Boolean;
     procedure CheckSyncEvent;
@@ -90,6 +89,8 @@ type
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
     function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
     function RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
+
+    destructor Destory;
   end;
 
 implementation
@@ -288,12 +289,13 @@ Begin
 end;
 {$ENDIF} //PLUGINS_HDD
 
-function TPluginSystem.LoadDll(ADllPath: string):Boolean;
+function TPluginSystem.LoadDll(ADllPath: AnsiString):Boolean;
 var
   DllInitProc: TDllInit;
   hDll: THandle;
 begin
   Result := False;
+  ADllPath := ADllPath + #0;
   {$IFDEF DEBUG}
   Write('Plugins: Loading library from ', ADllPath, ' ... ');
   {$ENDIF}
@@ -311,7 +313,7 @@ begin
   End;
 
 
-  hDll := LoadLibrary(PChar(ADllPath));
+  hDll := LoadLibraryA(@ADllPath[1]);
   if hDll = INVALID_HANDLE_VALUE then Begin
     FDllCount := FDllCount - 1;
     {$IFDEF DEBUG}
@@ -471,14 +473,20 @@ begin
   End;
 end;
 
-procedure TPluginSystem.ProxyEnd;
+procedure TPluginSystem.ProxyEnd(ServStatus, CliStatus: Integer);
 var
   iPluginPos: Cardinal;
+  Arg: TPE_ProxyEndEvent;
 begin
+  Arg.ConnectedToServer := ServStatus = 1;
+  Arg.ConnectedToClient := CliStatus = 1;
+  Arg.ServerCloseReason := ServStatus;
+  Arg.ClientCloseReason := CliStatus;
+
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
     FActivePlugin := iPluginPos;
     try
-      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYEND, nil);
+      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYEND, @Arg);
     except
       {$IFDEF DEBUG}
         WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);

@@ -298,8 +298,8 @@ begin
         Break;
       End;
 
-      CurrentPoint := Pointer(Cardinal(CurrentPoint) + Sended);
-      CurrentLength := CurrentLength - Sended;
+      CurrentPoint := Pointer(Cardinal(CurrentPoint) + Cardinal(Sended));
+      CurrentLength := CurrentLength - Cardinal(Sended);
     until CurrentLength = 0;
     FOutcommingBuffer.Shift(FOutcommingBuffer.Amount);
   End;
