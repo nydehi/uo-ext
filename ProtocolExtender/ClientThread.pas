@@ -241,7 +241,10 @@ Begin
     // Client -> Server use Login Encryption
     // Server -> Client not encrypted
     If (CryptType = ctLogin) or ShardSetup.Encrypted Then Begin
-      CSCrypt := TLoginEncryption.Create(htonl(FCSObj.Seed));
+      if FCSObj.SeedType then
+        CSCrypt := TLoginEncryption.Create(htonl(FCSObj.Seed), FCSObj.ClientMajor, FCSObj.ClientMinor, FCSObj.ClientBuild)
+      Else
+        CSCrypt := TLoginEncryption.Create(htonl(FCSObj.Seed));
       CSCrypt.NeedDecrypt := (CryptType = ctLogin);
       CSCrypt.NeedEncrypt := ShardSetup.Encrypted;
     End;
@@ -258,8 +261,8 @@ Begin
       SCCrypt.NeedDecrypt := ShardSetup.Encrypted;
     End;
   End;
-  If CSCrypt = nil Then CSCrypt := TNoEncryption.Create;
-  If SCCrypt = nil Then SCCrypt := TNoEncryption.Create;
+  If not Assigned(CSCrypt)Then CSCrypt := TNoEncryption.Create;
+  If not Assigned(SCCrypt) Then SCCrypt := TNoEncryption.Create;
   FCSObj.CryptObject := CSCrypt;
   FSCObj.CryptObject := SCCrypt;
 End;

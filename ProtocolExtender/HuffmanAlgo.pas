@@ -18,8 +18,6 @@ uses Windows;
 
 type
   THuffmanTable=Array [0..513] of Word;
-  TByteArr=Array [0..489] of Byte;
-  PByteArr=^TByteArr;
 
 const
   UOTable:THuffmanTable = (

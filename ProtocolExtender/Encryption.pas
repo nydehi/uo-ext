@@ -159,7 +159,7 @@ Begin
   cByte := PByte(Cardinal(Data) + Offset - 1);
   For i := 0 to Length - 1 do Begin
     cByte := PByte(Cardinal(cByte) + 1);
-    cByte^ := cByte^ XOR FDecTable1;
+    cByte^ := cByte^ XOR Byte(FDecTable1 AND $FF);
 
     tmp1 := FDecTable1;
     tmp2 := FDecTable2;
@@ -180,7 +180,7 @@ Begin
   cByte := PByte(Cardinal(Data) + Offset - 1);
   For i := 0 to Length - 1 do Begin
     cByte := PByte(Cardinal(cByte) + 1);
-    cByte^ := cByte^ XOR FEncTable1;
+    cByte^ := cByte^ XOR Byte(FEncTable1 AND $FF);
 
     tmp1 := FEncTable1;
     tmp2 := FEncTable2;
@@ -265,7 +265,7 @@ Begin
   Result := True;
   If not FEncrypt Then Exit;
   For i:=0 to Length - 1 do Begin
-    if FDecryptPosition >= $100 Then RefreshEncryptCipherTable;
+    if FEncryptPosition >= $100 Then RefreshEncryptCipherTable;
     cByte := Pointer(Cardinal(Data) + i);
     cByte^ := cByte^ XOR FEncryptCipherTable[FEncryptPosition];
     FEncryptPosition := FEncryptPosition + 1;
