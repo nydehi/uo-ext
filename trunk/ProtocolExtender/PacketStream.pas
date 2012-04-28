@@ -60,6 +60,11 @@ type
     FCryptObject: TNoEncryption;
     FOnClientEncryptionDetected: TClientEncryptionDetectedEvent;
 
+    FNewEFSeed: Boolean;
+    FCMajor: Cardinal;
+    FCMinor: Cardinal;
+    FCBuild: Cardinal;
+
     function GetNetworkData:Boolean;
     function GetSeed:Boolean;
     procedure ProcessIncommingData; virtual;
@@ -79,6 +84,11 @@ type
     property CryptObject: TNoEncryption read FCryptObject write SetCryptObject;
     property OnPacket:TPacketEvent read FOnPacketEvent write FOnPacketEvent;
     property OnPacketProcessed: TPacketProcessedEvent read FOnPacketProcessedEvent write FOnPacketProcessedEvent;
+
+    property SeedType: Boolean read FNewEFSeed;
+    property ClientMajor: Cardinal read FCMajor;
+    property ClientMinor: Cardinal read FCMinor;
+    property ClientBuild: Cardinal read FCBuild;
 
     constructor Create(Incomming:TSocket; Outcomming:TSocket);
     destructor Destroy; override;
@@ -106,7 +116,9 @@ var
 procedure WriteDump(Point:Pointer; Len:Cardinal);
 var
   cLine:AnsiString;
+  cBuffer: Array [0..16] of AnsiChar;
   cPos:Cardinal;
+  i: Byte;
 begin
   If Len>0 Then Begin
 {
@@ -115,7 +127,9 @@ begin
     cPos:=0;
     repeat
       if cPos mod 16 = 0 Then Begin
-        if cPos<>0 Then WriteLn(cLine);
+        if cPos<>0 Then Begin
+          WriteLn(cLine, '| ', cBuffer);
+        End;
         cLine:=IntToStr(cPos);
         if cPos<100000 Then cLine:='0'+cLine;
         if cPos<10000 Then cLine:='0'+cLine;
@@ -125,10 +139,17 @@ begin
         cLine:=cLine + ' | ';
       End;
       cLine:=cLine+IntToHex(PByte(Cardinal(Point)+cPos)^ ,2) + ' ';
+      if PByte(Cardinal(Point)+cPos)^ > 16 then
+        cBuffer[cPos mod 16] :=  PAnsiChar(Cardinal(Point)+cPos)^
+      Else
+        cBuffer[cPos mod 16] :=  '.';
       If (cPos + 1) mod 4 = 0 Then cLine:=cLine + ' ';
       cPos:=cPos+1;
     until cPos>=Len;
-    WriteLn(cLine);
+
+    For i := 0 to 61 - Length(cLine) do cLine := cLine + ' ';
+    If cPos mod 16 > 0 Then For i := cPos mod 16 to 15 do cBuffer[i] := ' ';
+    WriteLn(cLine, '| ', cBuffer);
   End;
 end;
 {$ENDIF}
@@ -266,7 +287,9 @@ begin
   End;
   pOldWork := FOutcommingBuffer.WritePoint;
   FOutcommingBuffer.Push(Packet, Length);
-  If Assigned(FCryptObject) Then FCryptObject.Encrypt(pOldWork, 0, Length);
+  If Assigned(FCryptObject) Then Begin
+    FCryptObject.Encrypt(pOldWork, 0, Length);
+  End;
   {$IFDEF Debug}
   Flush;
   {$ENDIF}
@@ -280,6 +303,9 @@ var
   CurrentLength: Cardinal;
 begin
   If FOutcommingBuffer.Amount > 0 Then Begin
+    if(IsCliServ) Then Begin
+      WriteLn('Flushing outcomming data. Buffer: ', FOutcommingBuffer.Amount);
+    End;
     CurrentPoint := FOutcommingBuffer.Base;
     CurrentLength := FOutcommingBuffer.Amount;
     repeat
@@ -302,6 +328,9 @@ begin
       CurrentLength := CurrentLength - Cardinal(Sended);
     until CurrentLength = 0;
     FOutcommingBuffer.Shift(FOutcommingBuffer.Amount);
+    if(IsCliServ) Then Begin
+      WriteLn('Flushed outcomming data. Buffer: ', FOutcommingBuffer.Amount);
+    End;
   End;
 end;
 
@@ -314,17 +343,16 @@ begin
   ioctlsocket(FIncommingSocket, FIONREAD, Readed);
   FIncommingBuffer.EnshureFreeSpace(Readed);
   Readed := recv(FIncommingSocket, FIncommingBuffer.WritePoint^, Readed, 0);
-  If (Readed = SOCKET_ERROR) or (Readed = 0) Then Exit;
-
-  {$IFDEF WRITELOG}
-  If FIsCliServ Then Begin
-    WriteLn('Cli -> Srv: Packet recived. Length: ', Readed);
-  End Else Begin
-    WriteLn('Srv -> Cli: Packet recived. Length: ', Readed);
+  If (Readed = SOCKET_ERROR) or (Readed = 0) Then Begin
+    if FIncommingBuffer.Amount > 0 then Result := True;
+    Exit;
   End;
-  WriteDump(FIncommingBuffer.WritePoint, Readed);
-  {$ENDIF}
-  If Assigned(FCryptObject) Then FCryptObject.Decrypt(FIncommingBuffer.WritePoint, 0, Readed);
+
+  If Assigned(FCryptObject) Then Begin
+    FCryptObject.Decrypt(FIncommingBuffer.WritePoint, 0, Readed);
+  End;
+
+
   FIncommingBuffer.Pushed(Readed);
   Result := True;
 end;
@@ -342,14 +370,21 @@ Begin
   Result := False;
   If not((FSeed <> 0) or (not FIsCliServ)) Then Begin
     If PByte(FIncommingBuffer.Base)^ = $EF Then Begin // New 0xEF packet for seeding.
+      FNewEFSeed := True;
       Dummy := ProtocolDescriptor.GetCliServLength($EF);
       If FIncommingBuffer.Amount < Dummy Then Exit; // Wait for additional data
       FSeed := PCardinal(Cardinal(FIncommingBuffer.Base) + 1)^;
+      FCMajor := htonl(PCardinal(Cardinal(FIncommingBuffer.Base) + 5)^);
+      FCMinor := htonl(PCardinal(Cardinal(FIncommingBuffer.Base) + 9)^);
+      FCBuild := htonl(PCardinal(Cardinal(FIncommingBuffer.Base) + 13)^);
+      WriteLn('Version: Maj: ', FCMajor, ', Min: ', FCMinor, ', Bld: ', FCBuild);
       DoSendPacket(FIncommingBuffer.Base, Dummy, False, False);
       FIncommingBuffer.Shift(Dummy);
+      Flush;
       // This packet sends without encoding and/or packing.
     End Else Begin
       FSeed := PCardinal(FIncommingBuffer.Base)^;
+      FNewEFSeed := False;
       FIncommingBuffer.Shift(4);
       FOutcommingBuffer.Push(@FSeed, 4);
     End;
@@ -419,6 +454,7 @@ var
   SourceLen:Cardinal;
 begin
   If not GetSeed Then Exit;
+  if FIncommingBuffer.Amount = 0 then Exit;
   If not Assigned(FCryptObject) Then If not DetectEncryption Then Exit;
 
   If FIncommingBuffer.Amount > 0 Then repeat
@@ -429,7 +465,8 @@ begin
         PacketLength:=ProtocolDescriptor.GetServCliLength(FIncommingBuffer.Base, FIncommingBuffer.Amount);
       If PacketLength=0 Then Begin
         {$IFDEF Debug}
-        WriteLn(FDebugPresent, 'Uncompressed protocol: Some data lost in process.');
+        WriteLn(FDebugPresent, 'Uncompressed protocol: Some data lost in process. Header: ', IntToHex(PByte(FIncommingBuffer.Base)^, 2), 'Buffer dump: ');
+        WriteDump(FIncommingBuffer.Base, FIncommingBuffer.Amount);
         {$ENDIF}
         Break;
       end;
@@ -493,7 +530,7 @@ end;
 procedure TPacketStream.SetCryptObject(Value: TNoEncryption);
 Begin
   If Value <> FCryptObject Then Begin
-    If not Assigned(FCryptObject) Then Value.Decrypt(FIncommingBuffer.Base, 0, FIncommingBuffer.Amount);
+    If not Assigned(FCryptObject) and (FIncommingBuffer.Amount > 0) Then Value.Decrypt(FIncommingBuffer.Base, 0, FIncommingBuffer.Amount);
     FCryptObject := Value;
   End;
 End;
