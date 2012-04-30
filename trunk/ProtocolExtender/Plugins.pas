@@ -577,9 +577,9 @@ initialization
   API.APIs[9].FuncType := PF_ASKSYNCEVENT;
   API.APIs[9].Func := @AskSyncEvent;
   API.APIs[10].FuncType := PF_ZLIBCOMPRESS2;
-  API.APIs[10].Func := @zLib.zCompress2;
+  API.APIs[10].Func := @zLib.Compress;
   API.APIs[11].FuncType := PF_ZLIBDECOMPRESS;
-  API.APIs[11].Func := @zLib.zDecompress;
+  API.APIs[11].Func := @zLib.Decompress;
   API.APIs[12].FuncType := PF_AFTERPACKETCALLBACK;
   API.APIs[12].Func := @AfterPacketCallback;
 end.

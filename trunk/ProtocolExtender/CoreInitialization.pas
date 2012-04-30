@@ -2,11 +2,12 @@ unit CoreInitialization;
 
 interface
 
+//function CoreInitialize:Boolean; stdcall;
 procedure CoreInitialize; stdcall;
 
 implementation
 
-uses Windows, HookLogic, Plugins, TLHelp32, Common;
+uses Windows, HookLogic, Plugins, Common, UOExtProtocol, WinSock, ShardSetup, zLib;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}
@@ -35,8 +36,9 @@ begin
 end;
 {$ENDIF}
 
-procedure InProcess;
+function InProcess:Boolean;
 Begin
+  Result := True;
   {$IFDEF DEBUGWINDOW}
   If not AllocConsole Then Begin
     MessageBoxA(0, PAnsiChar(IntToStr(GetLastError)), nil, MB_OK);
@@ -61,7 +63,25 @@ Begin
   {$IFDEF PLUGINS_SERVER} Write(', Server');{$ENDIF}
   Writeln;
   Writeln;
+  WriteLn('Asking server for UOExt support.');
   {$ENDIF}
+  if UOExtProtocol.GetUOExtSupport() Then Begin
+    {$IFDEF DEBUG}
+    WriteLn('UOExt supported. Config:');
+    Write(' Update server: ', inet_ntoa(in_addr(ShardSetup.UpdateIP)), ':', htons(ShardSetup.UpdatePort));
+    If ShardSetup.PersistentConnect then WriteLn(' persistent') else WriteLn;
+    Write(' Server side protocol is ');
+    if ShardSetup.Encrypted then WriteLn('encrypted') else WriteLn('unencrypted');
+    WriteLn(' UOExt protocol encapsulation header: ', IntToHex(ShardSetup.InternalProtocolHeader, 2));
+    {$ENDIF}
+  End Else Begin
+   {$IFDEF DEBUG}
+   WriteLn('UOExt is not supported on this server. Gracefull exit.');
+   Sleep(1000);
+   {$ENDIF}
+   Result := False;
+   Exit;
+  End;
   HookIt;
   {$IFDEF DEBUG}
   WriteLn('Hook completed. Initializing plugins.');
@@ -69,10 +89,15 @@ Begin
   TPluginSystem.Instance.Initialize;
 End;
 
+{
+function CoreInitialize:Boolean; stdcall;
+Begin
+  Result := InProcess;
+End;
+}
 procedure CoreInitialize; stdcall;
 Begin
   InProcess;
 End;
-
 
 end.

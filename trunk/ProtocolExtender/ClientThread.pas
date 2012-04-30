@@ -86,7 +86,6 @@ begin
   SockAddr.sin_port:=htons(FServerPort);
   SockAddr.sin_addr.S_addr:=htonl(FServerIp);
   If connect(FServerConnection, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Exit;
-  Write('Connection to server established.');
   Result:=True;
   THooker.Hooker.TrueAPIEnd;
 end;
@@ -140,7 +139,7 @@ begin
   until FNeedExit;
   Write('Connection terminated by some reason.');
   TPluginSystem.Instance.ProxyEnd(SocketClosedReason(FServerConnection), SocketClosedReason(FClientConnection));
-  If SocketClosedReason(FClientConnection) = 1 then Begin
+  If (SocketClosedReason(FClientConnection) = 1)and(not FSCObj.Compression) then Begin
     Buffer[0] := $82;
     Buffer[1] := $FF;
     SendPacket(@Buffer, 2, False, True, Valid);

@@ -93,29 +93,13 @@ End;
 
 constructor TLoginEncryption.Create(Seed: Cardinal);
 var
-  ExeName : Array [0..MAX_PATH] of AnsiChar;
-  ExeNameLength, cTmp, cFVLen, cFileVersionLen: Cardinal;
-  pFileVersion, pFileInfo: Pointer;
   cMajor, cMinor, cBuild: Cardinal;
 Begin
   Inherited Create;
   FSeed := Seed;
   CalculateTables;
 
-  // Getting Current Exe Version
-  ExeNameLength := GetModuleFileName(0, @ExeName[0], MAX_PATH);
-  If ExeNameLength = 0 Then Halt(1); // TODO: Refactor this place.
-  cFVLen := GetFileVersionInfoSize(@ExeName[0], cTmp);
-  pFileVersion := GetMemory(cFVLen);
-  GetFileVersionInfo(@ExeName[0], 0, cFVLen, pFileVersion);
-  If not VerQueryValue(pFileVersion, '\', pFileInfo, cFileVersionLen) Then Halt(1); //TODO: Refactor this place.
-
-  // Getting Major, Minor and Build values from Version
-    cMajor := HiWord(PVSFixedFileInfo(pFileInfo)^.dwFileVersionMS);
-    cMinor := LoWord(PVSFixedFileInfo(pFileInfo)^.dwFileVersionMS);
-    cBuild := HiWord(PVSFixedFileInfo(pFileInfo)^.dwFileVersionLS);
-    //iVer[4] := LoWord(PVSFixedFileInfo(pFileInfo)^.dwFileVersionLS);
-  FreeMemory(pFileVersion);
+  if not GetExeVersion(cMajor, cMinor, cBuild) then Halt(1);
 
   CalculateKeys(cMajor, cMinor, cBuild);
 End;

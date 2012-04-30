@@ -2,24 +2,22 @@ unit ShardSetup;
 
 interface
 
-{$IFNDEF PLUGINS_SERVER}
-  {$UNDEF LOGIN_CFG}
-{$ENDIF}
+uses WinSock;
 
 type
   TSerialSupplyMethods = (ssmStatic, ssmProxy, ssmServer);
 
 var
-  {$IFDEF PLUGINS_SERVER}
-  UpdateIP: AnsiString = '127.0.0.1';
+  UpdateIP: Cardinal = INADDR_LOOPBACK;
   UpdatePort: Word = 2594;
-  {$ENDIF}
+  PersistentConnect: Boolean = False;
+
   SerialSupplyMethod: TSerialSupplyMethods = ssmStatic;
   ItemSerialMin:Cardinal = $70000001;
   ItemSerialMax:Cardinal = $7FFFFFFF;
   MobileSerialMin:Cardinal = $30000001;
   MobileSerialMax:Cardinal = $3FFFFFFF;
-  Encrypted:Boolean = True;
+  Encrypted:Boolean = False;
   EnableIntertalProtocol: Boolean = False;
   InternalProtocolHeader: Byte = $FF;
 
