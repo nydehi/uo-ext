@@ -4,7 +4,7 @@ interface
 
 const
   {PluginEvents}
-  PE_INIT        = 1; {Init Event. Arg is PAPI}
+  PE_INIT        = 1; {Init Event. Arg is APIInfo}
   PE_FREE        = 2; {Free plugin}
   PE_PROXYSTART  = 3; {Proxy start}
   PE_PROXYEND    = 4; {Proxy end}
@@ -34,14 +34,8 @@ type
   TPluginDescriptors = Array [0..0] of TPluginDescriptor;
   PPluginDescriptors = ^TPluginDescriptors;
 
-  TPluginProcedure = function (APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; stdcall;
-  {***
-    Defines in dll. One procedure inits one plugin. APluginEvent - PE_ consts.
-  ***}
-
-
   TPluginInfo=packed record
-    InitProcedure: TPluginProcedure;
+    InitProcedure: Pointer;
     DescriptorsCount: Cardinal;
     Descriptors: PPluginDescriptors;
   end;
@@ -63,6 +57,11 @@ type
     May not present in Dll, if Plugin not need to free memory from Plugins pointer.
   ***}
 
+  TPluginProcedure = function (APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; stdcall;
+  {***
+    Defines in dll. One procedure inits one plugin.
+  ***}
+
   TPacketHandler = function (Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean; stdcall;
   (**
     Send - Send this package to reciver.
@@ -81,24 +80,11 @@ type
     FuncType: Cardinal;
     Func: Pointer;
   End;
-(*C
-  struct APIFunc {
-    uint FuncType;
-    void *Func;
-  }
-*)
   TAPI = packed record
     APICount: Cardinal;
     APIs: Array [0..0] of TAPIFunc;
   end;
-(*C
-  struct API {
-    uint APICount;
-    APIFunc APIs[];
-  }
-*)
-
-  PPE_Init=^TAPI;
+  PAPI=^TAPI;
 
   TPE_ProxyEndEvent = packed record
     ConnectedToServer: Boolean;
@@ -106,14 +92,6 @@ type
     ServerCloseReason: Integer;
     ClientCloseReason: Integer;
   end;
-(*C
-  struct PE_ProxyEndEvent {
-    bool ConnectedToServer;
-    bool ConnectedToClient;
-    int ServerCloseReason;
-    int ClientCloseReason;
-  }
-*)
   PPE_ProxyEndEvent = ^ TPE_ProxyEndEvent;
 
   TRegisterPacketHandler = procedure(Header:Byte; Handler: TPacketHandler) stdcall;
