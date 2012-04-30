@@ -56,9 +56,9 @@ End;
 
 const
   PluginInfo:TPluginInfo = (
-    InitProcedure    : @PluginInit;
+    InitProcedure    : PluginInit;
     DescriptorsCount : 0;
-    Descriptors      : nil
+    Descriptors      : nil;
   );
 initialization
   PluginAPI.AddPlugin(@PluginInfo);

@@ -2,6 +2,8 @@ unit Common;
 
 interface
 
+uses Windows;
+
 type
   TByteArray = Array [0..32767] of Byte;
   PByteArray = ^TByteArray;
@@ -20,6 +22,8 @@ function Trim(const S: AnsiString): AnsiString;
 
 function SwapBytes2(Value: Word): Word;
 function SwapBytes4(Value: Cardinal): Cardinal;
+
+function GetExeVersion(var Major, Minor, Build: Cardinal): Boolean;
 
 implementation
 
@@ -123,6 +127,28 @@ Begin
             ((Value SHR 8) AND $FF00) OR
             ((Value AND $FF00) SHL 8) OR
             ((Value AND $FF) SHL 24);
+End;
+
+function GetExeVersion(var Major, Minor, Build: Cardinal): Boolean;
+var
+  ExeName : Array [0..MAX_PATH] of AnsiChar;
+  ExeNameLength, cTmp, cFVLen, cFileVersionLen: Cardinal;
+  pFileVersion, pFileInfo: Pointer;
+Begin
+  Result := False;
+  ExeNameLength := GetModuleFileName(0, @ExeName[0], MAX_PATH);
+  If ExeNameLength = 0 Then Exit;
+  cFVLen := GetFileVersionInfoSize(@ExeName[0], cTmp);
+  pFileVersion := GetMemory(cFVLen);
+  GetFileVersionInfo(@ExeName[0], 0, cFVLen, pFileVersion);
+  If not VerQueryValue(pFileVersion, '\', pFileInfo, cFileVersionLen) Then Exit;
+
+  Major := HiWord(PVSFixedFileInfo(pFileInfo)^.dwFileVersionMS);
+  Minor := LoWord(PVSFixedFileInfo(pFileInfo)^.dwFileVersionMS);
+  Build := HiWord(PVSFixedFileInfo(pFileInfo)^.dwFileVersionLS);
+  FreeMemory(pFileVersion);
+
+  Result := True;
 End;
 
 

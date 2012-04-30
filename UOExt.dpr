@@ -3,6 +3,8 @@ library UOExt;
 {$R *.res}
 
 uses
+{  FastMM4 in '3dParty\FastMM4.pas',
+  FastMM4Messages in '3dParty\FastMM4Messages.pas',}
   Windows,
   AbstractThread in 'ProtocolExtender\AbstractThread.pas',
   ListeningThread in 'ProtocolExtender\ListeningThread.pas',
@@ -21,6 +23,8 @@ uses
   DCPcrypt in 'ProtocolExtender\DCPcrypt.pas',
   Twofish in 'ProtocolExtender\Twofish.pas',
   md5 in 'ProtocolExtender\md5.pas',
+  UOExtProtocol in 'ProtocolExtender\UOExtProtocol.pas',
+  PreConnectIPDiscover in 'ProtocolExtender\PreConnectIPDiscover.pas',
   CoreInitialization in 'ProtocolExtender\CoreInitialization.pas' {$IFDEF PLUGINS_SERVER},
   PluginsDownloader in 'ProtocolExtender\PluginsDownloader.pas' {$ENDIF}{$IFDEF RUNUO_API},
   Executable in 'ProtocolExtender\Executable.pas' {$ENDIF},

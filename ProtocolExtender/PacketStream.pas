@@ -303,9 +303,6 @@ var
   CurrentLength: Cardinal;
 begin
   If FOutcommingBuffer.Amount > 0 Then Begin
-    if(IsCliServ) Then Begin
-      WriteLn('Flushing outcomming data. Buffer: ', FOutcommingBuffer.Amount);
-    End;
     CurrentPoint := FOutcommingBuffer.Base;
     CurrentLength := FOutcommingBuffer.Amount;
     repeat
@@ -328,9 +325,6 @@ begin
       CurrentLength := CurrentLength - Cardinal(Sended);
     until CurrentLength = 0;
     FOutcommingBuffer.Shift(FOutcommingBuffer.Amount);
-    if(IsCliServ) Then Begin
-      WriteLn('Flushed outcomming data. Buffer: ', FOutcommingBuffer.Amount);
-    End;
   End;
 end;
 
