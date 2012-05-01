@@ -2,8 +2,8 @@ unit CoreInitialization;
 
 interface
 
-//function CoreInitialize:Boolean; stdcall;
-procedure CoreInitialize; stdcall;
+function CoreInitialize:Boolean; stdcall;
+//procedure CoreInitialize; stdcall;
 
 implementation
 
@@ -79,6 +79,9 @@ Begin
    WriteLn('UOExt is not supported on this server. Gracefull exit.');
    Sleep(1000);
    {$ENDIF}
+   {$IFDEF DEBUGWINDOW}
+   FreeConsole;
+   {$ENDIF}
    Result := False;
    Exit;
   End;
@@ -89,15 +92,17 @@ Begin
   TPluginSystem.Instance.Initialize;
 End;
 
-{
+
 function CoreInitialize:Boolean; stdcall;
 Begin
   Result := InProcess;
 End;
-}
+
+{
 procedure CoreInitialize; stdcall;
 Begin
   InProcess;
 End;
+}
 
 end.

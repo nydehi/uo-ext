@@ -66,24 +66,32 @@ begin
 // Main idea is:
 //   hLibrary := LoadLibraryA('<ADllPath>');
 //   @pProcedure := GetProcAddress(hLibrary, '<AInitProcedure>');
-//   pProcedure(); // stdcall, no params.
+//   If not pProcedure() Then // stdcall, no params.
+//     FreeLibrary(hLibrary); // If server does not support UOExt - remove it from client
 //   ExitThread(0);
 // Asm code:
 //   PUSH <PointerToDllName>        ; 68 GG GG GG GG
 //   CALL <PointerToLoadLibraryA>   ; 15 FF HH HH HH HH ; EAX = hLibrary
+//   PUSH EAX                       ; 50
 //   PUSH <PointerToCoreInitialize> ; 68 II II II II
 //   PUSH EAX                       ; 50
 //   CALL <PointerToGetProcAddress> ; 15 FF JJ JJ JJ JJ ; EAX = @pProcedure
 //   CALL EAX                       ; D0 FF
-//   PUSH 0                         ; 6A 00
+//   TEST AL, AL                    ; 84 C0
+//   JNZ label1                     ; EB 0A
+//   POP EAX                        ; 58
+//   CALL <PointerToFreeLibrary>    ; 15 FF LL LL LL LL
+//   JMP label2                     ; EB 01
+//   POP EAX (label1)               ; 58
+//   PUSH 0 (label2)                ; 6A 00
 //   CALL <PointerToExitThread>     ; 15 FF KK KK KK KK
-//
+//   TODO: Make this done!
 // Addr  00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
-// 0000: 68 GG GG GG GG 15 FF HH HH HH HH 68 II II II II
-// 0010: 50 15 FF JJ JJ JJ JJ FF D0 33 C0 C3 XX XX XX XX
-// 0020: XX
+// 0000: 68 GG GG GG GG 15 FF HH HH HH HH 50 68 II II II
+// 0010: II 50 15 FF JJ JJ JJ JJ FF D0 84 C0 EB 0A 50 15
+// 0020: FF LL LL LL LL EB 01 58 6A 00 15 FF KK KK KK KK
 // Code ends here. Data begins here.
-// 0020:    hh hh hh hh jj jj jj jj kk kk kk kk
+// 0030: hh hh hh hh jj jj jj jj kk kk kk kk ll ll ll ll
 // 002D - 0132 : DllName: Array [0..MAX_PATH] of Byte; Addr of GG GG GG GG
 // 0133 - 0237 : DllInitProc: Array [0..MAX_PATH] of Byte; Addr of II II II II
 //
@@ -480,7 +488,16 @@ End;
 
 {$ENDREGION}
 
+
 {$REGION 'Infection'}
+
+function PrepareInjectCode_End(RealStartPoint: Cardinal; var Size: Cardinal):Pointer; forward;
+
+function PrepareInjectCode(RealStartPoint: Cardinal; var Size: Cardinal):Pointer;
+Begin
+  Result := PrepareInjectCode_End(RealStartPoint, Size);
+End;
+
 procedure InjectProc(); asm
          MOV ESI, [ESP]
          CALL @__End
@@ -516,11 +533,23 @@ procedure InjectProc(); asm
          PUSH 00h
          PUSH EDX
          CALL EAX // EAX now holds UOExt.dll base.
+         MOV ECX, EAX // ECX - Handle for UOExt.dll
          POP EDX  // EDX pointer to data
+         PUSH EDX
          ADD EDX, 019h // EDX pointer to CoreInitialize
          CALL @GPA // EAX now pointer to CoreInitialize func
          CALL EAX
-         PUSH 012345678h // Change this for real EntryPoint
+         TEST AL, AL
+         JNZ @_ALL_OK
+         POP EDX
+         ADD EDX, 028h // EDX pointer to FreeLibrary
+         MOV EAX, EBX
+         CALL @GPA // EAX pointer to FreeLibrary
+         PUSH ECX
+         CALL EAX // FreeLibrary
+         JMP @_NO_POP
+@_ALL_OK:POP EDX
+@_NO_POP:PUSH 012345678h // Change this for real EntryPoint
          RET
 
 
@@ -647,21 +676,36 @@ procedure InjectProc(); asm
          NOP
          NOP
          NOP
+//       FreeLibrary + #0
+         NOP
+         NOP
+         NOP
+         NOP
+         NOP
+         NOP
+         NOP
+         NOP
+         NOP
+         NOP
+         NOP
+         NOP
 end;
 
-function PrepareInjectCode(RealStartPoint: Cardinal; var Size: Cardinal):Pointer;
+function PrepareInjectCode_End(RealStartPoint: Cardinal; var Size: Cardinal):Pointer;
 const
   LLE : Array [0..14] of AnsiChar = 'LoadLibraryExA' + #0;
   UOE : Array [0..9]  of AnsiChar = 'UOExt.dll' + #0;
   CI  : Array [0..14] of AnsiChar = 'CoreInitialize' + #0;
+  FL  : Array [0..11] of AnsiChar = 'FreeLibrary' + #0;
 Begin
-  Size := $111;
+  Size := $135;
   Result := GetMemory(Size);
   CopyMemory(Result, @InjectProc, Size);
-  PCardinal(Cardinal(Result) + $60)^ := RealStartPoint;
-  CopyMemory(Pointer(Cardinal(Result) + $E9), @LLE[0], 15);
-  CopyMemory(Pointer(Cardinal(Result) + $F8), @UOE[0], 10);
-  CopyMemory(Pointer(Cardinal(Result) + $102), @CI[0], 15);
+  PCardinal(Cardinal(Result) + $78)^ := RealStartPoint;
+  CopyMemory(Pointer(Cardinal(Result) + $101), @LLE[0], 15);
+  CopyMemory(Pointer(Cardinal(Result) + $110), @UOE[0], 10);
+  CopyMemory(Pointer(Cardinal(Result) + $11A), @CI[0], 15);
+  CopyMemory(Pointer(Cardinal(Result) + $129), @FL[0], 12);
 End;
 
 function Align(Value, Factor: Cardinal): Cardinal;
@@ -679,8 +723,16 @@ var
 Begin
   Result := 0;
   hFile := CreateFileA(AFile, GENERIC_READ OR GENERIC_WRITE, FILE_SHARE_WRITE, nil, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  if hFile = INVALID_HANDLE_VALUE then Begin
+    WriteLn('Can''t infect ', AFile, ' CreateFileA failed. GLE: ', GetLastError);
+    Halt(1);
+  End;
   hMapping := CreateFileMappingA(hFile, nil, PAGE_READWRITE, 0, 0, nil);
   pFile := MapViewOfFile(hMapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+  if pFile = nil then Begin
+    WriteLn('Can''t infect ', AFile, ' MapViewOfFile failed. GLE: ', GetLastError);
+    Halt(1);
+  End;
 
   DosHeader := pFile;
   PEHeader := Pointer(Cardinal(pFile) + Cardinal(DosHeader^._lfanew) + 4);
@@ -707,8 +759,16 @@ var
 Begin
   Result := 0;
   hFile := CreateFileW(AFile, GENERIC_READ OR GENERIC_WRITE, FILE_SHARE_WRITE, nil, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  if hFile = INVALID_HANDLE_VALUE then Begin
+    WriteLn('Can''t infect ', AFile, ' CreateFileA failed. GLE: ', GetLastError);
+    Halt(1);
+  End;
   hMapping := CreateFileMappingW(hFile, nil, PAGE_READWRITE, 0, 0, nil);
   pFile := MapViewOfFile(hMapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+  if pFile = nil then Begin
+    WriteLn('Can''t infect ', AFile, ' MapViewOfFile failed. GLE: ', GetLastError);
+    Halt(1);
+  End;
 
   DosHeader := pFile;
   PEHeader := Pointer(Cardinal(pFile) + Cardinal(DosHeader^._lfanew) + 4);
