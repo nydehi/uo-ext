@@ -1,38 +1,33 @@
 library UOExt;
 
-{$R *.res}
-
 uses
-{  FastMM4 in '3dParty\FastMM4.pas',
-  FastMM4Messages in '3dParty\FastMM4Messages.pas',}
   Windows,
-  AbstractThread in 'ProtocolExtender\AbstractThread.pas',
-  ListeningThread in 'ProtocolExtender\ListeningThread.pas',
-  Common in 'ProtocolExtender\Common.pas',
-  PacketStream in 'ProtocolExtender\PacketStream.pas',
-  HuffmanAlgo in 'ProtocolExtender\HuffmanAlgo.pas',
-  ProtocolDescription in 'ProtocolExtender\ProtocolDescription.pas',
-  ClientThread in 'ProtocolExtender\ClientThread.pas',
-  HookLogic in 'ProtocolExtender\HookLogic.pas',
-  ShardSetup in 'ProtocolExtender\ShardSetup.pas',
-  Plugins in 'ProtocolExtender\Plugins.pas',
-  PluginsShared in 'ProtocolExtender\PluginsShared.pas',
-  Serials in 'ProtocolExtender\Serials.pas',
-  zLib in 'ProtocolExtender\zLib.pas',
-  Encryption in 'ProtocolExtender\Encryption.pas',
-  DCPcrypt in 'ProtocolExtender\DCPcrypt.pas',
-  Twofish in 'ProtocolExtender\Twofish.pas',
-  md5 in 'ProtocolExtender\md5.pas',
-  UOExtProtocol in 'ProtocolExtender\UOExtProtocol.pas',
-  PreConnectIPDiscover in 'ProtocolExtender\PreConnectIPDiscover.pas',
-  CoreInitialization in 'ProtocolExtender\CoreInitialization.pas' {$IFDEF PLUGINS_SERVER},
-  PluginsDownloader in 'ProtocolExtender\PluginsDownloader.pas' {$ENDIF}{$IFDEF RUNUO_API},
-  Executable in 'ProtocolExtender\Executable.pas' {$ENDIF},
-  APIHooker in 'ProtocolExtender\APIHooker.pas';
+  AbstractThread in 'UOExt\AbstractThread.pas',
+  ListeningThread in 'UOExt\ListeningThread.pas',
+  Common in 'UOExt\Common.pas',
+  PacketStream in 'UOExt\PacketStream.pas',
+  HuffmanAlgo in 'UOExt\HuffmanAlgo.pas',
+  ProtocolDescription in 'UOExt\ProtocolDescription.pas',
+  ClientThread in 'UOExt\ClientThread.pas',
+  HookLogic in 'UOExt\HookLogic.pas',
+  ShardSetup in 'UOExt\ShardSetup.pas',
+  Plugins in 'UOExt\Plugins.pas',
+  PluginsShared in 'UOExt\PluginsShared.pas',
+  Serials in 'UOExt\Serials.pas',
+  zLib in 'UOExt\zLib.pas',
+  Encryption in 'UOExt\Encryption.pas',
+  DCPcrypt in 'UOExt\DCPcrypt.pas',
+  Twofish in 'UOExt\Twofish.pas',
+  md5 in 'UOExt\md5.pas',
+  UOExtProtocol in 'UOExt\UOExtProtocol.pas',
+  PreConnectIPDiscover in 'UOExt\PreConnectIPDiscover.pas',
+  CoreInitialization in 'UOExt\CoreInitialization.pas',
+  PluginsDownloader in 'UOExt\PluginsDownloader.pas',
+  Executable in 'UOExt\Executable.pas',
+  APIHooker in 'UOExt\APIHooker.pas';
 
 exports
   CoreInitialization.CoreInitialize
-{$IFDEF RUNUO_API}
   , Executable.RunUOReg name 'RunUOReg'
   , Executable.RunUOA name 'RunUOA'
   , Executable.RunUOW name 'RunUOW'
@@ -47,8 +42,6 @@ exports
   , Executable.Infect32
   , Executable.InfectA
   , Executable.InfectW
-{$ENDIF}
-
 ;
 
 begin
