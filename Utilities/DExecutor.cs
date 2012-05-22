@@ -12,6 +12,8 @@
  ***************************************************************************/
 
 using System;
+using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Threading;
 using System.Reflection;
@@ -267,6 +269,7 @@ namespace UOExtDomain.Utilities
                 types.Add(t);
             }
             return types;
-        }   
+        }
+
     }
 }

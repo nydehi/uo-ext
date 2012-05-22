@@ -41,18 +41,26 @@ namespace UOExtDomain.Network
         public virtual PacketType Type 
         { get { return PacketType.None; } }
 
-        /// <summary>
-        /// Основной ID пакета
-        /// </summary>
-        public virtual Byte PrimaryID  
-        { get { return 0x00; } }
+        protected readonly PacketType Direction;
 
         /// <summary>
         /// Размер данных в статическом пакете 
         /// (если размер динамический то значение должно быть меньше нуля)
         /// </summary>
-        public virtual Int32 DataSize  
-        { get { return 0; } }
+        public virtual Int32 DataSize
+        { get { return -1; } }
+
+        /// <summary>
+        /// Основной ID пакета (а шо он значит-то?)
+        /// </summary>
+        public virtual Byte PrimaryID  
+        { get { return 0x00; } }
+
+        /// <summary>
+        /// ID пакета UOExt
+        /// </summary>
+        public virtual Byte PacketID
+        { get { return 0x00; } }
 
         private Stream RawDataStream = new MemoryStream();
 
@@ -72,10 +80,13 @@ namespace UOExtDomain.Network
 
         public SocketPacket()
         {
+            Direction = PacketType.Outgoing;
         }
 
         public SocketPacket(byte[] rawdata)
         {
+            Direction = PacketType.Incoming;
+
             #if !TESTCENTER
             if ((Type & PacketType.Incoming) != PacketType.Incoming)
                 throw new Exception(String.Format("Получение не разрешенного пакета {0}", StringID));
@@ -94,14 +105,13 @@ namespace UOExtDomain.Network
             #endif
 
             this.DataWriter.Flush();
-            uint _datasize = this.DataSize < 0 ? (uint)this.DataReader.BaseStream.Length : (uint)this.DataSize;
-            var rawData = new BinaryWriter(new MemoryStream((int)_datasize + 7));
+            uint _datasize = (this.DataSize < 0 ? (uint)this.DataReader.BaseStream.Length : (uint)this.DataSize) + 4;
+            var rawData = new BinaryWriter(new MemoryStream((int)_datasize));
 
+            //if (this.DataSize < 0)
+            rawData.Write((ushort)_datasize);
             rawData.Write((byte)PrimaryID);
-            if (this is ISocketPacketExtension)
-                rawData.Write((ushort)(this as ISocketPacketExtension).SecondaryID);
-            if (this.DataSize < 0)
-                rawData.Write((uint)_datasize);
+            rawData.Write((byte)PacketID);
 
             this.DataReader.BaseStream.Position = 0;
             var bytes = DataReader.ReadBytes((int)_datasize);
@@ -137,7 +147,7 @@ namespace UOExtDomain.Network
         public virtual void OnSend(SocketClient client)
         {
             #if DEBUG
-            FormatBuffer(Console.Out, this.RawDataStream, "<<==   ", String.Format("PID ${0:X2} Size: {1:D}", this.PrimaryID, this.RawDataStream.Length), 0, 0xFF);
+            FormatBuffer(Console.Out, this.RawDataStream, "<<==   ", String.Format("PID ${0:X2} Size: {1:D}", this.PacketID, this.RawDataStream.Length), 0, 0xFF);
             Console.WriteLine();
             #endif
 
@@ -151,7 +161,7 @@ namespace UOExtDomain.Network
         public virtual void OnReceive(SocketClient client)
         {
             #if DEBUG
-            FormatBuffer(Console.Out, this.RawDataStream, "==>>   ", String.Format("PID ${0:X2} Size: {1:D}", this.PrimaryID, this.RawDataStream.Length), 0, 0xFF);
+            FormatBuffer(Console.Out, this.RawDataStream, "==>>   ", String.Format("PID ${0:X2} Size: {1:D}", this.PacketID, this.RawDataStream.Length), 0, 0xFF);
             Console.WriteLine();
             #endif
 
@@ -195,7 +205,7 @@ namespace UOExtDomain.Network
             m_PacketTypes = new Dictionary<byte, Type>(types.Count);
             foreach (var type in types) {
                 var packet = DExecutor.CreateInstance(type);
-                var id     = DExecutor.GetProperty<Byte>(packet, "PrimaryID");
+                var id     = DExecutor.GetProperty<Byte>(packet, "PacketID");
                 var size   = DExecutor.GetProperty<Int32>(packet, "DataSize");
                 m_PacketTypes.Add(id, type);
                 m_PacketSizes.Add(id, size);
@@ -285,6 +295,7 @@ namespace UOExtDomain.Network
 			}
 		}
     }
+
 
     public interface ISocketPacketExtension
     {

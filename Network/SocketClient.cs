@@ -425,10 +425,31 @@ Console.WriteLine("bytesRecieved {0}", bytesRecieved);
             {
                 while (ptr < TotalLength)
                 {
+                    /*
                     if ((TotalLength - ptr) <= 1) {
                         return;
                     }
+                    */
 
+                    int headerSize = 4, packetSize = 0; 
+                    byte primaryId, packetId;
+                    if ((TotalLength - ptr) < 4) {
+                        SaveTheRestofTheStream(RawBuffer, ptr, TotalLength);
+                        return;
+                    } else {
+                        var bytes = new byte[2];
+                        Array.Copy(RawBuffer, ptr, bytes, 0, 2);
+                        packetSize = BitConverter.ToUInt16(bytes, 0) - headerSize;
+                        primaryId = RawBuffer[ptr+2];
+                        packetId  = RawBuffer[ptr+3];
+
+                        if (!SocketPacket.PacketTypes.ContainsKey(packetId)) {
+                            this.Send(new ReturnError_Packet0xF0(packetId, ReturnError_Packet0xF0.ErrorCode.UnknownPacket | ReturnError_Packet0xF0.ErrorCode.ClosingSocket));
+                            return;
+                        }
+                    }
+                        
+                    /*
                     var packetId = RawBuffer[ptr];
                     if (!SocketPacket.PacketTypes.ContainsKey(packetId)) {
                         this.Send(new ErrorPacket(packetId, ErrorPacket.ErrorCode.UnknownPacket | ErrorPacket.ErrorCode.ClosingSocket));
@@ -448,6 +469,7 @@ Console.WriteLine("bytesRecieved {0}", bytesRecieved);
                             //    Array.Reverse(bytes);
                             packetSize = BitConverter.ToInt32(bytes, 0);
                         }
+                    */
 
                     if (headerSize + packetSize > (TotalLength - ptr)) {
                         SaveTheRestofTheStream(RawBuffer, ptr, TotalLength);
