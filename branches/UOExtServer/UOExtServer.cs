@@ -24,17 +24,18 @@ namespace UOExtDomain
         }
 
         private static SocketServer m_SocketServer;
-        private static String m_PluginsPath;
-        private static String m_SearchMask;
+        public static String m_PluginsPath { get; private set; }
+        public static String m_SearchMask { get; private set; }
 
-        public static void StartServer(IPEndPoint endPoint, string pluginsPath = @"UOExtPlugins", string searchMask = @"Plugin-0x??.dll")
+        public static void StartServer(IPEndPoint endPoint, string pluginsPath = @".\", string searchMask = @"*.plg") // @"Plugin-0x??.plg"
         {
             m_SearchMask  = searchMask;
             m_PluginsPath = pluginsPath;
             if (!Directory.Exists(m_PluginsPath))
                 Directory.CreateDirectory(m_PluginsPath);
-            Console.WriteLine("new SendPluginsPacket");
-            new SendPluginsPacket(m_PluginsPath, m_SearchMask);
+            //Console.WriteLine("new SendPluginsPacket");
+            //new SendPluginsPacket(m_PluginsPath, m_SearchMask);
+            var dummy = Plugin.Plugins;
             Console.WriteLine("new SocketServer");
             m_SocketServer = new SocketServer();
             Console.WriteLine("Start SocketServer");
@@ -116,7 +117,7 @@ namespace UOExtDomain
 		/// Точка входа в приложение
 		/// </summary>
 		[STAThread]
-		static void Main() 
+		static void Main()
 		{
             SocketClient pSocketClient = new SocketClient(
                     new MessageHandler(MessageHandlerClient),
@@ -124,7 +125,10 @@ namespace UOExtDomain
                     new ErrorHandler(ErrorHandler), 10240);
 
             Localhost = true;
-            pSocketClient.Connect(LocalEntry.AddressList[0].ToString(), Port);
+            pSocketClient.Connect("192.168.0.4", Port);
+            var dummy = SocketPacket.PacketTypes;
+
+           // pSocketClient.Connect(LocalEntry.AddressList[0].ToString(), Port);
 
             try
             {
@@ -137,17 +141,17 @@ namespace UOExtDomain
                 //pSocketClient.Send(messge_0x03);
                 //pSocketClient.Send(messge_0x04);
 
-                var packet1  = new ConnectionPacket(0x12345678);
+                var packet1 = new ExHandshake_Packet0x00(31);
                 //pSocketClient.Send(packet1);
-                
-                var packet2 = new ConnectionPacket(ConnectionPacket.CurrentProtocolVer);
+
+                var packet2 = new ExHandshake_Packet0x00(1);
                 pSocketClient.Send(packet2);
                 
-                pSocketClient.Send(new TestStaticPacket(1));
-                pSocketClient.Send(new TestDinamicPacket("hellow server"));
+                //pSocketClient.Send(new TestStaticPacket(1));
+                //pSocketClient.Send(new TestDinamicPacket("hellow server"));
                 
-                pSocketClient.Send(new TestDinamicPacket("test string"));
-                pSocketClient.Send(new TestStaticPacket(1000000)); 
+                //pSocketClient.Send(new TestDinamicPacket("test string"));
+                //pSocketClient.Send(new TestStaticPacket(1000000)); 
 
                 
             } catch (Exception e) {

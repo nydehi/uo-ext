@@ -45,6 +45,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Plugins.cs" />
     <Compile Include="UOExtServerAdapter.cs" />
     <Compile Include="Utilities\Compressor.cs" />
     <Compile Include="Utilities\Crc32.cs" />

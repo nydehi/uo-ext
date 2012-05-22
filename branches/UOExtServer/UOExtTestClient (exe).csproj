@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>UOExtDomain</RootNamespace>
     <AssemblyName>UOExtTestClient</AssemblyName>
-    <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
@@ -44,6 +44,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Plugins.cs" />
     <Compile Include="Utilities\Compressor.cs" />
     <Compile Include="Utilities\DExecutor.cs" />
     <Compile Include="Network\SocketPacket.cs" />
@@ -53,6 +54,9 @@
     <Compile Include="Network\SocketBase.cs" />
     <Compile Include="Network\SocketClient.cs" />
     <Compile Include="Network\SocketServer.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
