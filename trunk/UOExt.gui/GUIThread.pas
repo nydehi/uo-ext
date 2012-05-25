@@ -34,6 +34,8 @@ type
     FWindow: HWND;
     FFont: HFONT;
     FUpdateRect: TRect;
+    FBufferBitmap: HBITMAP;
+    FBufferDC: HDC;
 
     FInsertData: TUpdatingLine;
     FLastInsertedHandle: Cardinal;
@@ -77,10 +79,28 @@ Begin
     WM_QUIT: Begin
       Thread.FNeedExit := True;
     End;
+    WM_SIZE: Begin
+      If Thread.FBufferBitmap <> 0 then DeleteObject(Thread.FBufferBitmap);
+      if Thread.FBufferDC <> 0 then DeleteObject(Thread.FBufferDC);
+      DC := GetDC(hWnd);
+      Thread.FBufferDC := CreateCompatibleDC(DC);
+      Thread.FBufferBitmap := CreateCompatibleBitmap(DC, lParam AND $FFFF, lParam SHR 16);
+      ReleaseDC(hWnd, DC);
+      SelectObject(Thread.FBufferDC, Thread.FBufferBitmap);
+      SelectObject(Thread.FBufferDC, GetClassLongA(hWnd, GCL_HBRBACKGROUND));
+      SelectObject(Thread.FBufferDC, Thread.FFont);
+    End;
+    WM_ERASEBKGND: Begin
+      Result := 1;
+      bProcessed := True;
+    End;
     WM_PAINT: Begin
-      DC := BeginPaint(hWnd, PaintInfo);
-      SetBkMode(DC, TRANSPARENT);
-      SelectObject(DC, Thread.FFont);
+      SelectObject(Thread.FBufferDC, GetClassLongA(hWnd, GCL_HBRBACKGROUND));
+      GetClientRect(hWnd, rct);
+      Rectangle(Thread.FBufferDC, 0, 0, rct.Right - rct.Left, rct.Bottom - rct.Top);
+      SetBkMode(Thread.FBufferDC, TRANSPARENT);
+      DC := Thread.FBufferDC;
+
       cY := 160;
       iMaxPos := High(Thread.FDataLines);
       if iMaxPos > 3 then iMaxPos := 3;
@@ -124,6 +144,9 @@ Begin
         End;
       End;
 
+      GetClientRect(hWnd, rct);
+      DC := BeginPaint(hWnd, PaintInfo);
+      BitBlt(DC, 0, 0, rct.Right - rct.Left, rct.Bottom - rct.Top, Thread.FBufferDC, 0, 0, SRCCOPY);
       EndPaint(DC, PaintInfo);
       bProcessed := True;
     End;
@@ -140,6 +163,7 @@ var
 
   Msg: TMsg;
   hBackgroundImage: HBITMAP;
+  DC: HDC;
 Begin
   Result := 1;
 
@@ -171,6 +195,7 @@ Begin
   FUpdateRect.Right := 290;
   FUpdateRect.Top := 160;
   FUpdateRect.Bottom := 210;
+
   SetWindowLongA(FWindow, GWL_USERDATA, Integer(Self));
   If FWindow = 0 then Exit;
 
@@ -178,6 +203,13 @@ Begin
   if FFont = 0 then Exit;
   SendMessageA(FWindow, WM_SETFONT, FFont, 0);
 
+  DC := GetDC(FWindow);
+  FBufferDC := CreateCompatibleDC(DC);
+  FBufferBitmap := CreateCompatibleBitmap(DC, 320, 240);
+  ReleaseDC(FWindow, DC);
+  SelectObject(FBufferDC, FBufferBitmap);
+  SelectObject(FBufferDC, WndClass.hbrBackground);
+  SelectObject(FBufferDC, FFont);
   ShowWindow(FWindow, SW_SHOW);
 
   FUpdateEvent := CreateEventA(nil, False, False, 'UpdateEvent');
