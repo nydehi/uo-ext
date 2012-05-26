@@ -111,7 +111,9 @@ end;
 procedure TFunctionHooker.Inject;
 var
   Writen:Cardinal;
+  {$IFDEF DEBUG}
   Msg: AnsiString;
+  {$ENDIF}
 begin
   ReadProcessMemory(GetCurrentProcess, FOriginalFunction, @FOldData, SizeOf(FOldData), Writen);
   {$IFDEF DEBUG}

@@ -23,6 +23,21 @@ const
   PF_ZLIBCOMPRESS2 = 11;
   PF_ZLIBDECOMPRESS = 12;
   PF_AFTERPACKETCALLBACK = 13;
+  PF_UOEXTREGISTERPACKETHANDLER = 14;
+  PF_UOEXTUNREGISTERPACKETHANDLER = 15;
+  PF_UOEXTAFTERPACKETCALLBACK = 16;
+  PF_UOEXTSENDPACKET = 17;
+  PF_GUISETLOG = 18;
+  PF_GUISTARTPROCESS = 19;
+  PF_GUIUPDATEPROCESS = 20;
+
+
+  // Plugin secriptors
+  PD_UOEXTPROTO_PACKETAMOUNT = 1;
+  (***
+    Amount of packet headers that Plugin will need to comunicate with server
+    If not present, than 0.
+  ***)
 
 type
 
@@ -31,13 +46,10 @@ type
     Value: Cardinal;
   end;
 
-  TPluginDescriptors = Array [0..0] of TPluginDescriptor;
-  PPluginDescriptors = ^TPluginDescriptors;
-
   TPluginInfo=packed record
     InitProcedure: Pointer;
     DescriptorsCount: Cardinal;
-    Descriptors: PPluginDescriptors;
+    Descriptors: Array [0..0] of TPluginDescriptor;
   end;
   PPluginInfo=^TPluginInfo;
 
@@ -71,6 +83,10 @@ type
 
   TPacketSendedCallback = procedure(APackeHead: Byte; lParam: Pointer; IsFromServerToClient: Boolean); stdcall;
 
+  TUOExtPacketHandler = procedure (Data: Pointer; Size:Cardinal); stdcall;
+
+  TUOExtPacketSendedCallback = procedure(APackeHead: Byte; lParam: Pointer); stdcall;
+
   TPacketLengthDefinition=function(Packet:Pointer; Length:Cardinal):Cardinal; stdcall;
   (**
     In this procedure you can't register or unregister handlers.
@@ -96,7 +112,7 @@ type
 
   TRegisterPacketHandler = procedure(Header:Byte; Handler: TPacketHandler) stdcall;
   TUnRegisterPacketHandler = procedure(Header: Byte; Handler: TPacketHandler) stdcall;
-  TRegisterPacketType = procedure(IsCliServ:Boolean; Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition) stdcall;
+  TRegisterPacketType = procedure(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition) stdcall;
   (**
     If HandleProc <> nil Than Size will be ignored.
     If Size = 0 and HandleProc = nil then default handler will work.
@@ -126,6 +142,19 @@ type
   TzLibCompress2 = function(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; stdcall;
   TzLibDecompress = function(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer):Integer; stdcall;
 
+  (**
+    UOExtProtocol stuff. Not working right now.
+  **)
+  TUOExtProtocolHandler = procedure(Packet: Pointer; Size: Cardinal); stdcall;
+  TUOExtProtocolSetReciver = function(Handler:TUOExtProtocolHandler):Boolean; stdcall;
+  TUOExtProtocolSendPacket = procedure(Packet: Pointer; Size: Cardinal); stdcall;
+
+  (**
+    GUI visualization. Not working right now.
+  **)
+  TGUISetLog = function(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
+  TGUIStartProcess = function(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; stdcall;
+  TGUIUpdateProcess = procedure(ProcessHandle, Min, Max, Current: Cardinal); stdcall;
 implementation
 
 end.

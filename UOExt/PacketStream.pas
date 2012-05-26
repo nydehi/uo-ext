@@ -365,7 +365,7 @@ Begin
   If not((FSeed <> 0) or (not FIsCliServ)) Then Begin
     If PByte(FIncommingBuffer.Base)^ = $EF Then Begin // New 0xEF packet for seeding.
       FNewEFSeed := True;
-      Dummy := ProtocolDescriptor.GetCliServLength($EF);
+      Dummy := ProtocolDescriptor.GetLength($EF);
       If FIncommingBuffer.Amount < Dummy Then Exit; // Wait for additional data
       FSeed := PCardinal(Cardinal(FIncommingBuffer.Base) + 1)^;
       FCMajor := htonl(PCardinal(Cardinal(FIncommingBuffer.Base) + 5)^);
@@ -453,10 +453,7 @@ begin
 
   If FIncommingBuffer.Amount > 0 Then repeat
     If not FCompression Then Begin
-      If FIsCliServ Then
-        PacketLength:=ProtocolDescriptor.GetCliServLength(FIncommingBuffer.Base, FIncommingBuffer.Amount)
-      Else
-        PacketLength:=ProtocolDescriptor.GetServCliLength(FIncommingBuffer.Base, FIncommingBuffer.Amount);
+      PacketLength:=ProtocolDescriptor.GetLength(FIncommingBuffer.Base, FIncommingBuffer.Amount);
       If PacketLength=0 Then Begin
         {$IFDEF Debug}
         WriteLn(FDebugPresent, 'Uncompressed protocol: Some data lost in process. Header: ', IntToHex(PByte(FIncommingBuffer.Base)^, 2), 'Buffer dump: ');
@@ -497,10 +494,7 @@ var
 begin
   Result := not Validate;
   If Validate Then Begin
-    If FIsCliServ Then
-      NewSize := ProtocolDescriptor.GetCliServLength(Data, Length)
-    Else
-      NewSize := ProtocolDescriptor.GetServCliLength(Data, Length);
+    NewSize := ProtocolDescriptor.GetLength(Data, Length);
     Result := NewSize = Length;
     If not Result Then Begin
       Length := NewSize;
