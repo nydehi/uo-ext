@@ -21,7 +21,7 @@ type
     property Handle:THandle read FHandle;
     property ThreadId:THandle read FThreadId;
     property Running:Boolean read FRunning;
-    procedure Stop;
+    procedure Stop; virtual;
     procedure ForceStop;
     procedure Run;
 

@@ -2,7 +2,7 @@ unit ProtocolDescription;
 
 interface
 
-uses WinSock, PluginsShared;
+uses Windows, WinSock, PluginsShared, Common;
 
 type
 
@@ -14,23 +14,19 @@ type
 
   TProtocolDescription=class
   private
-    FCliServ:Array [0..255] of RPacketData;
-    FServCli:Array [0..255] of RPacketData;
-    FCSCount:Byte;
-    FSCCount:Byte;
+    FPackets:Array [0..255] of RPacketData;
+    FCount:Byte;
   public
-    property CliServCount:Byte read FCSCount;
-    property ServCliCount:Byte read FSCCount;
+    property Count:Byte read FCount;
     constructor Create;
-    function GetCliServLength(Data:Pointer; Length:Cardinal):Cardinal; overload;
-    function GetCliServLength(Header: Byte):Cardinal; overload;
-    function GetServCliLength(Data:Pointer; Length:Cardinal):Cardinal; overload;
-    function GetServCliLength(Header: Byte):Cardinal; overload;
-    procedure AddPacketInfo(IsCliServ:Boolean; Packet:Byte; Length:Cardinal); overload;
-    procedure AddPacketInfo(IsCliServ:Boolean; Packet:Byte; Handler:TPacketLengthDefinition); overload;
+    function GetLength(Data:Pointer; Length:Cardinal):Cardinal; overload;
+    function GetLength(Header: Byte):Cardinal; overload;
+    procedure AddPacketInfo(Packet:Byte; Length:Cardinal); overload;
+    procedure AddPacketInfo(Packet:Byte; Handler:TPacketLengthDefinition); overload;
   end;
 
-  procedure InitProtocolDescription(Descriptor:TProtocolDescription);
+  procedure Init;
+//  procedure InitProtocolDescription(Descriptor:TProtocolDescription);
 
 var
   ProtocolDescriptor: TProtocolDescription;
@@ -49,8 +45,163 @@ begin
   End;
 end;
 
+Function FindInMemory(Base:Pointer; Size: Cardinal; Mask: Pointer; MaskSize: Cardinal; NullByte:Byte): Pointer;
+Var
+  i, j: Cardinal;
+  bFound: Boolean;
+Begin
+  Result := nil;
+  For i := Cardinal(Base) to Cardinal(Base) + Size - 1 do If PByte(i)^ = PByte(Mask)^ then Begin
+    bFound := True;
+    For j := i to i + MaskSize - 1 do if NOT( (PByte(j)^ = PByte(Cardinal(Mask) + j - i)^) OR (PByte(Cardinal(Mask) + j - i)^ = NullByte) ) then Begin
+      bFound := False;
+      Break;
+    End;
+    if bFound then Begin
+        Result := Pointer(i);
+        Break;
+    End;
+  End;
+End;
+
+Function FindSignature(Base:Pointer; Size: Cardinal; var SignatureSize: Byte; var HandleOffset: Byte; var SizeOffset: Byte; var SizeSize: Byte):Pointer;
+const
+  Signature1 : Array [0..19] of Byte = ($00, $80, $00, $00, $04, $00, $00, $00, $FF, $FF, $FF, $FF, $02, $00, $00, $00, $05, $00, $00, $00);
+  Signature2 : Array [0..15] of Byte = ($00, $80, $00, $00, $04, $00, $00, $00, $02, $00, $00, $00, $05, $00, $00, $00);
+  Signature3 : Array [0..15] of Byte = ($00, $80, $04, $00, $00, $00, $FF, $FF, $FF, $FF, $02, $00, $05, $00, $00, $00);
+  Signature4 : Array [0..11] of Byte = ($00, $80, $04, $00, $00, $00, $02, $00, $05, $00, $00, $00);
+  Signature1Size = 20;
+  Signature2Size = 16;
+  Signature3Size = 16;
+  Signature4Size = 12;
+Begin
+  HandleOffset := 0;
+  SizeOffset := 4;
+  SizeSize := 4;
+  Result := FindInMemory(Base, Size, @Signature1, Signature1Size, $FF);
+  if Result <> nil then Begin
+    SignatureSize := 12;
+    SizeOffset := 8;
+    Result := Pointer(Cardinal(Result) - 12 * 3 - 8);
+    Exit;
+  End;
+  Result := FindInMemory(Base, Size, @Signature2, Signature2Size, $FF);
+  if Result <> nil then Begin
+    SignatureSize := 8;
+    Result := Pointer(Cardinal(Result) - 8 * 3 - 4);
+    Exit;
+  End;
+  SizeSize := 2;
+  Result := FindInMemory(Base, Size, @Signature3, Signature3Size, $FF);
+  if Result <> nil then Begin
+    SignatureSize := 10;
+    SizeOffset := 8;
+    Result := Pointer(Cardinal(Result) - 10 * 3 - 8);
+    Exit;
+  End;
+  Result := FindInMemory(Base, Size, @Signature4, Signature4Size, $FF);
+  if Result <> nil then Begin
+    SignatureSize := 6;
+    Result := Pointer(Cardinal(Result) - 6 * 3 - 4);
+    Exit;
+  End;
+End;
+
+Procedure FillProtocolDescription(Descriptor:TProtocolDescription; Table:Pointer; Row: Byte; Id: Byte; Size:Byte; SizeSize: Byte);
+var
+  lastId: Byte;
+  currId: Byte;
+  currPnt: Pointer;
+  currSize: Word;
+  FoundPackets: Word;
+Begin
+  currPnt := Table;
+  FoundPackets := 0;
+  currId := PCardinal(Cardinal(currPnt) + Id)^;
+  repeat
+    if SizeSize = 2 then
+      currSize := PWord(Cardinal(currPnt) + Size)^
+    Else
+      currSize := PCardinal(Cardinal(currPnt) + Size)^;
+    if currSize = $8000 then currSize := 0;
+    Descriptor.AddPacketInfo(currId, currSize);
+
+    FoundPackets := FoundPackets + 1;
+
+    currPnt := Pointer(Cardinal(currPnt) + Row);
+
+    lastId := currId;
+    currId := PCardinal(Cardinal(currPnt) + Id)^;
+
+  Until NOT ( (lastId < currId) OR ((lastId = $F8) AND (currId = $01)) );
+  {$IFDEF Debug}
+  WriteLn('Protocol: Found ', FoundPackets, ' packets sizes');
+  {$ENDIF}
+End;
+
+function ReadProtocolDescription(Descriptor:TProtocolDescription):Boolean;
+type
+  TPorcedure = procedure;
+  TSections = Array [0..999] of TImageSectionHeader;
+  PSections = ^TSections;
+var
+  DosHeader: PImageDosHeader;
+  PEHeader: PImageFileHeader;
+  OptHeader: PImageOptionalHeader;
+  Sections: PSections;
+  Exe: Pointer;
+
+  i: Word;
+  PacketTable: Pointer;
+  PacketTableSize: Byte;
+  HandleOffset, SizeOffset, SizeSize: Byte;
+Begin
+  {$IFDEF Debug}
+  Write('Protocol: Searching protocol size table in main executable ... ');
+  {$ENDIF}
+  Exe := Pointer(GetModuleHandle(nil));
+  DosHeader := Exe;
+  PEHeader := Pointer(Cardinal(Exe) + Cardinal(DosHeader^._lfanew) + 4);
+  OptHeader := Pointer(Cardinal(Exe) + Cardinal(DosHeader^._lfanew) + 4 + SizeOf(TImageFileHeader));
+  Sections := Pointer(Cardinal(Exe) + Cardinal(DosHeader^._lfanew) + 4 + SizeOf(TImageFileHeader) + SizeOf(TImageOptionalHeader) + (OptHeader^.NumberOfRvaAndSizes - IMAGE_NUMBEROF_DIRECTORY_ENTRIES) * SizeOf(TImageDataDirectory));
+  PacketTable := nil;
+  PacketTableSize := 0;
+  For i := 0 to PEHeader.NumberOfSections - 1 do Begin
+    If PAnsiChar(@Sections[i].Name) = '.data' then Begin
+      PacketTable := FindSignature(Pointer(Cardinal(Exe) + Sections[i].VirtualAddress), Sections[i].SizeOfRawData, PacketTableSize, HandleOffset, SizeOffset, SizeSize);
+      {$IFDEF Debug}
+      WriteLn('done');
+      WriteLn('Protocol: Table pointer: 0x', IntToHex(Cardinal(PacketTable), 8), ', Row size: ', PacketTableSize);
+      {$ENDIF}
+      Break;
+    End;
+  End;
+
+  If PacketTable = nil then Begin
+   {$IFDEF Debug}
+    WriteLn('done');
+    WriteLn('Protocol not found! Aborting.');
+    Sleep(5000);
+    {$ENDIF}
+    Halt(1);
+  End;
+
+  FillProtocolDescription(Descriptor, PacketTable, PacketTableSize, HandleOffset, SizeOffset, SizeSize);
+  Result := True;
+End;
+
+procedure Init;
+Begin
+  if Assigned(ProtocolDescriptor) then ProtocolDescriptor.Free;
+  ProtocolDescriptor := TProtocolDescription.Create;
+  ReadProtocolDescription(ProtocolDescriptor);
+//  InitProtocolDescription(ProtocolDescriptor);
+End;
+
+{
 procedure InitProtocolDescription(Descriptor:TProtocolDescription);
 begin
+
   With Descriptor do Begin
 // Client - Server
     AddPacketInfo(True, $00, 104);
@@ -249,80 +400,44 @@ begin
     AddPacketInfo(False, $F5, 21);
   end;
 end;
-
+}
 
 constructor TProtocolDescription.Create;
-var
-  i:Byte;
 begin
   Inherited Create;
-  For i:=0 to 255 do begin
-    FCliServ[i].Length:=0;
-    FServCli[i].Length:=0;
-  End;
+  ZeroMemory(@FPackets[0], SizeOf(RPacketData) * 256);
 end;
 
-function TProtocolDescription.GetCliServLength(Data:Pointer; Length:Cardinal):Cardinal;
+function TProtocolDescription.GetLength(Data:Pointer; Length:Cardinal):Cardinal;
 Begin
   Result:=0;
   If Length=0 Then Exit;
-  If FCliServ[PByte(Data)^].Length<1048576 Then Begin
-    Result:=FCliServ[PByte(Data)^].Length;
+  If FPackets[PByte(Data)^].Length<1048576 Then Begin
+    Result:=FPackets[PByte(Data)^].Length;
   End Else Begin
-    Result:=FCliServ[PByte(Data)^].Handler(Data, Length);
+    Result:=FPackets[PByte(Data)^].Handler(Data, Length);
   End;
 End;
 
-function TProtocolDescription.GetCliServLength(Header: Byte):Cardinal;
+function TProtocolDescription.GetLength(Header: Byte):Cardinal;
 Begin
-  Result:=FCliServ[Header].Length;
+  Result:=FPackets[Header].Length;
   If Result = 0 Then Result := $FFFFFFFF else if Result >= 1048576 Then Result := 0;
 End;
 
-function TProtocolDescription.GetServCliLength(Data:Pointer; Length:Cardinal):Cardinal;
+procedure TProtocolDescription.AddPacketInfo(Packet:Byte; Length:Cardinal);
 Begin
-  Result:=0;
-  If Length=0 Then Exit;
-  If FServCli[PByte(Data)^].Length<1048576 Then Begin
-    Result:=FServCli[PByte(Data)^].Length;
-  End Else Begin
-    Result:=FServCli[PByte(Data)^].Handler(Data, Length);
-  End;
+  If FPackets[Packet].Length =0 Then Inc(FCount);
+  If Length>0 Then FPackets[Packet].Length:=Length Else FPackets[Packet].Handler:=DefaultPacketHandler;
 End;
 
-function TProtocolDescription.GetServCliLength(Header: Byte):Cardinal;
+procedure TProtocolDescription.AddPacketInfo(Packet:Byte; Handler:TPacketLengthDefinition);
 Begin
-  Result:=FServCli[Header].Length;
-  If Result = 0 Then Result := $FFFFFFFF else if Result >= 1048576 Then Result := 0;
-End;
-
-procedure TProtocolDescription.AddPacketInfo(IsCliServ:Boolean; Packet:Byte; Length:Cardinal);
-Begin
-  If IsCliServ Then Begin
-    If FCliServ[Packet].Length<>0 Then Dec(FCSCount);
-    Inc(FCSCount);
-    If Length>0 Then FCliServ[Packet].Length:=Length Else FCliServ[Packet].Handler:=DefaultPacketHandler;
-  End Else Begin
-    If FServCli[Packet].Length<>0 Then Dec(FSCCount);
-    Inc(FCSCount);
-    If Length>0 Then FServCli[Packet].Length:=Length Else FServCli[Packet].Handler:=DefaultPacketHandler;
-  End;
-End;
-
-procedure TProtocolDescription.AddPacketInfo(IsCliServ:Boolean; Packet:Byte; Handler:TPacketLengthDefinition);
-Begin
-  If IsCliServ Then Begin
-    If FCliServ[Packet].Length<>0 Then Dec(FCSCount);
-    Inc(FCSCount);
-    FCliServ[Packet].Handler:=Handler;
-  End Else Begin
-    If FServCli[Packet].Length<>0 Then Dec(FSCCount);
-    Inc(FSCCount);
-    FServCli[Packet].Handler:=Handler;
-  End;
+  If FPackets[Packet].Length = 0 Then Inc(FCount);
+  FPackets[Packet].Handler:=Handler;
 End;
 
 initialization
-  ProtocolDescriptor := TProtocolDescription.Create;
-  InitProtocolDescription(ProtocolDescriptor);
+//  ProtocolDescriptor := TProtocolDescription.Create;
+//  InitProtocolDescription(ProtocolDescriptor);
 end.

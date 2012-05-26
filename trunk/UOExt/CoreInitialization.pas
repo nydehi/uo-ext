@@ -7,7 +7,8 @@ function CoreInitialize:Boolean; stdcall;
 
 implementation
 
-uses Windows, HookLogic, Plugins, Common, UOExtProtocol, WinSock, ShardSetup, zLib;
+uses Windows, HookLogic, Plugins, Common, UOExtProtocol, WinSock, ShardSetup, zLib,
+  GUI, ProtocolDescription;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}
@@ -52,31 +53,31 @@ Begin
   WriteLn('UOExt.dll Ultima Online (C) protocol and client patch system.');
   WriteLn('Core: Debug window started.');
   WriteLn;
-  Write('Compile time directives: DEBUGWINDOW');
+  Write('Core: Compile time directives: DEBUGWINDOW');
   {$IFDEF DEBUG} Write(', DEBUG'); {$ENDIF}
   {$IFDEF RELEASE} Write(', RELEASE');{$ENDIF}
   {$IFDEF WRITELOG} Write(', WRITELOG');{$ENDIF}
-  Writeln;
-
-  Write('Plugins supply methods: Internal');
-  {$IFDEF PLUGINS_HDD} Write(', HDD');{$ENDIF}
-  {$IFDEF PLUGINS_SERVER} Write(', Server');{$ENDIF}
-  Writeln;
-  Writeln;
-  WriteLn('Asking server for UOExt support.');
+  WriteLn;
   {$ENDIF}
-  if UOExtProtocol.GetUOExtSupport() Then Begin
+
+  ProtocolDescription.Init;
+
+  {$IFDEF DEBUG}
+  WriteLn('Core: Plugins supply methods: Internal, Server');
+  WriteLn;
+  WriteLn;
+  WriteLn('Core: Asking server for UOExt support.');
+  {$ENDIF}
+  If TPluginSystem.Instance.GetDllsFromServer Then Begin
     {$IFDEF DEBUG}
-    WriteLn('UOExt supported. Config:');
-    Write(' Update server: ', inet_ntoa(in_addr(ShardSetup.UpdateIP)), ':', htons(ShardSetup.UpdatePort));
-    If ShardSetup.PersistentConnect then WriteLn(' persistent') else WriteLn;
-    Write(' Server side protocol is ');
+    WriteLn('Core: UOExt supported. Config:');
+    Write('Core:  Server side protocol is ');
     if ShardSetup.Encrypted then WriteLn('encrypted') else WriteLn('unencrypted');
-    WriteLn(' UOExt protocol encapsulation header: ', IntToHex(ShardSetup.InternalProtocolHeader, 2));
+    WriteLn('Core:  UOExt protocol encapsulation header: ', IntToHex(ShardSetup.InternalProtocolHeader, 2));
     {$ENDIF}
   End Else Begin
    {$IFDEF DEBUG}
-   WriteLn('UOExt is not supported on this server. Gracefull exit.');
+   WriteLn('Core: UOExt is not supported on this server. Gracefull exit.');
    Sleep(1000);
    {$ENDIF}
    {$IFDEF DEBUGWINDOW}
@@ -85,24 +86,40 @@ Begin
    Result := False;
    Exit;
   End;
+
+  {$IFDEF DEBUG}
+  Write('Core: Creating GUI screen ... ');
+  {$ENDIF}
+  GUI.CurrGUI := TGUI.Create;
+  If not GUI.CurrGUI.Init(ShardSetup.GUIDLLName) Then Begin
+    {$IFDEF DEBUG}
+    WriteLn('library not found or type mismatch.');
+    {$ENDIF}
+    GUI.CurrGUI.Free;
+    GUI.CurrGUI := nil;
+  End Else Begin
+    {$IFDEF DEBUG}
+    WriteLn('done.');
+    {$ENDIF}
+  End;
+
+  {$IFDEF DEBUG}
+  Write('Core: Hooking APIs for launch ... ');
+  {$ENDIF}
   HookIt;
   {$IFDEF DEBUG}
-  WriteLn('Hook completed. Initializing plugins.');
+  WriteLn('done.');
+  WriteLn('Core: Starting plug-ins loading.');
   {$ENDIF}
   TPluginSystem.Instance.Initialize;
-End;
 
+  GUI.CurrGUI.Free;
+  GUI.CurrGUI := nil;
+End;
 
 function CoreInitialize:Boolean; stdcall;
 Begin
   Result := InProcess;
 End;
-
-{
-procedure CoreInitialize; stdcall;
-Begin
-  InProcess;
-End;
-}
 
 end.

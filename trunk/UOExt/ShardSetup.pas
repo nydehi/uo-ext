@@ -8,9 +8,10 @@ type
   TSerialSupplyMethods = (ssmStatic, ssmProxy, ssmServer);
 
 var
-  UpdateIP: Cardinal = INADDR_LOOPBACK;
-  UpdatePort: Word = 2594;
+  UpdateIP: Cardinal = 0;
+  UpdatePort: Word = 0;
   PersistentConnect: Boolean = False;
+  UsingUpdateServer: Boolean = False;
 
   SerialSupplyMethod: TSerialSupplyMethods = ssmStatic;
   ItemSerialMin:Cardinal = $70000001;
@@ -21,9 +22,7 @@ var
   EnableIntertalProtocol: Boolean = False;
   InternalProtocolHeader: Byte = $FF;
 
-
-  ReadLoginCfg: Boolean = {$IFDEF LOGIN_CFG}True{$ELSE}False{$ENDIF};
-
+  GUIDLLName: AnsiString = 'UOExt.GUI.dll';
 implementation
 
 end.
