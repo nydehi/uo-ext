@@ -2,7 +2,6 @@ library UOExt;
 
 uses
   Windows,
-<<<<<<< .mine
   AbstractThread in 'ProtocolExtender\AbstractThread.pas',
   ListeningThread in 'ProtocolExtender\ListeningThread.pas',
   Common in 'ProtocolExtender\Common.pas',
@@ -26,31 +25,6 @@ uses
   Executable in 'ProtocolExtender\Executable.pas',
   APIHooker in 'ProtocolExtender\APIHooker.pas',
   GUI in 'ProtocolExtender\GUI.pas';
-=======
-  AbstractThread in 'UOExt\AbstractThread.pas',
-  ListeningThread in 'UOExt\ListeningThread.pas',
-  Common in 'UOExt\Common.pas',
-  PacketStream in 'UOExt\PacketStream.pas',
-  HuffmanAlgo in 'UOExt\HuffmanAlgo.pas',
-  ProtocolDescription in 'UOExt\ProtocolDescription.pas',
-  ClientThread in 'UOExt\ClientThread.pas',
-  HookLogic in 'UOExt\HookLogic.pas',
-  ShardSetup in 'UOExt\ShardSetup.pas',
-  Plugins in 'UOExt\Plugins.pas',
-  PluginsShared in 'UOExt\PluginsShared.pas',
-  Serials in 'UOExt\Serials.pas',
-  zLib in 'UOExt\zLib.pas',
-  Encryption in 'UOExt\Encryption.pas',
-  DCPcrypt in 'UOExt\DCPcrypt.pas',
-  Twofish in 'UOExt\Twofish.pas',
-  md5 in 'UOExt\md5.pas',
-  UOExtProtocol in 'UOExt\UOExtProtocol.pas',
-  PreConnectIPDiscover in 'UOExt\PreConnectIPDiscover.pas',
-  CoreInitialization in 'UOExt\CoreInitialization.pas',
-  PluginsDownloader in 'UOExt\PluginsDownloader.pas',
-  Executable in 'UOExt\Executable.pas',
-  APIHooker in 'UOExt\APIHooker.pas';
->>>>>>> .r60
 
 exports
   CoreInitialization.CoreInitialize
