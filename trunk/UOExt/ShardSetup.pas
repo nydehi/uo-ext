@@ -23,6 +23,8 @@ var
   InternalProtocolHeader: Byte = $FF;
 
   GUIDLLName: AnsiString = 'UOExt.GUI.dll';
+
+  UOExtBasePath: AnsiString = '';
 implementation
 
 end.

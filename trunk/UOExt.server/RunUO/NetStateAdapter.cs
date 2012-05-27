@@ -32,7 +32,7 @@ namespace Scripts.UOExtAdapter
         public void Send(byte[] buffer)
         {
             m_ns.Send(new UOExtEncapsulation(buffer));
-            m_ns.Flush();
+//            m_ns.Flush();
         }
 
         public void Close()

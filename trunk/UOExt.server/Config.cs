@@ -82,6 +82,10 @@ namespace UOExt
                       : Path.Combine(AppDomain.CurrentDomain.SetupInformation.ApplicationBase, m_serverPluginsPath);
             m_pluginsInitOrderFile = Path.IsPathRooted(m_pluginsInitOrderFile) ? m_pluginsInitOrderFile
                       : Path.Combine(AppDomain.CurrentDomain.SetupInformation.ApplicationBase, m_pluginsInitOrderFile);
+            m_UOExtPath = Path.IsPathRooted(m_UOExtPath) ? m_UOExtPath
+                      : Path.Combine(AppDomain.CurrentDomain.SetupInformation.ApplicationBase, m_UOExtPath);
+            m_UOExtGUIPath = Path.IsPathRooted(m_UOExtGUIPath) ? m_UOExtGUIPath
+                      : Path.Combine(AppDomain.CurrentDomain.SetupInformation.ApplicationBase, m_UOExtGUIPath);
         }
 
         public static void Configure()

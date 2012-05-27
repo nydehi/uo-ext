@@ -7,10 +7,11 @@ namespace UOExt.Plugins.UOExtCore
         /// <summary>
         /// UOExt handshake packet. Send "all ok"
         /// </summary>
-        public Handshake()
-            : base(0x00, 1)
+        public Handshake(byte flags)
+            : base(0x00, 2)
         {
             m_Writer.Write((byte)0x00);
+            m_Writer.Write((byte)flags);
         }
     }
 
@@ -19,7 +20,7 @@ namespace UOExt.Plugins.UOExtCore
         public LibraryList()
             : base(0x00)
         {
-            EnsureCapacity((short)(Dll.Dlls.Length * 20 + 1));
+            EnsureCapacity((ushort)(Dll.Dlls.Length * 20 + 1));
             m_Writer.Write((byte)0x01);
             for (int i = 0; i < Dll.Dlls.Length; i++)
             {
@@ -34,20 +35,20 @@ namespace UOExt.Plugins.UOExtCore
         public PluginsList()
             : base(0x00)
         {
-            short plugins_count = 0;
+            ushort plugins_count = 0;
             foreach (Dll dll in Dll.Dlls)
             {
-                plugins_count += (short)(dll.Plugins.Length);
+                plugins_count += (ushort)(dll.Plugins.Length);
             }
 
-            EnsureCapacity((short)(plugins_count * 4 + 1));
+            EnsureCapacity((ushort)(plugins_count * 4 + 1));
 
             m_Writer.Write((byte)0x02);
-            for (short i = 0; i < Dll.Dlls.Length; i++)
+            for (ushort i = 0; i < Dll.Dlls.Length; i++)
             {
                 for (byte j = 0; j < Dll.Dlls[i].Plugins.Length; j++)
                 {
-                    m_Writer.Write((short)i);
+                    m_Writer.Write((ushort)i);
                     m_Writer.Write((byte)j);
                     m_Writer.Write((byte)Dll.Dlls[i].Plugins[j].PacketsAmount);
                 }
@@ -57,26 +58,45 @@ namespace UOExt.Plugins.UOExtCore
 
     public sealed class DllHeader : Packet
     {
-        public readonly short DllSize;
+        public readonly ushort DllSize;
 
         public DllHeader(Dll dll, short pos)
             : base(0x00)
         {
             uint size = dll.Size;
             if (size > (65535 - 8)) size = 65535 - 8;
-            DllSize = (short)size;
+            DllSize = (ushort)size;
 
-            EnsureCapacity((short)(DllSize + 3));
+            EnsureCapacity((ushort)(DllSize + 3));
 
             m_Writer.Write((byte)0x03);
-            m_Writer.Write((short)pos);
+            m_Writer.Write((ushort)pos);
+            m_Writer.Write((byte[])dll.Data, 0, DllSize);
+        }
+    }
+
+    public sealed class SimpleDllHeader : Packet
+    {
+        public readonly ushort DllSize;
+
+        public SimpleDllHeader(Dll dll)
+            : base(0x00)
+        {
+            uint size = dll.Size;
+            if (size > (65535 - 10)) size = 65535 - 10;
+            DllSize = (ushort)size;
+
+            EnsureCapacity((ushort)(DllSize + 5));
+
+            m_Writer.Write((byte)0x05);
+            m_Writer.Write((uint)dll.Size);
             m_Writer.Write((byte[])dll.Data, 0, DllSize);
         }
     }
 
     public sealed class DllContent : Packet
     {
-        public readonly short DllChunkSize;
+        public readonly ushort DllChunkSize;
         public readonly uint DllOffset;
 
         public DllContent(Dll dll, uint offset)
@@ -84,12 +104,12 @@ namespace UOExt.Plugins.UOExtCore
         {
             uint size = dll.Size - offset;
             if (size > (65535 - 6)) size = 65535 - 6;
-            DllChunkSize = (short)size;
+            DllChunkSize = (ushort)size;
             DllOffset = offset;
 
-            EnsureCapacity((short)(DllChunkSize + 1));
+            EnsureCapacity((ushort)(DllChunkSize + 1));
 
-            m_Writer.Write((byte)0x00);
+            m_Writer.Write((byte)0x04);
             m_Writer.Write((byte[])dll.Data, (int)DllOffset, DllChunkSize);
         }
     }
