@@ -31,6 +31,7 @@ type
     FUpdateEventFree: THandle;
     FUpdateEvent: THandle;
     FUpdateEventDone: THandle;
+    FFreeEvent: THandle;
     FWindow: HWND;
     FFont: HFONT;
     FUpdateRect: TRect;
@@ -59,7 +60,7 @@ function GUIWindowProcA(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): 
 var
   Thread: TGUIThread;
   bProcessed: Boolean;
-  DC, cDC: HDC;
+  DC: HDC;
   i: Byte;
   Text: PAnsiString;
   rct: TRect;
@@ -69,7 +70,6 @@ var
   GWLA: Integer;
   PaintInfo: tagPAINTSTRUCT;
   oBrush, cBrush: HBRUSH;
-  oldObj: HGDIOBJ;
 Begin
   Result := 0;
   GWLA := GetWindowLongA(hWnd, GWL_USERDATA);
@@ -164,6 +164,7 @@ var
   Msg: TMsg;
   hBackgroundImage: HBITMAP;
   DC: HDC;
+  WaitEvents: Array[0..1] of THandle;
 Begin
   Result := 1;
 
@@ -218,12 +219,18 @@ Begin
   If FUpdateEventDone = 0 Then Exit;
   FUpdateEventFree := CreateEventA(nil, False, True, 'UpdateEventFree');
   If FUpdateEventFree = 0 Then Exit;
+  FFreeEvent := CreateEventA(nil, False, False, 'FreeEvent');
+  If FUpdateEvent = 0 Then Exit;
 
+  WaitEvents[0]:= FUpdateEvent;
+  WaitEvents[1]:= FFreeEvent;
   FCanAcceptCalls := True;
   while not FNeedExit do Begin
     IF MsgWaitForMultipleObjects(1, FUpdateEvent, True, INFINITE, QS_ALLEVENTS) = WAIT_OBJECT_0 Then Begin
+      If FNeedExit then Break;
       InvokeUpdateLog;
     End Else Begin
+      If FNeedExit then Break;
       GetMessageA(Msg, 0, 0, 0);
       TranslateMessage(Msg);
       DispatchMessageA(Msg);
@@ -275,7 +282,9 @@ end;
 
 procedure TGUIThread.Stop;
 begin
-  PostMessage(FWindow, WM_QUIT, 0, 0);
+  FNeedExit := True;
+  SetEvent(FFreeEvent);
+  PostMessageA(FWindow, WM_QUIT, 0, 0);
 end;
 
 // TGUIThread - Thread safe

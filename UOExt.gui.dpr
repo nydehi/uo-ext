@@ -2,9 +2,9 @@ library UOExt.gui;
 
 uses
   GUIThread in 'UOExt.gui\GUIThread.pas',
-  AbstractThread in 'ProtocolExtender\AbstractThread.pas',
+  AbstractThread in 'UOExt\AbstractThread.pas',
   UOExt.GUI.API in 'UOExt.gui\UOExt.GUI.API.pas',
-  PluginsShared in 'ProtocolExtender\PluginsShared.pas';
+  PluginsShared in 'UOExt\PluginsShared.pas';
 
 {$R UOExt.gui.res}
 

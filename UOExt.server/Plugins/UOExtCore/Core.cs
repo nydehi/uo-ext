@@ -14,7 +14,6 @@ namespace UOExt.Plugins.UOExtCore
 {
     public sealed class Core : CSharpServerPlugin
     {
-        private Handshake m_handshakepacket;
         private LibraryList m_libraryList;
         private PluginsList m_pluginsList;
         private InitializationComplete m_initComplete;
@@ -22,7 +21,6 @@ namespace UOExt.Plugins.UOExtCore
 
         public override void UOExtInitialize(PacketHandler hndlr)
         {
-            m_handshakepacket = new Handshake();
             m_libraryList = new LibraryList();
             m_pluginsList = new PluginsList();
             m_initComplete = new InitializationComplete();
@@ -39,6 +37,15 @@ namespace UOExt.Plugins.UOExtCore
                     Dll.Dlls[i].Content.Enqueue(dc);
                 } while (offset < Dll.Dlls[i].Size);
             }
+            Dll.UOExt = new Dll(Config.UOExtPath, true);
+            Dll.UOExtGUI = new Dll(Config.UOExtGUIPath, true);
+        }
+
+        private static bool ByteArrayCompare(byte[] source, byte[] dest)
+        {
+            if (source.Length != dest.Length) return false;
+            for (int i = 0; i < source.Length; i++) if (source[i] != dest[i]) return false;
+            return true;
         }
 
         public void UOExtPacket(IClientPeer peer, byte header, byte[] buffer, int offset, short length)
@@ -52,13 +59,38 @@ namespace UOExt.Plugins.UOExtCore
             {
                 case (0x00):
                     byte version = br.ReadByte();
+                    byte[] uoextmd5 = br.ReadBytes(16);
+                    byte[] uoextguimd5 = br.ReadBytes(16);
                     if (version != 0)
                     {
                         peer.Close();
                     }
                     else
                     {
-                        peer.Send(m_handshakepacket);
+
+                        if (!ByteArrayCompare(uoextmd5, Dll.UOExt.MD5))
+                        {
+                            peer.Send(new Handshake(0x01));
+                            peer.Send(Dll.UOExt.SimpleHeader);
+                            foreach (DllContent dc in Dll.UOExt.Content)
+                            {
+                                peer.Send(dc);
+                            }
+                            return;
+                        }
+                        else if (!ByteArrayCompare(uoextguimd5, Dll.UOExtGUI.MD5))
+                        {
+                            peer.Send(new Handshake(0x02));
+                            peer.Send(Dll.UOExtGUI.SimpleHeader);
+                            foreach (DllContent dc in Dll.UOExtGUI.Content)
+                            {
+                                peer.Send(dc);
+                            }
+                        }
+                        else
+                        {
+                            peer.Send(new Handshake(0));
+                        }
                         peer.Send(m_libraryList);
                         peer.Send(m_pluginsList);
                     }
@@ -95,8 +127,17 @@ namespace UOExt.Plugins.UOExtCore
         public static Dll[] Dlls;
         private static MD5CryptoServiceProvider m_md5Provider;
         private static uint PD_PACKETSAMOUNT = 1;
+        private static Dll m_uoext;
+        private static Dll m_uoextgui;
+
+        public static Dll UOExt { get { return m_uoext; } set { m_uoext = value; } }
+        public static Dll UOExtGUI { get { return m_uoextgui; } set { m_uoextgui = value; } }
+
+
         static Dll()
         {
+            m_md5Provider = new MD5CryptoServiceProvider();
+
             if (!Directory.Exists(Config.ClientPluginsPath))
             {
                 Dlls = new Dll[0];
@@ -104,7 +145,6 @@ namespace UOExt.Plugins.UOExtCore
             }
             string[] files = Directory.GetFiles(Config.ClientPluginsPath, "*.plg");
 
-            m_md5Provider = new MD5CryptoServiceProvider();
             Dlls = new Dll[files.Length];
             for (int i = 0; i < files.Length; i++)
             Dlls[i] = new Dll(files[i]);
@@ -116,9 +156,10 @@ namespace UOExt.Plugins.UOExtCore
         public readonly string Name;
         public readonly Plugin[] Plugins;
         public DllHeader Header;
+        public readonly SimpleDllHeader SimpleHeader;
         public Queue<DllContent> Content;
 
-        public Dll(string path)
+        public Dll(string path, bool simple = false)
         {
             if (!File.Exists(path))
                 throw new FileNotFoundException();
@@ -128,28 +169,38 @@ namespace UOExt.Plugins.UOExtCore
             Name = Path.GetFileNameWithoutExtension(path);
             MD5 = m_md5Provider.ComputeHash(Data);
 
-            IntPtr plgs = new IntPtr((Int32)CallFunction(Name, "DllInit", typeof(Int32), null));
-            int plgs_count = Marshal.ReadInt32(plgs);
-            Plugins = new Plugin[plgs_count];
-            for (int i = 0; i < plgs_count; i++)
+            Content = new Queue<DllContent>();
+            if (!simple)
             {
-                IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4));
-                uint descriptors_count = (uint)(Marshal.ReadInt32(currentPlgInfo, 4));
-                IntPtr descr = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 8));
-                for (int j = 0; j < descriptors_count; j++)
+                IntPtr plgs = new IntPtr((Int32)CallFunction(Name, "DllInit", typeof(Int32), null));
+                int plgs_count = Marshal.ReadInt32(plgs);
+                Plugins = new Plugin[plgs_count];
+                for (int i = 0; i < plgs_count; i++)
                 {
-                    uint key = (uint)(Marshal.ReadInt32(descr));
-                    uint value = (uint)(Marshal.ReadInt32(descr, 4));
-                    if (key == PD_PACKETSAMOUNT)
+                    IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4));
+                    uint descriptors_count = (uint)(Marshal.ReadInt32(currentPlgInfo, 4));
+                    IntPtr descr = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 8));
+                    for (int j = 0; j < descriptors_count; j++)
                     {
-                        Plugins[i] = new Plugin((uint)i, (byte)value);
-                        break;
+                        uint key = (uint)(Marshal.ReadInt32(descr));
+                        uint value = (uint)(Marshal.ReadInt32(descr, 4));
+                        if (key == PD_PACKETSAMOUNT)
+                        {
+                            Plugins[i] = new Plugin((uint)i, (byte)value);
+                            break;
+                        }
                     }
                 }
+                CallFunction(Name, "DllInitDone", null, null);
+            }else{
+                SimpleHeader = new SimpleDllHeader(this);
+                uint offset = (uint)SimpleHeader.DllSize;
+                do { 
+                    DllContent dc = new DllContent(this, offset);
+                    offset += (uint)dc.DllChunkSize;
+                    Content.Enqueue(dc);
+                } while (offset < Size);
             }
-            CallFunction(Name, "DllInitDone", null, null);
-
-            Content = new Queue<DllContent>();
         }
 
         private static object CallFunction(string dllName, string entryPoint, Type returnType, object[] args)

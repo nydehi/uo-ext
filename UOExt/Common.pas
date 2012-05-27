@@ -80,15 +80,8 @@ begin
 end;
 
 function FileExists(const AFilePath: AnsiString): Boolean;
-var
-  F: File;
 Begin
-  AssignFile(F, String(AFilePath));
-  {$I-}
-  Reset(F, 1);
-  {$I+}
-  Result := IOResult = 0;
-  If Result Then CloseFile(F);
+  Result := Windows.GetFileAttributesA(PAnsiChar(AFilePath)) <> INVALID_FILE_ATTRIBUTES;
 End;
 
 function ExtractFilePath(const FileName: AnsiString): AnsiString;

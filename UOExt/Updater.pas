@@ -1,0 +1,650 @@
+unit Updater;
+
+interface
+
+uses Windows, WinSock, Common, md5;
+
+type
+  TDllServerInfo = packed record
+    Size: Cardinal;
+    MD5: Array [0..15] of Byte;
+  end;
+  PDllServerInfo = ^TDllServerInfo;
+  TDllServerInfoList = packed record
+    Amount: Byte;
+    Items: Array [0..0] of TDllServerInfo;
+  end;
+  PDllServerInfoList = ^TDllServerInfoList;
+  TPluginInitInfo = packed record
+    Dll:Byte;
+    Plugin: Byte;
+    PluginHandle: Byte;
+    PacketsCount: Byte;
+  end;
+  PPluginInitInfo = ^TPluginInitInfo;
+  TPluginInitInfoList = packed record
+    Amount: Byte;
+    Items: Array [0..0] of TPluginInitInfo;
+  end;
+  PPluginInitInfoList = ^TPluginInitInfoList;
+
+  TUpdater=class
+  strict private var
+    // Network
+    FSocket: TSocket;
+
+    FDllServerInfoList: PDllServerInfoList;
+    FPluginInitInfoList: PPluginInitInfoList;
+
+    FUOExtMD5: TMD5Digest;
+    FUOExtGUIMD5: TMD5Digest;
+    FNeedUpdateUOExt: Boolean;
+    FNeedUpdateUOExtGUI: Boolean;
+
+    procedure ReloadUOExt;
+
+    // Network
+    function UOExtGetPacket(var Size: Cardinal): Pointer;
+
+    function UOExtConnect: Boolean;
+    function UOExtGetConfig: Boolean;
+    function UOExtHandshake: Boolean;
+    function UOExtGetDllList: Boolean;
+    function UOExtGetPluginsLoadingList: Boolean;
+    function UOExtGetDlls(WantedList: PByteArray; WantedSize: Word): Boolean;
+    procedure UOExtDisconnect;
+    function UOExtUpdateServerConnect:Boolean;
+
+    function UOExtGetMissingDlls(var Dlls:Pointer; var Count: Byte): Boolean;
+
+    function UOExtPacket(Data:Pointer; Size:Cardinal): Boolean;
+  public
+    property DllList: PDllServerInfoList read FDllServerInfoList;
+    property PluginLoadingList: PPluginInitInfoList read FPluginInitInfoList;
+    constructor Create;
+    function GatherMD5Info: Boolean;
+    function Connect: Boolean;
+    function SelfUpdate: Integer;
+    function GetDllsFromServer: Boolean;
+    procedure Cleanup;
+    destructor Destroy; override;
+  end;
+
+implementation
+
+uses PreConnectIPDiscover, ShardSetup, GUI;
+
+constructor TUpdater.Create;
+var
+  oldUOExt: AnsiString;
+begin
+  Inherited;
+  FDllServerInfoList := nil;
+  FPluginInitInfoList := nil;
+
+  oldUOExt := ShardSetup.UOExtBasePath + 'UOExt.dll.old';
+  if FileExists(oldUOExt) then Begin
+    oldUOExt := oldUOExt + #0;
+    repeat
+      DeleteFileA(@oldUOExt[1]);
+      Sleep(100);
+    until not FileExists(oldUOExt);
+  End;
+
+end;
+
+destructor TUpdater.Destroy;
+begin
+  Cleanup;
+  if FSocket <> 0 then Begin
+    closesocket(FSocket);
+    FSocket := 0;
+  End;
+
+  Inherited;
+end;
+
+function TUpdater.GatherMD5Info: Boolean;
+var
+  F:File;
+  pData: Pointer;
+  fSize: Cardinal;
+Begin
+  Result := False;
+  if not FileExists(ShardSetup.UOExtBasePath + 'UOExt.dll') then Exit;
+
+  FileMode := 32;
+  AssignFile(F, String(ShardSetup.UOExtBasePath + 'UOExt.dll'));
+  Reset(F, 1);
+  fSize := FileSize(F);
+  pData := GetMemory(fSize);
+  BlockRead(F, pData^, fSize);
+  CloseFile(F);
+  FileMode := 2;
+  FUOExtMD5 := md5.MD5Buffer(pData^, fSize);
+  FreeMemory(pData);
+  Result := True;
+  If FileExists(ShardSetup.UOExtBasePath + ShardSetup.GUIDLLName) then Begin
+    FileMode := 32;
+    AssignFile(F, String(ShardSetup.UOExtBasePath + ShardSetup.GUIDLLName));
+    Reset(F, 1);
+    fSize := FileSize(F);
+    pData := GetMemory(fSize);
+    BlockRead(F, pData^, fSize);
+    CloseFile(F);
+    FileMode := 2;
+    FUOExtGUIMD5 := md5.MD5Buffer(pData^, fSize);
+    FreeMemory(pData);
+  End;
+End;
+
+function TUpdater.Connect:Boolean;
+begin
+  Result := False;
+  If not UOExtConnect then Exit;
+  if not UOExtGetConfig then Exit;
+  if not UOExtHandshake then Exit;
+  Result := True;
+end;
+
+
+function TUpdater.GetDllsFromServer: Boolean;
+var
+  MissingDllsCount: Byte;
+  MissingDlls: Pointer;
+Begin
+  Result := False;
+  if not Self.UOExtGetDllList then Exit;
+  if not Self.UOExtGetPluginsLoadingList then Exit;
+  if not Self.UOExtGetMissingDlls(MissingDlls, MissingDllsCount) then Exit;
+  if not Self.UOExtGetDlls(MissingDlls, MissingDllsCount) then Exit;
+  If Assigned(MissingDlls) Then FreeMemory(MissingDlls);
+  Result := True;
+End;
+
+function TUpdater.UOExtConnect: Boolean;
+var
+  IP: Cardinal;
+  Port: Word;
+
+  WSAData: TWSAData;
+  SockAddr: TSockAddr;
+  bufPacket: Array [0..20] of Byte;
+  bNoDelay: BOOL;
+begin
+  Result := False;
+  If not PreConnectIPDiscover.GetConnInfo(IP, Port) Then Exit;
+  ShardSetup.UpdateIP := IP;
+  WSAStartup($101, WSAData);
+
+  FSocket := WinSock.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  IF FSocket=INVALID_SOCKET Then Exit;
+  ZeroMemory(@SockAddr, SizeOf(SockAddr));
+  SockAddr.sin_family:=AF_INET;
+
+  SockAddr.sin_port:=htons(Port);
+  SockAddr.sin_addr.S_addr:=htonl(IP);
+
+  If WinSock.connect(FSocket, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Begin
+    closesocket(FSocket);
+    Exit;
+  End;
+  bNoDelay := True;
+  setsockopt(FSocket, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay));
+
+  ZeroMemory(@bufPacket[0], 21);
+  bufPacket[0] := $EF;
+  If send(FSocket, bufPacket, 21, 0) <> 21 Then Begin
+    closesocket(FSocket);
+    Exit;
+  End;
+  Result := True;
+end;
+
+function TUpdater.UOExtGetConfig:Boolean;
+const
+  bufSize = 65535;
+var
+  WriteOffSet, PacketSize: Cardinal;
+  recvResult: Integer;
+  startGTC, currGTC: Cardinal;
+  fdset: TFDSet;
+  tv: TTimeVal;
+
+  bufPacket: Array [0..bufSize] of Byte;
+begin
+  Result := False;
+
+  WriteOffSet := 0;
+  PacketSize := 0;
+  startGTC := GetTickCount;
+  Repeat
+    FD_ZERO(fdset);
+    FD_SET(FSocket, fdset);
+    currGTC := GetTickCount;
+    tv.tv_sec := 5 - (currGTC - startGTC) DIV 1000;
+    tv.tv_usec := 5 - (currGTC - startGTC) MOD 1000;
+    select(0, @fdset, nil, nil, @tv);
+    If FD_ISSET(FSocket, fdset) then Begin
+      recvResult := recv(FSocket, Pointer(@bufPacket[WriteOffSet])^, bufSize - WriteOffSet, 0);
+      If recvResult <= 0 then Begin
+        closesocket(FSocket);
+        Exit;
+      End;
+
+      WriteOffSet := WriteOffSet + Cardinal(recvResult);
+      If PacketSize = 0 then Begin
+        If WriteOffSet > 3 then
+          if bufPacket[0] <> 0 then Begin
+            closesocket(FSocket);
+            Exit;
+          End;
+          PacketSize := htons(PWord(@bufPacket[1])^);
+      End;
+    End;
+  Until ((WriteOffSet >= PacketSize)AND(PacketSize > 0))OR((GetTickCount - startGTC) DIV 1000 > 5);
+
+  If(WriteOffSet < 3)OR(PacketSize < htons(PWord(@bufPacket[1])^)) Then Begin
+    {$IFDEF DEBUG}
+    WriteLn('UOExtProtocol: Server didn''t respond on UOExt support ask.');
+    {$ENDIF}
+    closesocket(FSocket);
+    Exit;
+  End;
+  {
+    BYTE Header = $FF
+    WORD Size
+    BYTE Flags 0x01 = Encrypted
+    BYTE UOExtHeader
+  }
+
+  ShardSetup.Encrypted := bufPacket[3] AND $01 = $01;
+  ShardSetup.InternalProtocolHeader := bufPacket[4];
+  if(bufPacket[3] AND $02 = $02) Then Begin
+    if PCardinal(@bufPacket[5])^ <> 0 then ShardSetup.UpdateIP := PCardinal(@bufPacket[5])^;
+    ShardSetup.UpdatePort := htons(PCardinal(@bufPacket[9])^);
+    UOExtDisconnect;
+    Result := UOExtUpdateServerConnect;
+    ShardSetup.UsingUpdateServer := true;
+  End Else Begin
+    Result := True;
+  End;
+end;
+
+procedure TUpdater.UOExtDisconnect;
+begin
+  closesocket(FSocket);
+  FSocket := INVALID_SOCKET;
+  ShardSetup.UsingUpdateServer := False;
+  WSACleanup;
+end;
+
+function TUpdater.UOExtUpdateServerConnect;
+var
+  WSAData: TWSAData;
+  SockAddr: TSockAddr;
+  bNoDelay: BOOL;
+begin
+  Result := False;
+  WSAStartup($101, WSAData);
+
+  FSocket := WinSock.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  IF FSocket=INVALID_SOCKET Then Exit;
+  ZeroMemory(@SockAddr, SizeOf(SockAddr));
+  SockAddr.sin_family:=AF_INET;
+
+  SockAddr.sin_port:=htons(ShardSetup.UpdatePort);
+  SockAddr.sin_addr.S_addr:=htonl(ShardSetup.UpdateIP);
+
+  If WinSock.connect(FSocket, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Begin
+    closesocket(FSocket);
+    Exit;
+  End;
+  bNoDelay := True;
+  setsockopt(FSocket, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay));
+  Result := True;
+end;
+
+function TUpdater.UOExtHandshake:Boolean;
+const
+  PacketSize: Word = 35;
+var
+  Packet: Pointer;
+  incPacketSize: Cardinal;
+  UpdateSet: Byte;
+begin
+  Result := False;
+
+  Packet := GetMemory(PacketSize);
+  ZeroMemory(Packet, PacketSize);
+  CopyMemory(Pointer(Cardinal(Packet) + 3), @FUOExtMD5, 16);
+  CopyMemory(Pointer(Cardinal(Packet) + 19), @FUOExtGUIMD5, 16);
+  Self.UOExtPacket(Packet, PacketSize);
+  FreeMemory(Packet);
+
+  Packet := Self.UOExtGetPacket(incPacketSize);
+  if Packet = nil then Exit;
+  if (PWord(Packet)^ <> 0) then Begin
+    FreeMemory(Packet);
+    Exit;
+  End;
+
+  UpdateSet := PByte(Cardinal(Packet) + 2)^;
+  FNeedUpdateUOExt := UpdateSet AND $01 = $01;
+  FNeedUpdateUOExtGUI := UpdateSet AND $02 = $02;
+
+  Result := True;
+end;
+
+function TUpdater.SelfUpdate: Integer;
+var
+  cUpdateProcess: Cardinal;
+  Packet: Pointer;
+  PacketSize: Cardinal;
+
+  fileSize, chunkSize, loadedSize: Cardinal;
+  cFile: file;
+Begin
+  Result := -1;
+  If FNeedUpdateUOExt then begin
+    Packet := Self.UOExtGetPacket(PacketSize);
+    If ((PByte(Packet)^ <> $00)or(PByte(Cardinal(Packet) + 1)^ <> $05)) then Begin
+      FreeMemory(Packet);
+      Exit;
+    End;
+    fileSize := PCardinal(Cardinal(Packet) + 2)^;
+    cUpdateProcess := GUI.GUIStartProcess($FFFFFFFF, 0, 'UOExt.dll', 0, fileSize, 0);
+    AssignFile(cFile, String(ShardSetup.UOExtBasePath + 'UOExt.dll.new'));
+    Rewrite(cFile, 1);
+    chunkSize := PacketSize - 6;
+    if(chunkSize > fileSize) Then chunkSize := fileSize;
+    BlockWrite(cFile, Pointer(Cardinal(Packet) + 6)^, chunkSize);
+    loadedSize := chunkSize;
+    GUI.GUIUpdateProcess(cUpdateProcess, 0, fileSize, loadedSize);
+    FreeMemory(Packet);
+    If(loadedSize < fileSize) Then Repeat
+      Packet := Self.UOExtGetPacket(PacketSize);
+      If Packet = nil then Exit;
+      If ((PByte(Packet)^ <> $00)or(PByte(Cardinal(Packet) + 1)^ <> $04)) then Begin
+        FreeMemory(Packet);
+        Exit;
+      End;
+      chunkSize := PacketSize - 2;
+      BlockWrite(cFile, Pointer(Cardinal(Packet) + 2)^, chunkSize);
+      loadedSize := loadedSize + chunkSize;
+      GUI.GUIUpdateProcess(cUpdateProcess, 0, fileSize, loadedSize);
+    Until loadedSize = fileSize;
+    CloseFile(cFile);
+    ReloadUOExt;
+    Result := 1;
+  End Else If FNeedUpdateUOExtGUI then Begin
+    Packet := Self.UOExtGetPacket(PacketSize);
+    If ((PByte(Packet)^ <> $00)or(PByte(Cardinal(Packet) + 1)^ <> $05)) then Begin
+      FreeMemory(Packet);
+      Exit;
+    End;
+    fileSize := PCardinal(Cardinal(Packet) + 2)^;
+    cUpdateProcess := GUI.GUIStartProcess(MAXLONG, 0, 'UOExt.gui.dll', 0, fileSize, 0);
+    AssignFile(cFile, String(ShardSetup.UOExtBasePath + ShardSetup.GUIDLLName+'.new'));
+    Rewrite(cFile, 1);
+    chunkSize := PacketSize - 6;
+    if(chunkSize > fileSize) Then chunkSize := fileSize;
+    BlockWrite(cFile, Pointer(Cardinal(Packet) + 6)^, chunkSize);
+    loadedSize := chunkSize;
+    GUI.GUIUpdateProcess(cUpdateProcess, 0, fileSize, loadedSize);
+    FreeMemory(Packet);
+    If(loadedSize < fileSize) Then Repeat
+      Packet := Self.UOExtGetPacket(PacketSize);
+      If Packet = nil then Exit;
+      If ((PByte(Packet)^ <> $00)or(PByte(Cardinal(Packet) + 1)^ <> $04)) then Begin
+        FreeMemory(Packet);
+        Exit;
+      End;
+      chunkSize := PacketSize - 2;
+      BlockWrite(cFile, Pointer(Cardinal(Packet) + 2)^, chunkSize);
+      loadedSize := loadedSize + chunkSize;
+      GUI.GUIUpdateProcess(cUpdateProcess, 0, fileSize, loadedSize);
+    Until loadedSize = fileSize;
+    CloseFile(cFile);
+    Result := 2;
+  End;
+  if Result = -1 then Result := 0;
+End;
+
+procedure TUpdater.ReloadUOExt;
+var
+  oldLib: AnsiString;
+  newLib: AnsiString;
+
+  Si:TStartupInfoA;
+  Pi:TProcessInformation;
+  cd:Array [0..MAX_PATH] of Byte;
+begin
+  UOExtDisconnect;
+  oldLib := ShardSetup.UOExtBasePath + 'UOExt.dll';
+  newLib := ShardSetup.UOExtBasePath + 'UOExt.dll.old';
+  MoveFileA(@oldLib[1], @newLib[1]);
+  oldLib := ShardSetup.UOExtBasePath + 'UOExt.dll.new';
+  newLib := ShardSetup.UOExtBasePath + 'UOExt.dll';
+  MoveFileA(@oldLib[1], @newLib[1]);
+
+  ZeroMemory(@Si, SizeOf(Si));
+  Si.cb := SizeOf(Si);
+  newLib := AnsiString(ParamStr(0)) + #0;
+  GetCurrentDirectoryA(MAX_PATH, @cd[0]);
+  CreateProcessA(nil, @newLib[1], nil, nil, False, 0, nil, @cd[0], Si, Pi);
+end;
+
+
+function TUpdater.UOExtGetDllList: Boolean;
+const
+  Packet: Cardinal = 0;
+var
+  recvPacket: Pointer;
+  PacketSize: Cardinal;
+  DllListSize: Byte;
+Begin
+  Result := False;
+
+  // DllList
+  recvPacket := Self.UOExtGetPacket(PacketSize);
+  if recvPacket = nil then Exit;
+  if (PByte(recvPacket)^ <> 0) OR (PByte(Cardinal(recvPacket) + 1)^ <> 1) then Begin
+    FreeMemory(recvPacket);
+    Exit;
+  End;
+  DllListSize := (PacketSize - 2) DIV 20;
+  FDllServerInfoList := GetMemory(SizeOf(TDllServerInfo) * DllListSize + 1);
+  FDllServerInfoList.Amount := DllListSize;
+  CopyMemory(@FDllServerInfoList.Items[0], Pointer(Cardinal(recvPacket) + 2), SizeOf(TDllServerInfo) * DllListSize);
+  FreeMemory(recvPacket);
+
+  Result := True;
+End;
+
+function TUpdater.UOExtGetPluginsLoadingList: Boolean;
+var
+  recvPacket: Pointer;
+  PacketSize: Cardinal;
+  PluginsListSize: Byte;
+Begin
+  Result := False;
+
+  // PluginsList
+  recvPacket := Self.UOExtGetPacket(PacketSize);
+  if recvPacket = nil then Exit;
+  if (PByte(recvPacket)^ <> $00) OR (PByte(Cardinal(recvPacket) + 1)^ <> $02) then Begin
+    FreeMemory(recvPacket);
+    Exit;
+  End;
+  PluginsListSize := (PacketSize - 2) DIV 4;
+  FPluginInitInfoList := GetMemory(SizeOf(TPluginInitInfo) * PluginsListSize + 1);
+  FPluginInitInfoList^.Amount := PluginsListSize;
+  CopyMemory(@FPluginInitInfoList^.Items[0], Pointer(Cardinal(recvPacket) + 2), SizeOf(TPluginInitInfo) * PluginsListSize);
+  FreeMemory(recvPacket);
+
+  Result := True;
+End;
+
+function TUpdater.UOExtGetDlls(WantedList: PByteArray; WantedSize: Word): Boolean;
+var
+  Packet: Pointer;
+  PacketSize: Cardinal;
+  i, j: Byte;
+  DllId: Byte;
+  SavedDllLength: Cardinal;
+  CurrentDll: PDllServerInfo;
+  F: File;
+  Path: AnsiString;
+Begin
+  Result := False;
+  If WantedSize > MAXWORD - 5 then Exit;
+
+  PacketSize := WantedSize + 2;
+  Packet := GetMemory(PacketSize);
+  PByteArray(Packet)^[0] := 0;
+  PByteArray(Packet)^[1] := 3;
+  CopyMemory(Pointer(Cardinal(Packet) + 2), WantedList, WantedSize);
+  // C->S ReqdLibrary
+  Self.UOExtPacket(Packet, PacketSize);
+  Freememory(Packet);
+
+  If FDllServerInfoList.Amount > 0 Then For i := 0 to FDllServerInfoList.Amount -1 do Begin
+    Packet := Self.UOExtGetPacket(PacketSize);
+    if Packet = nil then Exit;
+    If (PByteArray(Packet)^[0] <> 0)OR(PByteArray(Packet)^[1] <> 3) then Begin
+      FreeMemory(Packet);
+      Exit;
+    End;
+    DllId := PByteArray(Packet)^[3] SHL 8 + PByteArray(Packet)^[2];
+    CurrentDll := @FDllServerInfoList.Items[DllId];
+    SavedDllLength := 0;
+    Path := '';
+    for j := 0 to 15 do Path := Path + IntToHex(CurrentDll^.MD5[j], 2);
+    Path := ShardSetup.UOExtBasePath + 'Plugins\' + Path + '.cache';
+    AssignFile(F, String(Path));
+    Rewrite(F, 1);
+    BlockWrite(F, Pointer(Cardinal(Packet) + 4)^, PacketSize - 4);
+    FreeMemory(Packet);
+    SavedDllLength := SavedDllLength + PacketSize - 4;
+    Repeat
+      Packet := Self.UOExtGetPacket(PacketSize);
+      if Packet = nil then Exit;
+      if (PByteArray(Packet)^[0] <> 0) OR (PByteArray(Packet)^[1] <> 4) then Begin
+        FreeMemory(Packet);
+        CloseFile(F);
+        Exit;
+      End;
+      BlockWrite(f, Pointer(Cardinal(Packet) + 2)^, PacketSize - 2);
+      SavedDllLength := SavedDllLength + PacketSize - 2;
+      FreeMemory(Packet);
+    Until SavedDllLength >= CurrentDll^.Size;
+    CloseFile(F);
+  End;
+  Result := True;
+End;
+
+function TUpdater.UOExtGetMissingDlls(var Dlls:Pointer; var Count: Byte): Boolean;
+var
+  i: Byte;
+Begin
+  Dlls := GetMemory(FDllServerInfoList^.Amount);
+  If FDllServerInfoList^.Amount > 0 Then for i := 0 to FDllServerInfoList^.Amount - 1 do PByteArray(Dlls)^[i] := i;
+  Count := FDllServerInfoList^.Amount;
+  Result := True;
+End;
+
+function TUpdater.UOExtGetPacket(var Size: Cardinal): Pointer;
+var
+  WriteOffSet: Cardinal;
+  recvResult: Integer;
+  minSize: Byte;
+Begin
+  Result := nil;
+  if FSocket = 0 then Exit;
+  WriteOffSet := 0;
+  Size := 0;
+  minSize := 2;
+  If( not ShardSetup.UsingUpdateServer) Then minSize := minSize + 1;
+  Result := GetMemory(minSize);
+  Repeat
+    recvResult := recv(FSocket, Pointer(Cardinal(Result) + WriteOffSet)^, minSize - WriteOffSet, 0);
+    If recvResult <= 0 then Begin
+      closesocket(FSocket);
+      FSocket := 0;
+      FreeMemory(Result);
+      Result := nil;
+      {$IFDEF DEBUG}
+      WriteLn('Plugins: Server closed connection unexpectedly.');
+      {$ENDIF}
+      Exit;
+    End;
+    WriteOffSet := WriteOffSet + Cardinal(recvResult);
+  Until (WriteOffSet >= minSize);
+
+  If (PByte(Result)^ <> ShardSetup.InternalProtocolHeader)AND (not ShardSetup.UsingUpdateServer) then Begin
+    {$IFDEF DEBUG}
+    WriteLn('Plugins: UOExt proto failed. Incomming packet was not UOExt.');
+    {$ENDIF}
+    Halt(1);
+  End;
+
+  if ShardSetup.UsingUpdateServer then
+    Size := htons(PWord(Result)^) - 2
+  Else
+    Size := htons(PWord(Cardinal(Result) + 1)^) - 3;
+  FreeMemory(Result);
+  Result := GetMemory(Size);
+  WriteOffSet := 0;
+
+  Repeat
+    recvResult := recv(FSocket, Pointer(Cardinal(Result) + WriteOffSet)^, Size - WriteOffSet, 0);
+    If recvResult <= 0 then Begin
+      closesocket(FSocket);
+      FSocket := 0;
+      FreeMemory(Result);
+      Result := nil;
+      Exit;
+    End;
+    WriteOffSet := WriteOffSet + Cardinal(recvResult);
+  Until (WriteOffSet >= Size);
+End;
+
+procedure TUpdater.Cleanup;
+Begin
+  if Assigned(FDllServerInfoList) then FreeMemory(FDllServerInfoList);
+  if Assigned(FPluginInitInfoList) then FreeMemory(FPluginInitInfoList);
+End;
+
+
+Function TUpdater.UOExtPacket(Data:Pointer; Size:Cardinal): Boolean;
+type
+  TUOExtHeader=packed record
+    UOHeader: Byte;
+    Size: Word;
+  end;
+var
+  Header: TUOExtHeader;
+Begin
+  Result := False;
+  if Size + 3 > MAXWORD then Exit;
+
+  Header.UOHeader := ShardSetup.InternalProtocolHeader;
+  Header.Size := Size + 2;
+  if not ShardSetup.UsingUpdateServer then Header.Size := Header.Size + 1;
+  Header.Size := htons(Header.Size);
+
+
+  if FSocket <> 0 then Begin
+    if (ShardSetup.UsingUpdateServer) then Begin
+      send(FSocket, Pointer(Cardinal(@Header) + 1)^, SizeOf(Header) - 1, 0);
+    End Else Begin
+      send(FSocket, Header, SizeOf(Header), 0);
+    End;
+    send(FSocket, Data^, Size, 0);
+  End;
+End;
+
+
+
+end.

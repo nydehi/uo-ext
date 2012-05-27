@@ -8,7 +8,7 @@ function CoreInitialize:Boolean; stdcall;
 implementation
 
 uses Windows, HookLogic, Plugins, Common, UOExtProtocol, WinSock, ShardSetup, zLib,
-  GUI, ProtocolDescription;
+  GUI, ProtocolDescription, Updater;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}
@@ -37,9 +37,8 @@ begin
 end;
 {$ENDIF}
 
-function InProcess:Boolean;
+procedure CreateConsole;
 Begin
-  Result := True;
   {$IFDEF DEBUGWINDOW}
   If not AllocConsole Then Begin
     MessageBoxA(0, PAnsiChar(IntToStr(GetLastError)), nil, MB_OK);
@@ -59,16 +58,57 @@ Begin
   {$IFDEF WRITELOG} Write(', WRITELOG');{$ENDIF}
   WriteLn;
   {$ENDIF}
+End;
 
+procedure CriticalError(Msg: AnsiString);
+Begin
+  {$IFDEF Debug}
+  WriteLn(Msg);
+  WriteLn('Press any key to exit.');
+  Readln;
+  {$ELSE}
+  Msg := Msg + #0;
+  MessageBoxA(nil, @Msg[1], MB_OK);
+  {$ENDIF}
+  Halt(1);
+End;
+
+function InProcess:Boolean;
+var
+  Updater: TUpdater;
+  Res: Integer;
+  uMainLine: Cardinal;
+  uStatusLine: Cardinal;
+Begin
+  Result := False;
+
+  ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
+
+// Create console if needed
+  CreateConsole;
+
+// Create GUI
+  GUI.CurrGUI := TGUI.Create;
+  GUI.CurrGUI.Init(ShardSetup.UOExtBasePath + ShardSetup.GUIDLLName);
+
+  uMainLine := GUI.GUISetLog($FFFFFFFF, $FFFFFFFF, 'Initializing ... ');
+  uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Loading protocol info');
+
+// Init Protocol info.
   ProtocolDescription.Init;
 
+// Try to connect to server and ask for support
+  GUI.GUISetLog(uStatusLine, uMainLine, 'Performing self-update');
+  Updater := TUpdater.Create;
+
+// For initial handshake we need MD5 for self, and GUI
+  If not Updater.GatherMD5Info Then CriticalError('Core: Can''t get MD5 sizes of myself and GUI. Critical!');
+
+// If all ok, then we are ready for connection
   {$IFDEF DEBUG}
-  WriteLn('Core: Plugins supply methods: Internal, Server');
-  WriteLn;
-  WriteLn;
   WriteLn('Core: Asking server for UOExt support.');
   {$ENDIF}
-  If TPluginSystem.Instance.GetDllsFromServer Then Begin
+  If Updater.Connect Then Begin
     {$IFDEF DEBUG}
     WriteLn('Core: UOExt supported. Config:');
     Write('Core:  Server side protocol is ');
@@ -78,48 +118,73 @@ Begin
   End Else Begin
    {$IFDEF DEBUG}
    WriteLn('Core: UOExt is not supported on this server. Gracefull exit.');
-   Sleep(1000);
+   Sleep(5000);
    {$ENDIF}
-   {$IFDEF DEBUGWINDOW}
-   FreeConsole;
-   {$ENDIF}
-   Result := False;
    Exit;
   End;
 
-  {$IFDEF DEBUG}
-  Write('Core: Creating GUI screen ... ');
-  {$ENDIF}
-  GUI.CurrGUI := TGUI.Create;
-  If not GUI.CurrGUI.Init(ShardSetup.GUIDLLName) Then Begin
+// Ok. We get some info about self-updating. Update if need.
+  Res := Updater.SelfUpdate;
+  If Res = 0 Then Begin
     {$IFDEF DEBUG}
-    WriteLn('library not found or type mismatch.');
+    WriteLn('Core: Core is up to date.');
     {$ENDIF}
-    GUI.CurrGUI.Free;
-    GUI.CurrGUI := nil;
-  End Else Begin
+  End Else If Res = 1 then Begin
     {$IFDEF DEBUG}
-    WriteLn('done.');
+    WriteLn('Core: Core has been updated. Reloading...');
     {$ENDIF}
+    Halt(0);
+  End Else if Res = 2 then Begin
+    {$IFDEF DEBUG}
+    WriteLn('Core: GUI has been updated.');
+    {$ENDIF}
+    if not GUI.CurrGUI.Reload Then CriticalError('Core: Failed to reload GUI. Critical!');
+    uStatusLine := $FFFFFFFF;
+    uMainLine := $FFFFFFFF;
+  End Else if Res = -1 then Begin
+    CriticalError('Core: Failed to self-update. Critical!');
   End;
 
+// Ok. We are now updated and still running! It's time to load plugins
+  uStatusLine := GUI.GUISetLog(uStatusLine, uMainLine, 'Updating plugins');
+  If not Updater.GetDllsFromServer Then Begin
+    CriticalError('Core: Can''t load plugins from server. Critical!');
+  End;
+
+// Hook needed WinAPI, before plugins init.
+  GUI.GUISetLog(uStatusLine, uMainLine, 'Hooking');
   {$IFDEF DEBUG}
   Write('Core: Hooking APIs for launch ... ');
   {$ENDIF}
   HookIt;
   {$IFDEF DEBUG}
   WriteLn('done.');
+
+// Ok. All Init is done! Loading plugins.
+  GUI.GUISetLog(uStatusLine, uMainLine, 'Initializing plugins.');
   WriteLn('Core: Starting plug-ins loading.');
   {$ENDIF}
-  TPluginSystem.Instance.Initialize;
+  TPluginSystem.Instance.Initialize(Updater);
 
+// Now we need to close update connection if needed
+  Updater.Cleanup;
+  if not ShardSetup.PersistentConnect then Updater.Free;
+
+
+// Clean GUI. It's need only on Initialize process.
   GUI.CurrGUI.Free;
   GUI.CurrGUI := nil;
+
+  Result := True;
 End;
 
 function CoreInitialize:Boolean; stdcall;
 Begin
   Result := InProcess;
+  {$IFDEF DEBUGWINDOW}
+  if not Result then FreeConsole;
+  {$ENDIF}
+  if Assigned(GUI.CurrGUI) then GUI.CurrGUI.Free;
 End;
 
 end.

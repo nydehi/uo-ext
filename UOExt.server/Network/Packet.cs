@@ -12,7 +12,7 @@ namespace UOExt.Network
         private MemoryStream m_Stream;
         private byte m_Header;
 
-        public Packet(byte header, short size)
+        public Packet(byte header, ushort size)
         {
             m_Header = header;
             EnsureCapacity(size);
@@ -22,15 +22,14 @@ namespace UOExt.Network
             m_Header = header;
         }
 
-        public void EnsureCapacity(short size){
+        public void EnsureCapacity(ushort size){
             if (Config.InRunUO) size++;
             size += 3;
             m_Buffer = new byte[size];
             m_Stream = new MemoryStream(m_Buffer);
             m_Writer = new BinaryWriter(m_Stream);
             if (Config.InRunUO) m_Writer.Write((byte)Config.EncapsulationHeader);
-            size = (short)((size >> 8) + ((size & 0xFF) << 8));
-            m_Writer.Write((short)size);
+            m_Writer.Write((ushort)size);
             m_Writer.Write((byte)m_Header);
         }
 
