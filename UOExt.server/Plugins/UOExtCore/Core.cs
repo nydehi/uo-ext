@@ -114,11 +114,13 @@ namespace UOExt.Plugins.UOExtCore
     {
         public readonly uint Id;
         public readonly byte PacketsAmount;
+        public readonly string Name;
 
-        public Plugin(uint id, byte amount)
+        public Plugin(uint id, byte amount, string name)
         {
             Id = id;
             PacketsAmount = amount;
+            Name = name;
         }
     }
 
@@ -126,7 +128,8 @@ namespace UOExt.Plugins.UOExtCore
     {
         public static Dll[] Dlls;
         private static MD5CryptoServiceProvider m_md5Provider;
-        private static uint PD_PACKETSAMOUNT = 1;
+        private const uint PD_NAME = 0;
+        private const uint PD_PACKETSAMOUNT = 1;
         private static Dll m_uoext;
         private static Dll m_uoextgui;
 
@@ -147,7 +150,9 @@ namespace UOExt.Plugins.UOExtCore
 
             Dlls = new Dll[files.Length];
             for (int i = 0; i < files.Length; i++)
-            Dlls[i] = new Dll(files[i]);
+            {
+                Dlls[i] = new Dll(files[i]);
+            }
         }
 
         public readonly byte[] Data;
@@ -158,6 +163,21 @@ namespace UOExt.Plugins.UOExtCore
         public DllHeader Header;
         public readonly SimpleDllHeader SimpleHeader;
         public Queue<DllContent> Content;
+
+        [DllImport("kernel32.dll")]
+        internal static extern IntPtr LoadLibrary(string dllname);
+
+        [DllImport("kernel32.dll")]
+        internal static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+        [DllImport("kernel32.dll")]
+        internal static extern bool FreeLibrary(IntPtr hModule);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        internal delegate IntPtr DllInit();
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        internal delegate void DllInitDone();
 
         public Dll(string path, bool simple = false)
         {
@@ -172,26 +192,47 @@ namespace UOExt.Plugins.UOExtCore
             Content = new Queue<DllContent>();
             if (!simple)
             {
-                IntPtr plgs = new IntPtr((Int32)CallFunction(Name, "DllInit", typeof(Int32), null));
+                Console.WriteLine("UOExt: Loading {0}", Path.GetFileNameWithoutExtension(path));
+                IntPtr hModule = LoadLibrary(path);
+                IntPtr ptrDllInit = GetProcAddress(hModule, "DllInit");
+                IntPtr ptrDllInitDone = GetProcAddress(hModule, "DllInitDone");
+
+                DllInit plgDllInit = (DllInit)Marshal.GetDelegateForFunctionPointer(ptrDllInit, typeof(DllInit));
+                DllInitDone plgDllInitDone = (DllInitDone)Marshal.GetDelegateForFunctionPointer(ptrDllInitDone, typeof(DllInitDone));
+
+                IntPtr plgs = plgDllInit();
                 int plgs_count = Marshal.ReadInt32(plgs);
                 Plugins = new Plugin[plgs_count];
                 for (int i = 0; i < plgs_count; i++)
                 {
-                    IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4));
+                    IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 4));
                     uint descriptors_count = (uint)(Marshal.ReadInt32(currentPlgInfo, 4));
-                    IntPtr descr = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 8));
+
+                    byte packets = 0;
+                    string name = null;
                     for (int j = 0; j < descriptors_count; j++)
                     {
-                        uint key = (uint)(Marshal.ReadInt32(descr));
-                        uint value = (uint)(Marshal.ReadInt32(descr, 4));
-                        if (key == PD_PACKETSAMOUNT)
+                        uint key = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 4));
+                        uint value = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 8));
+
+                        switch (key)
                         {
-                            Plugins[i] = new Plugin((uint)i, (byte)value);
-                            break;
+                            case PD_NAME:
+                                name = Marshal.PtrToStringAnsi(new IntPtr(value));
+                                break;
+                            case PD_PACKETSAMOUNT:
+                                packets = (byte)value;
+                                break;
                         }
                     }
+                    Plugins[i] = new Plugin((uint)i, packets, name);
+                    Console.WriteLine("UOExt:  {0}) Name: '{1}', Packets: {2}", i, name, packets);
                 }
-                CallFunction(Name, "DllInitDone", null, null);
+
+
+                plgDllInitDone();
+
+                FreeLibrary(hModule);
             }else{
                 SimpleHeader = new SimpleDllHeader(this);
                 uint offset = (uint)SimpleHeader.DllSize;
@@ -202,26 +243,5 @@ namespace UOExt.Plugins.UOExtCore
                 } while (offset < Size);
             }
         }
-
-        private static object CallFunction(string dllName, string entryPoint, Type returnType, object[] args)
-        {
-            var myAssemblyName = new AssemblyName("TempAssembly");
-            var myAssemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(myAssemblyName, AssemblyBuilderAccess.Run);
-            var myModuleBuilder = myAssemblyBuilder.DefineDynamicModule("TempModule");
-
-            var paramTypes = (args == null) ? null : Type.GetTypeArray(args);
-            var piMethodBuilder = myModuleBuilder.DefinePInvokeMethod(
-               entryPoint, dllName,
-               MethodAttributes.Public | MethodAttributes.Static | MethodAttributes.PinvokeImpl,
-               CallingConventions.Standard,
-               returnType, paramTypes,
-               CallingConvention.Winapi, CharSet.Ansi);
-
-            piMethodBuilder.SetImplementationFlags(piMethodBuilder.GetMethodImplementationFlags() | MethodImplAttributes.PreserveSig);
-            myModuleBuilder.CreateGlobalFunctions();
-            var pinvokeMethod = myModuleBuilder.GetMethod(entryPoint);
-            return pinvokeMethod.Invoke(null, args);
-        }
-    
     }
 }

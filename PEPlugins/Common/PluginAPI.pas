@@ -7,7 +7,6 @@ uses PluginsShared;
 type
 
 
-//  TPacketProcessed = procedure(Header:Byte; lParam: Pointer; IsFromServerToClient: Boolean);
   TDllInitDone = procedure;
 
   TPluginApi = class
@@ -27,7 +26,7 @@ type
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
     function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean; virtual;
-    procedure RegisterPacketType(IsCliServ:Boolean; Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition); virtual;
+    procedure RegisterPacketType(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition); virtual;
     function GetNewSerial(IsMobile:Boolean): Cardinal; virtual;
     procedure FreeSerial(Serial: Cardinal); virtual;
     function GetServerSerial(Serial:Cardinal):Cardinal; virtual;
@@ -145,9 +144,9 @@ begin
   Result := FSendPacket(Packet, Length, ToServer, Direct, Valid);
 end;
 
-procedure TPluginApi.RegisterPacketType(IsCliServ:Boolean; Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition);
+procedure TPluginApi.RegisterPacketType(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition);
 begin
-  FRegisterPacketType(IsCliServ, Header, Size, HandleProc);
+  FRegisterPacketType(Header, Size, HandleProc);
 end;
 
 function TPluginApi.GetNewSerial(IsMobile:Boolean): Cardinal;

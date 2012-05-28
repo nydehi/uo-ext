@@ -58,8 +58,27 @@ Begin
   if APluginEvent = PE_FREE Then API.Free;
 End;
 
+type
+  TMyDescription = packed record
+    InitProcedure: Pointer;
+    Size: Cardinal;
+    Data: Array [0..1] of TPluginDescriptor;
+  end;
+
+const
+  Name: AnsiString = 'Hello World' + #0;
+  Description:TMyDescription = (
+    InitProcedure : @PluginInit;
+    Size: 2;
+    Data: (
+      ( Descriptor: PD_NAME;                    Value: 0 ),
+      ( Descriptor: PD_UOEXTPROTO_PACKETAMOUNT; Value: 0 )
+    )
+  );
+
+
 initialization
-  PluginInfo := GetMemory(SizeOf(TPluginInfo));
-  ZeroMemory(PluginInfo, SizeOf(TPluginInfo));
-  PluginAPI.AddPlugin(@PluginInfo);
+  PPointer(@Description.Data[0].Value)^ := @Name[1];
+
+  PluginAPI.AddPlugin(@Description);
 end.

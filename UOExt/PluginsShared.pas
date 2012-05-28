@@ -33,6 +33,7 @@ const
 
 
   // Plugin secriptors
+  PD_NAME = 0;
   PD_UOEXTPROTO_PACKETAMOUNT = 1;
   (***
     Amount of packet headers that Plugin will need to comunicate with server

@@ -44,14 +44,16 @@ Begin
   THooker.Hooker.TrueAPIEnd;
 End;
 
-function MyWindowProcA(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
+function MyWindowProc(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
 Begin
-  if Msg = WM_QUIT then TAbstractThread.AllStop;
+  if Msg = WM_QUIT then Begin
+    TAbstractThread.AllStop;
+  End;
   Result := WndProc(hWnd, Msg, wParam, lParam);
 End;
 
 
-function CreateWindowExAHook(dwExStyle: DWORD; lpClassName: PAnsiChar; lpWindowName: PAnsiChar;
+function CreateWindowExWHook(dwExStyle: DWORD; lpClassName: PAnsiChar; lpWindowName: PAnsiChar;
   dwStyle: DWORD; X, Y, nWidth, nHeight: Integer; hWndParent: HWND;
   hMenu: HMENU; hInstance: HINST; lpParam: Pointer): HWND; stdcall;
 Begin
@@ -60,8 +62,8 @@ Begin
   THooker.Hooker.TrueAPIEnd;
   if Result = INVALID_HANDLE_VALUE then Exit;
 
-  WndProc := TWndProc(GetWindowLongPtrA(Result, GWLP_WNDPROC));
-  SetWindowLongPtrA(Result, GWLP_WNDPROC, Integer(@MyWindowProcA));
+  WndProc := TWndProc(GetWindowLongPtrW(Result, GWLP_WNDPROC));
+  SetWindowLongPtrW(Result, GWLP_WNDPROC, Integer(@MyWindowProc));
 End;
 
 
@@ -71,7 +73,7 @@ begin
   iIP := 0;
   iPort := 0;
   THooker.Hooker.HookFunction(@connectHook, GetProcAddress(GetModuleHandle('wsock32.dll'), 'connect'));
-  THooker.Hooker.HookFunction(@CreateWindowExAHook, GetProcAddress(GetModuleHandle('user32.dll'), 'CreateWindowExA'));
+//  THooker.Hooker.HookFunction(@CreateWindowExWHook, GetProcAddress(GetModuleHandle('user32.dll'), 'CreateWindowExW'));
   THooker.Hooker.InjectIt;
 end;
 

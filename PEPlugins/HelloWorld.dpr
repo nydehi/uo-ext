@@ -1,10 +1,9 @@
 library HelloWorld;
 
 uses
-  PluginsShared in '..\ProtocolExtender\PluginsShared.pas',
+  PluginsShared in '..\UOExt\PluginsShared.pas',
   PluginAPI in 'Common\PluginAPI.pas',
-  uMain in 'HelloWorld\uMain.pas',
-  Packet in 'Common\Packet.pas';
+  uMain in 'HelloWorld\uMain.pas';
 
 {$E plg}
 exports PluginAPI.DllInit, PluginAPI.DllInitDone;
