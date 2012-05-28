@@ -146,13 +146,13 @@ Begin
   End;
 
 // Ok. We are now updated and still running! It's time to load plugins
-  uStatusLine := GUI.GUISetLog(uStatusLine, uMainLine, 'Updating plugins');
+  GUI.GUISetLog(uStatusLine, uMainLine, 'Updating plugins');
   If not Updater.GetDllsFromServer Then Begin
     CriticalError('Core: Can''t load plugins from server. Critical!');
   End;
 
 // Hook needed WinAPI, before plugins init.
-  GUI.GUISetLog(uStatusLine, uMainLine, 'Hooking');
+  uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Hooking');
   {$IFDEF DEBUG}
   Write('Core: Hooking APIs for launch ... ');
   {$ENDIF}
@@ -161,6 +161,7 @@ Begin
   WriteLn('done.');
 
 // Ok. All Init is done! Loading plugins.
+
   GUI.GUISetLog(uStatusLine, uMainLine, 'Initializing plugins.');
   WriteLn('Core: Starting plug-ins loading.');
   {$ENDIF}

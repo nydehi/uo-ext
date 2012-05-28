@@ -496,7 +496,9 @@ var
   CurrentDll: PDllServerInfo;
   F: File;
   Path: AnsiString;
+  cUpdate: Cardinal;
 Begin
+  cUpdate := GUI.GUIStartProcess($FFFFFFFF, 0, 'Loading', 0, 1, 0);
   Result := False;
   If WantedSize > MAXWORD - 5 then Exit;
 
@@ -519,6 +521,7 @@ Begin
     DllId := PByteArray(Packet)^[3] SHL 8 + PByteArray(Packet)^[2];
     CurrentDll := @FDllServerInfoList.Items[DllId];
     SavedDllLength := 0;
+    GUI.GUIUpdateProcess(cUpdate, 0, CurrentDll.Size, SavedDllLength);
     Path := '';
     for j := 0 to 15 do Path := Path + IntToHex(CurrentDll^.MD5[j], 2);
     Path := ShardSetup.UOExtBasePath + 'Plugins\' + Path + '.cache';
@@ -527,6 +530,7 @@ Begin
     BlockWrite(F, Pointer(Cardinal(Packet) + 4)^, PacketSize - 4);
     FreeMemory(Packet);
     SavedDllLength := SavedDllLength + PacketSize - 4;
+    GUI.GUIUpdateProcess(cUpdate, 0, CurrentDll.Size, SavedDllLength);
     Repeat
       Packet := Self.UOExtGetPacket(PacketSize);
       if Packet = nil then Exit;
@@ -538,6 +542,7 @@ Begin
       BlockWrite(f, Pointer(Cardinal(Packet) + 2)^, PacketSize - 2);
       SavedDllLength := SavedDllLength + PacketSize - 2;
       FreeMemory(Packet);
+      GUI.GUIUpdateProcess(cUpdate, 0, CurrentDll.Size, SavedDllLength);
     Until SavedDllLength >= CurrentDll^.Size;
     CloseFile(F);
   End;

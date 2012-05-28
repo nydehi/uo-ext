@@ -134,6 +134,10 @@ Begin
     currId := PCardinal(Cardinal(currPnt) + Id)^;
 
   Until NOT ( (lastId < currId) OR ((lastId = $F8) AND (currId = $01)) );
+  //Somehow, there is 2 error packets: $EE and $EF, that is 8192 in table, and $EF is 21 byte. $EE must be 10...
+  Descriptor.AddPacketInfo($EE, 10);
+  Descriptor.AddPacketInfo($EF, 21);
+
   {$IFDEF Debug}
   WriteLn('Protocol: Found ', FoundPackets, ' packets sizes');
   {$ENDIF}

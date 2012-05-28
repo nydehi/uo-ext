@@ -40,7 +40,6 @@ type
     FDlls: Array of TDllInfo;
     FDllCount: Cardinal;
     FDllPos: Cardinal;
-    FDllInit: Boolean;
 
     FPlugins: Array of TPluginInfo;
     FPluginsCount: Cardinal;
@@ -306,12 +305,6 @@ var
   CurrentUOExtPacketStart: Byte;
 begin
   if FAPILoaded then Exit;
-  if not FDllInit then Begin
-    {$IFDEF DEBUG}
-    WriteLn('Plugins: No libraries loaded. Nothing to initialize.');
-    {$ENDIF}
-    Exit;
-  End;
   if not Assigned(Updater.PluginLoadingList) then Begin
     {$IFDEF DEBUG}
     WriteLn('Plugins: Plugins list is nil. Can''t continue.');
@@ -347,7 +340,7 @@ begin
 
     FPlugins[i].UOExtPacketMin := CurrentUOExtPacketStart;
 
-    CurrentPluginDescriptors := @FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin];
+    CurrentPluginDescriptors := FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin];
     If CurrentPluginDescriptors^.DescriptorsCount > 0 Then For j := 0 to CurrentPluginDescriptors^.DescriptorsCount - 1 Do Begin
       if CurrentPluginDescriptors^.Descriptors[j].Descriptor = PD_UOEXTPROTO_PACKETAMOUNT then FPlugins[i].UOExtPacketAmount := CurrentPluginDescriptors^.Descriptors[j].Value;
     End;
