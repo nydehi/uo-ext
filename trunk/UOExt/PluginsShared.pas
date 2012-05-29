@@ -25,11 +25,10 @@ const
   PF_AFTERPACKETCALLBACK = 13;
   PF_UOEXTREGISTERPACKETHANDLER = 14;
   PF_UOEXTUNREGISTERPACKETHANDLER = 15;
-  PF_UOEXTAFTERPACKETCALLBACK = 16;
-  PF_UOEXTSENDPACKET = 17;
-  PF_GUISETLOG = 18;
-  PF_GUISTARTPROCESS = 19;
-  PF_GUIUPDATEPROCESS = 20;
+  PF_UOEXTSENDPACKET = 16;
+  PF_GUISETLOG = 17;
+  PF_GUISTARTPROCESS = 18;
+  PF_GUIUPDATEPROCESS = 19;
 
 
   // Plugin secriptors
@@ -147,8 +146,10 @@ type
     UOExtProtocol stuff. Not working right now.
   **)
   TUOExtProtocolHandler = procedure(Packet: Pointer; Size: Cardinal); stdcall;
-  TUOExtProtocolSetReciver = function(Handler:TUOExtProtocolHandler):Boolean; stdcall;
-  TUOExtProtocolSendPacket = procedure(Packet: Pointer; Size: Cardinal); stdcall;
+  TUOExtProtocolRegisterHandler = procedure(Header:Byte; Handler:TUOExtProtocolHandler); stdcall;
+  TUOExtProtocolUnRegisterHandler = procedure(Header:Byte; Handler:TUOExtProtocolHandler); stdcall;
+  TUOExtProtocolSendPacket = procedure(Header:Byte; Packet: Pointer; Size: Cardinal); stdcall;
+
 
   (**
     GUI visualization. Not working right now.
