@@ -22,6 +22,15 @@ type
     FRegisterSyncEventHandler: TRegisterSyncEventHandler;
     FAskSyncEvent: TAskSyncEvent;
     FAfterPacketCallback:TAfterPacketCallback;
+
+    FGUISetLog: TGUISetLog;
+    FGUIStartProcess: TGUIStartProcess;
+    FGUIUpdateProcess: TGUIUpdateProcess;
+
+    FUOExtProtocolRegisterHandler: TUOExtProtocolRegisterHandler;
+    FUOExtProtocolUnRegisterHandler: TUOExtProtocolUnRegisterHandler;
+    FUOExtProtocolSendPacket: TUOExtProtocolSendPacket;
+
   public
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
@@ -36,6 +45,14 @@ type
     function AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean; virtual;
 
     function HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; virtual;
+
+    function GUISetLog(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal;
+    function GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal;
+    procedure GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal);
+
+    procedure UOExtProtocolRegisterHandler(Header:Byte; Handler:TUOExtProtocolHandler);
+    procedure UOExtProtocolUnRegisterHandler(Header:Byte; Handler:TUOExtProtocolHandler);
+    procedure UOExtProtocolSendPacket(Header:Byte; Packet: Pointer; Size: Cardinal);
 
     constructor Create;
   end;
@@ -100,17 +117,27 @@ begin
   case APluginEvent of
     PE_INIT       : Begin
       for i := 0 to PAPI(APluginEventData)^.APICount -1 do case PAPI(APluginEventData)^.APIs[i].FuncType of
-        PF_REGISTERPACKETHANDLER   : FRegisterPacketHandler   := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_UNREGISTERPACKETHANDLER : FUnRegisterPacketHandler := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_SENDPACKET              : FSendPacket              := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_REGISTERPACKETTYPE      : FRegisterPacketType      := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_GETNEWSERIAL            : FGetNewSerial            := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_FREESERIAL              : FFreeSerial              := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_GETSERVERSERIAL         : FGetServerSerial         := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_GETCLIENTSERIAL         : FGetClientSerial         := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_REGISTERSYNCEVENTHANDLER: FRegisterSyncEventHandler:= PAPI(APluginEventData)^.APIs[i].Func;
-        PF_ASKSYNCEVENT            : FAskSyncEvent            := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_AFTERPACKETCALLBACK     : FAfterPacketCallback     := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_REGISTERPACKETHANDLER        : FRegisterPacketHandler          := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_UNREGISTERPACKETHANDLER      : FUnRegisterPacketHandler        := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_SENDPACKET                   : FSendPacket                     := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_REGISTERPACKETTYPE           : FRegisterPacketType             := PAPI(APluginEventData)^.APIs[i].Func;
+
+        PF_GETNEWSERIAL                 : FGetNewSerial                   := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_FREESERIAL                   : FFreeSerial                     := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_GETSERVERSERIAL              : FGetServerSerial                := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_GETCLIENTSERIAL              : FGetClientSerial                := PAPI(APluginEventData)^.APIs[i].Func;
+
+        PF_REGISTERSYNCEVENTHANDLER     : FRegisterSyncEventHandler       := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_ASKSYNCEVENT                 : FAskSyncEvent                   := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_AFTERPACKETCALLBACK          : FAfterPacketCallback            := PAPI(APluginEventData)^.APIs[i].Func;
+
+        PF_GUISETLOG                    : FGUISetLog                      := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_GUISTARTPROCESS              : FGUIStartProcess                := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_GUIUPDATEPROCESS             : FGUIUpdateProcess               := PAPI(APluginEventData)^.APIs[i].Func;
+
+        PF_UOEXTREGISTERPACKETHANDLER   : FUOExtProtocolRegisterHandler   := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_UOEXTUNREGISTERPACKETHANDLER : FUOExtProtocolUnRegisterHandler := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_UOEXTSENDPACKET              : FUOExtProtocolSendPacket        := PAPI(APluginEventData)^.APIs[i].Func;
       End;
       Result := True;
     End;
@@ -183,6 +210,22 @@ function TPluginApi.AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lP
 begin
   Result := FAfterPacketCallback(ACallBack, lParam);
 end;
+
+function TPluginApi.GUISetLog(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal;
+Begin
+  Result :=  FGUISetLog(LineHandle, ParentHandle, Data);
+End;
+
+function TPluginApi.GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal;
+Begin
+  Result := FGUIStartProcess(LineHandle, ParentHandle, ProcessLabel, Min, Max, Current);
+End;
+
+procedure TPluginApi.GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal);
+Begin
+  FGUIUpdateProcess(ProcessHandle, Min, Max, Current);
+End;
+
 
 initialization
   SetLength(Plugins, 0);

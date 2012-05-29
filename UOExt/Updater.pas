@@ -57,7 +57,6 @@ type
 
     function UOExtGetMissingDlls(var Dlls:Pointer; var Count: Byte): Boolean;
 
-    function UOExtPacket(Data:Pointer; Size:Cardinal): Boolean;
   public
     property DllList: PDllServerInfoList read FDllServerInfoList;
     property PluginLoadingList: PPluginInitInfoList read FPluginInitInfoList;
@@ -68,6 +67,12 @@ type
     function GetDllsFromServer: Boolean;
     procedure Cleanup;
     destructor Destroy; override;
+
+    function UOExtPacket(Header:Byte; Data:Pointer; Size:Cardinal): Boolean; overload;
+    function UOExtPacket(Data:Pointer; Size:Cardinal): Boolean; overload;
+    function UOExtTryGetPacket(var Size:Cardinal; Timeout: Cardinal): Pointer;
+    function UOExtCanRead: Boolean;
+
   end;
 
 implementation
@@ -650,6 +655,112 @@ Begin
   End;
 End;
 
+function TUpdater.UOExtPacket(Header:Byte; Data:Pointer; Size:Cardinal): Boolean;
+type
+  TUOExtHeader=packed record
+    UOHeader: Byte;
+    Size: Word;
+  end;
+var
+  PreHeader: TUOExtHeader;
+Begin
+  Result := False;
+  Size := Size + 1;
+  if Size + 3 > MAXWORD then Exit;
+
+  PreHeader.UOHeader := ShardSetup.InternalProtocolHeader;
+  PreHeader.Size := Size + 2;
+  if not ShardSetup.UsingUpdateServer then PreHeader.Size := PreHeader.Size + 1;
+  PreHeader.Size := htons(PreHeader.Size);
+
+
+  if FSocket <> 0 then Begin
+    if (ShardSetup.UsingUpdateServer) then Begin
+      send(FSocket, Pointer(Cardinal(@PreHeader) + 1)^, SizeOf(Header) - 1, 0);
+    End Else Begin
+      send(FSocket, Header, SizeOf(Header), 0);
+    End;
+    send(FSocket, Header, 1, 0);
+    send(FSocket, Data^, Size, 0);
+  End;
+End;
+function TUpdater.UOExtTryGetPacket(var Size:Cardinal; Timeout: Cardinal): Pointer;
+Type
+  THeader = packed record
+    UOHeader: Byte;
+    Size: Word;
+  end;
+Var
+  fd: TFDSet;
+  time:TTimeVal;
+  recvLength, recived: Integer;
+  headerSize: Byte;
+  header: THeader;
+  iPending: Integer;
+  PacketSize: Word;
+
+  startTime, deltaTime: Cardinal;
+
+  pBuffer: Pointer;
+Begin
+  Result := nil;
+  if FSocket = 0 then Exit;
+
+  recvLength := 0;
+  headerSize := 2;
+  startTime := GetTickCount;
+  If ShardSetup.EnableIntertalProtocol then headerSize := headerSize + 1;
+  repeat
+    FD_ZERO(fd);
+    FD_SET(FSocket, fd);
+    deltaTime := GetTickCount() - startTime;
+    time.tv_sec := Timeout - deltaTime DIV 1000;
+    time.tv_usec := deltaTime MOD 1000;
+    select(0, @fd, nil, @fd, @time);
+    If not FD_ISSET(FSocket, fd) then Exit;
+
+    ioctlsocket(FSocket, FIONREAD, iPending);
+    If(iPending > (headerSize - recvLength)) Then iPending := headerSize - recvLength;
+
+    recived := recv(FSocket, Pointer(Cardinal(@header) + headerSize - 2)^, iPending, 0);
+    if recived <= 0 then Exit;
+
+    recvLength := recvLength + recived;
+  until recvLength >= headerSize;
+  PacketSize := htons(header.Size);
+  pBuffer := GetMemory(PacketSize);
+
+  recvLength := 0;
+  repeat
+    FD_ZERO(fd);
+    FD_SET(FSocket, fd);
+    deltaTime := GetTickCount() - startTime;
+    time.tv_sec := Timeout - deltaTime DIV 1000;
+    time.tv_usec := deltaTime MOD 1000;
+    select(0, @fd, nil, @fd, @time);
+    If not FD_ISSET(FSocket, fd) then Exit;
+
+    ioctlsocket(FSocket, FIONREAD, iPending);
+    If(iPending > (PacketSize - recvLength)) Then iPending := PacketSize - recvLength;
+
+    recived := recv(FSocket, Pointer(Cardinal(@pBuffer) + Cardinal(recvLength))^, iPending, 0);
+    if recived <= 0 then Exit;
+
+    recvLength := recvLength + recived;
+  until recvLength >= PacketSize;
+
+  Result := pBuffer;
+End;
+
+function TUpdater.UOExtCanRead: Boolean;
+var
+  iPending: Integer;
+Begin
+  Result := False;
+  if FSocket = 0 then Exit;
+  ioctlsocket(FSocket, FIONREAD, iPending);
+  Result := iPending > 0;
+End;
 
 
 end.

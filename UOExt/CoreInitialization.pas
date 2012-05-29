@@ -157,15 +157,17 @@ Begin
   Write('Core: Hooking APIs for launch ... ');
   {$ENDIF}
   HookIt;
+
+  // Ok. All Init is done! Loading plugins.
+  GUI.GUISetLog(uStatusLine, uMainLine, 'Initializing plugins.');
   {$IFDEF DEBUG}
   WriteLn('done.');
-
-// Ok. All Init is done! Loading plugins.
-
-  GUI.GUISetLog(uStatusLine, uMainLine, 'Initializing plugins.');
   WriteLn('Core: Starting plug-ins loading.');
   {$ENDIF}
   TPluginSystem.Instance.Initialize(Updater);
+
+  // Now we need to allow plugins to work with update server
+//  TPluginSystem.Instance.InvokeUpdateProcess(Updater);
 
 // Now we need to close update connection if needed
   Updater.Cleanup;

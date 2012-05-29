@@ -18,7 +18,7 @@ type
     TProtocolHandlerArray = array [0..255] of TPacketHandler;
     TUOExtPacketHandlerInfo = packed record
       Handler: TUOExtPacketHandler;
-      Plugin: Byte;
+      Plugin: Cardinal;
     end;
     PUOExtPacketHandlerInfo = ^TUOExtPacketHandlerInfo;
     TUOExtProtocolHandlerArray = array [0..255] of TUOExtPacketHandlerInfo;
@@ -49,6 +49,7 @@ type
     FSocket: TSocket;
 
     FActivePlugin: Cardinal;
+    FCurrentUpdater: TUpdater;
 
     FUOExtProtocolHandlers: TUOExtProtocolHandlerArray;
 
@@ -56,6 +57,8 @@ type
     procedure ProcessLoadingList(Updater:TUpdater);
     function LoadDll(ADllPath: AnsiString): Boolean;
     procedure LoadAPIFromList(Updater:TUpdater);
+
+    procedure FetchAllUpdateData(Updater: TUpdater);
   private
     FSyncEventCount: Integer;
   strict private class var
@@ -74,6 +77,7 @@ type
 
     {Control from UOExt}
     procedure Initialize(Updater:TUpdater);
+    procedure InvokeUpdateProcess(Updater:TUpdater);
     procedure ProxyStart;
     property Socket: TSocket read FSocket;
     procedure ProxyEnd(ServStatus, CliStatus: Integer);
@@ -89,9 +93,9 @@ type
     function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
     function RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
 
+    function UOExtPacket(UOExtHeader:Byte; Data: Pointer; Length: Cardinal): Boolean;
     procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtPacketHandler);
     procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtPacketHandler);
-    function UOExtAfterPacketCallback(ACallBack: TUOExtPacketSendedCallback; lParam: Pointer): Boolean;
 
     destructor Destory;
   end;
@@ -102,7 +106,7 @@ uses ClientThread, ProtocolDescription, Serials, zLib, HookLogic
 , ShardSetup, PreConnectIPDiscover, GUI;
 
 const
-  LastAPIFuncNum = 19;
+  LastAPIFuncNum = 18;
 type
   TRealAPI=packed record
     APICount: Cardinal;
@@ -165,16 +169,11 @@ begin
   TPluginSystem.Instance.UOExtUnRegisterPacketHandler(Header, Handler);
 end;
 
-function UOExtAfterPacketCallback(ACallBack: TUOExtPacketSendedCallback; lParam: Pointer):Boolean; stdcall;
-Begin
-  Result := TPluginSystem.Instance.UOExtAfterPacketCallback(ACallBack, lParam);
-End;
-
-function UOExtSendPacket(Packet: Pointer; Length: Cardinal):Boolean; stdcall;
+function UOExtSendPacket(Header:Byte; Packet: Pointer; Length: Cardinal):Boolean; stdcall;
 begin
   Result := False;
   If not Assigned(CurrentClientThread) Then Exit;
-//  Result := TPluginSystem.Instance.UOExtPacket(Packet, Length, False);
+  Result := TPluginSystem.Instance.UOExtPacket(Header, Packet, Length);
 end;
 
 // TPluginSystem
@@ -185,6 +184,8 @@ Begin
 End;
 
 constructor TPluginSystem.Create;
+var
+  i: Byte;
 begin
   Inherited;
   SetLength(FDlls, 0);
@@ -195,6 +196,7 @@ begin
   FSocket := 0;
   FActivePlugin := MAXDWORD;
   ZeroMemory(@FUOExtProtocolHandlers, SizeOf(FUOExtProtocolHandlers));
+  For i := 0 to 255 Do FUOExtProtocolHandlers[i].Plugin := MAXDWORD;
 end;
 
 destructor TPluginSystem.Destory;
@@ -210,10 +212,12 @@ end;
 
 procedure TPluginSystem.Initialize(Updater:TUpdater);
 begin
-  ProcessLoadingList(Updater);
+  FCurrentUpdater := Updater;
 
+  ProcessLoadingList(Updater);
   LoadAPIFromList(Updater);
 
+  FCurrentUpdater := nil;
 end;
 
 procedure TPluginSystem.ProcessLoadingList(Updater:TUpdater);
@@ -347,6 +351,8 @@ begin
 
     If TPluginProcedure(FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin].InitProcedure)(PE_INIT, @API) Then Begin
       FPlugins[i].InitProc := FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin].InitProcedure;
+//      FetchAllUpdateData(Updater);
+      InvokeUpdateProcess(Updater);
     End Else Begin
       {$IFDEF DEBUG}
       WriteLn('Plugins: Error: Plugin ', CurrentPluginInfo^.Plugin,' for Dll ', CurrentPluginInfo^.Dll,' filed to initialize. This is error.');
@@ -594,21 +600,48 @@ begin
       Halt(1);
     End;
     ZeroMemory(@FUOExtProtocolHandlers[FPlugins[FActivePlugin].UOExtPacketMin + Header], SizeOf(TUOExtPacketHandlerInfo));
+    FUOExtProtocolHandlers[FPlugins[FActivePlugin].UOExtPacketMin + Header].Plugin := MAXDWORD;
   End;
 end;
 
-function TPluginSystem.UOExtAfterPacketCallback(ACallBack: TUOExtPacketSendedCallback; lParam: Pointer): Boolean;
-begin
-  If FActivePlugin <> MAXDWORD then Begin
-    Result := not Assigned(FPlugins[FActivePlugin].OnUOExtPacketSended);
-    if Result then Begin
-      FPlugins[FActivePlugin].OnUOExtPacketSended := ACallBack;
-      FPlugins[FActivePlugin].OnUOExtPacketSendedParam := lParam;
-    End;
-  End Else Begin
-    Result := False;
+procedure TPluginSystem.FetchAllUpdateData(Updater: TUpdater);
+var
+  Data: Pointer;
+  Size: Cardinal;
+Begin
+  while Updater.UOExtCanRead do Begin
+    Data := Updater.UOExtTryGetPacket(Size, 30000);
+    if Data = nil then Exit;
+    FActivePlugin := FUOExtProtocolHandlers[PByte(Data)^].Plugin;
+    FUOExtProtocolHandlers[PByte(Data)^].Handler(Pointer(Cardinal(Data) + 1), Size - 1);
+    FActivePlugin := MAXDWORD;
+    FreeMemory(Data);
   End;
-end;
+End;
+
+procedure TPluginSystem.InvokeUpdateProcess(Updater:TUpdater);
+var
+  i: Byte;
+  bClear : Boolean;
+Begin
+  Repeat
+    Sleep(1);
+    FetchAllUpdateData(Updater);
+    bClear := True;
+    For i := 0 to 255 do if FUOExtProtocolHandlers[i].Plugin <> MAXDWORD then Begin
+      bClear := False;
+      Break;
+    End;
+  Until bClear;
+End;
+
+function TPluginSystem.UOExtPacket(UOExtHeader:Byte; Data: Pointer; Length: Cardinal): Boolean;
+Begin
+  Result := False;
+  if FActivePlugin = MAXDWORD then Exit;
+  Result := FCurrentUpdater.UOExtPacket(FPlugins[FActivePlugin].UOExtPacketMin + UOExtHeader, Data, Length);
+End;
+
 
 initialization
   API.APICount := LastAPIFuncNum + 1;
@@ -642,14 +675,12 @@ initialization
   API.APIs[13].Func := @UOExtRegisterPacketHandler;
   API.APIs[14].FuncType := PF_UOEXTUNREGISTERPACKETHANDLER;
   API.APIs[14].Func := @UOExtUnRegisterPacketHandler;
-  API.APIs[15].FuncType := PF_UOEXTAFTERPACKETCALLBACK;
-  API.APIs[15].Func := @UOExtAfterPacketCallback;
-  API.APIs[16].FuncType := PF_UOEXTSENDPACKET;
-  API.APIs[16].Func := @UOExtSendPacket;
-  API.APIs[17].FuncType := PF_GUISETLOG;
-  API.APIs[17].Func := @GUI.GUISetLog;
-  API.APIs[18].FuncType := PF_GUISTARTPROCESS;
-  API.APIs[18].Func := @GUI.GUIStartProcess;
-  API.APIs[19].FuncType := PF_GUIUPDATEPROCESS;
-  API.APIs[19].Func := @GUI.GUIUpdateProcess;
+  API.APIs[15].FuncType := PF_UOEXTSENDPACKET;
+  API.APIs[15].Func := @UOExtSendPacket;
+  API.APIs[16].FuncType := PF_GUISETLOG;
+  API.APIs[16].Func := @GUI.GUISetLog;
+  API.APIs[17].FuncType := PF_GUISTARTPROCESS;
+  API.APIs[17].Func := @GUI.GUIStartProcess;
+  API.APIs[18].FuncType := PF_GUIUPDATEPROCESS;
+  API.APIs[18].Func := @GUI.GUIUpdateProcess;
 end.
