@@ -24,14 +24,15 @@ namespace UOExt.Plugins.UOExtCore
             m_libraryList = new LibraryList();
             m_pluginsList = new PluginsList();
             m_initComplete = new InitializationComplete();
-            
+
             hndlr.RegisterPacketHandler(0x00, 0, new OnPacketRecive(UOExtPacket));
 
             for (short i = 0; i < Dll.Dlls.Length; i++)
             {
                 Dll.Dlls[i].Header = new DllHeader(Dll.Dlls[i], i);
                 uint offset = (uint)(Dll.Dlls[i].Header.DllSize);
-                do { 
+                do
+                {
                     DllContent dc = new DllContent(Dll.Dlls[i], offset);
                     offset += (uint)dc.DllChunkSize;
                     Dll.Dlls[i].Content.Enqueue(dc);
@@ -112,12 +113,14 @@ namespace UOExt.Plugins.UOExtCore
 
     public struct Plugin
     {
-        public readonly uint Id;
+        public readonly byte Id;
         public readonly byte PacketsAmount;
         public readonly string Name;
+        public readonly ushort Dll_Id;
 
-        public Plugin(uint id, byte amount, string name)
+        public Plugin(ushort dll_id, byte id, byte amount, string name)
         {
+            Dll_Id = dll_id;
             Id = id;
             PacketsAmount = amount;
             Name = name;
@@ -132,27 +135,144 @@ namespace UOExt.Plugins.UOExtCore
         private const uint PD_PACKETSAMOUNT = 1;
         private static Dll m_uoext;
         private static Dll m_uoextgui;
+        private static Plugin[] m_loadingOrder;
 
         public static Dll UOExt { get { return m_uoext; } set { m_uoext = value; } }
         public static Dll UOExtGUI { get { return m_uoextgui; } set { m_uoextgui = value; } }
+        public static Plugin[] LoadingOrder { get { return m_loadingOrder; } }
 
 
         static Dll()
         {
             m_md5Provider = new MD5CryptoServiceProvider();
 
+
+
             if (!Directory.Exists(Config.ClientPluginsPath))
             {
                 Dlls = new Dll[0];
                 return;
             }
-            string[] files = Directory.GetFiles(Config.ClientPluginsPath, "*.plg");
-
-            Dlls = new Dll[files.Length];
-            for (int i = 0; i < files.Length; i++)
+            if (!File.Exists(Config.PluginInitOrderFile))
             {
-                Dlls[i] = new Dll(files[i]);
+                ConsoleColor cc = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("UOExt: Warning: No plugin init order file found. Loading all plugins.");
+                Console.WriteLine("UOExt:           Path '{0}'", Config.PluginInitOrderFile);
+                Console.ForegroundColor = cc;
+
+                string[] files = Directory.GetFiles(Config.ClientPluginsPath, "*.plg");
+
+                Dlls = new Dll[files.Length];
+                for (int i = 0; i < files.Length; i++)
+                {
+                    Dlls[i] = new Dll(files[i], (ushort)i);
+                }
+
+                Queue<Plugin> order = new Queue<Plugin>();
+                for (int i = 0; i < Dlls.Length; i++)
+                    for (int j = 0; j < Dlls[i].Plugins.Length; j++) order.Enqueue(Dlls[i].Plugins[j]);
+                m_loadingOrder = order.ToArray();
+
             }
+            else
+            {
+                string[] info = File.ReadAllLines(Config.PluginInitOrderFile);
+
+                Dictionary<string, Dll> dlls = new Dictionary<string,Dll>();
+                Queue<Plugin> order = new Queue<Plugin>();
+
+                ushort dll_id = 0;
+
+                char[] splitter = new char[1];
+                splitter[0] = ',';
+                for (int i = 0; i < info.Length; i++)
+                {
+                    string[] row = info[i].Split(splitter, 2);
+                    row[0] = row[0].Trim().ToUpper();
+
+                    if (row[0][0] == ';') continue;
+                    if (row.Length < 2)
+                    {
+                        ConsoleColor cc = Console.ForegroundColor;
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("UOExt: Warning: Illegal string found in plugin init order file. Skipping.");
+                        Console.WriteLine("UOExt:           String: '{0}'", info[i]);
+                        Console.ForegroundColor = cc;
+                        continue;
+                    }
+
+                    row[1] = row[1].Trim();
+                    ushort current_id;
+                    if (!dlls.ContainsKey(row[0]))
+                        dlls[row[0]] = new Dll(row[0], dll_id++);
+
+                    current_id = dlls[row[0]].Id;
+
+                    int number;
+                    bool is_number = int.TryParse(row[1], out number);
+                    for (int j = 0; j < dlls[row[0]].Plugins.Length; j++)
+                        if (((is_number) && (number == dlls[row[0]].Plugins[j].Id)) || ((!is_number) && (dlls[row[0]].Plugins[j].Name == row[1])))
+                        {
+                            order.Enqueue(dlls[row[0]].Plugins[j]);
+                            break;
+                        }
+                        
+                }
+
+                Dlls = new Dll[dlls.Count];
+                foreach (Dll dll in dlls.Values)
+                    Dlls[dll.Id] = dll;
+
+                m_loadingOrder = order.ToArray();
+            }
+        }
+
+        private static Plugin[] ReadLoadingOrder()
+        {
+            if (!File.Exists(Config.PluginInitOrderFile)) return new Plugin[0];
+
+            string[] info = File.ReadAllLines(Config.PluginInitOrderFile);
+            int loaded = 0;
+            Plugin[] order = new Plugin[info.Length];
+
+            char[] splitter = new char[1];
+            splitter[0] = ',';
+            for (int i = 0; i < info.Length; i++)
+            {
+                string[] row = info[i].Split(splitter, 2);
+                row[0] = row[0].Trim();
+                row[1] = row[1].Trim();
+                Dll c_dll = null;
+                for (int j = 0; j < Dlls.Length; j++)
+                {
+                    if (Dlls[j].Name == row[0])
+                    {
+                        c_dll = Dlls[j];
+                        break;
+                    }
+                }
+                if (c_dll != null)
+                {
+                    int number;
+                    bool is_number = int.TryParse(row[1], out number);
+                    for (int j = 0; j < c_dll.Plugins.Length; j++)
+                    {
+                        if (((is_number) && (number == c_dll.Plugins[j].Id)) || ((!is_number) && (row[1] == c_dll.Plugins[j].Name)))
+                        {
+                            order[loaded++] = c_dll.Plugins[j];
+                            break;
+                        }
+                    }
+                }
+            }
+            if (loaded != order.Length)
+            {
+                Plugin[] tmp = new Plugin[loaded];
+                Array.Copy(order, tmp, loaded);
+                order = tmp;
+            }
+            return order;
         }
 
         public readonly byte[] Data;
@@ -160,6 +280,7 @@ namespace UOExt.Plugins.UOExtCore
         public readonly byte[] MD5;
         public readonly string Name;
         public readonly Plugin[] Plugins;
+        public readonly ushort Id;
         public DllHeader Header;
         public readonly SimpleDllHeader SimpleHeader;
         public Queue<DllContent> Content;
@@ -179,7 +300,7 @@ namespace UOExt.Plugins.UOExtCore
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         internal delegate void DllInitDone();
 
-        public Dll(string path, bool simple = false)
+        public Dll(string path)
         {
             if (!File.Exists(path))
                 throw new FileNotFoundException();
@@ -188,60 +309,67 @@ namespace UOExt.Plugins.UOExtCore
             Size = (uint)Data.Length;
             Name = Path.GetFileNameWithoutExtension(path);
             MD5 = m_md5Provider.ComputeHash(Data);
-
             Content = new Queue<DllContent>();
-            if (!simple)
+        }
+
+        public Dll(string path, bool simple)
+            : this(path)
+        {
+            SimpleHeader = new SimpleDllHeader(this);
+            uint offset = (uint)SimpleHeader.DllSize;
+            do
             {
-                Console.WriteLine("UOExt: Loading {0}", Path.GetFileNameWithoutExtension(path));
-                IntPtr hModule = LoadLibrary(path);
-                IntPtr ptrDllInit = GetProcAddress(hModule, "DllInit");
-                IntPtr ptrDllInitDone = GetProcAddress(hModule, "DllInitDone");
+                DllContent dc = new DllContent(this, offset);
+                offset += (uint)dc.DllChunkSize;
+                Content.Enqueue(dc);
+            } while (offset < Size);
+        }
 
-                DllInit plgDllInit = (DllInit)Marshal.GetDelegateForFunctionPointer(ptrDllInit, typeof(DllInit));
-                DllInitDone plgDllInitDone = (DllInitDone)Marshal.GetDelegateForFunctionPointer(ptrDllInitDone, typeof(DllInitDone));
+        public Dll(string path, ushort dll_id)
+            : this(path)
+        {
+            Id = dll_id;
+            Console.WriteLine("UOExt: Loading {0}", Path.GetFileNameWithoutExtension(path));
+            IntPtr hModule = LoadLibrary(path);
+            IntPtr ptrDllInit = GetProcAddress(hModule, "DllInit");
+            IntPtr ptrDllInitDone = GetProcAddress(hModule, "DllInitDone");
 
-                IntPtr plgs = plgDllInit();
-                int plgs_count = Marshal.ReadInt32(plgs);
-                Plugins = new Plugin[plgs_count];
-                for (int i = 0; i < plgs_count; i++)
+            DllInit plgDllInit = (DllInit)Marshal.GetDelegateForFunctionPointer(ptrDllInit, typeof(DllInit));
+            DllInitDone plgDllInitDone = (DllInitDone)Marshal.GetDelegateForFunctionPointer(ptrDllInitDone, typeof(DllInitDone));
+
+            IntPtr plgs = plgDllInit();
+            int plgs_count = Marshal.ReadInt32(plgs);
+            Plugins = new Plugin[plgs_count];
+            for (int i = 0; i < plgs_count; i++)
+            {
+                IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 4));
+                uint descriptors_count = (uint)(Marshal.ReadInt32(currentPlgInfo, 4));
+
+                byte packets = 0;
+                string name = null;
+                for (int j = 0; j < descriptors_count; j++)
                 {
-                    IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 4));
-                    uint descriptors_count = (uint)(Marshal.ReadInt32(currentPlgInfo, 4));
+                    uint key = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 4));
+                    uint value = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 8));
 
-                    byte packets = 0;
-                    string name = null;
-                    for (int j = 0; j < descriptors_count; j++)
+                    switch (key)
                     {
-                        uint key = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 4));
-                        uint value = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 8));
-
-                        switch (key)
-                        {
-                            case PD_NAME:
-                                name = Marshal.PtrToStringAnsi(new IntPtr(value));
-                                break;
-                            case PD_PACKETSAMOUNT:
-                                packets = (byte)value;
-                                break;
-                        }
+                        case PD_NAME:
+                            name = Marshal.PtrToStringAnsi(new IntPtr(value));
+                            break;
+                        case PD_PACKETSAMOUNT:
+                            packets = (byte)value;
+                            break;
                     }
-                    Plugins[i] = new Plugin((uint)i, packets, name);
-                    Console.WriteLine("UOExt:  {0}) Name: '{1}', Packets: {2}", i, name, packets);
                 }
-
-
-                plgDllInitDone();
-
-                FreeLibrary(hModule);
-            }else{
-                SimpleHeader = new SimpleDllHeader(this);
-                uint offset = (uint)SimpleHeader.DllSize;
-                do { 
-                    DllContent dc = new DllContent(this, offset);
-                    offset += (uint)dc.DllChunkSize;
-                    Content.Enqueue(dc);
-                } while (offset < Size);
+                Plugins[i] = new Plugin(dll_id, (byte)i, packets, name);
+                Console.WriteLine("UOExt:  {0}) Name: '{1}', Packets: {2}", i, name, packets);
             }
+
+
+            plgDllInitDone();
+
+            FreeLibrary(hModule);
         }
     }
 }

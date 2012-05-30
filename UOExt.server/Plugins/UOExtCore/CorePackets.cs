@@ -1,4 +1,5 @@
-﻿using UOExt.Network;
+﻿using System.Collections.Generic;
+using UOExt.Network;
 
 namespace UOExt.Plugins.UOExtCore
 {
@@ -35,23 +36,14 @@ namespace UOExt.Plugins.UOExtCore
         public PluginsList()
             : base(0x00)
         {
-            ushort plugins_count = 0;
-            foreach (Dll dll in Dll.Dlls)
-            {
-                plugins_count += (ushort)(dll.Plugins.Length);
-            }
-
-            EnsureCapacity((ushort)(plugins_count * 4 + 1));
-
+            EnsureCapacity((ushort)(Dll.LoadingOrder.Length * 4 + 1));
             m_Writer.Write((byte)0x02);
-            for (ushort i = 0; i < Dll.Dlls.Length; i++)
+            
+            for (int order = 0; order < Dll.LoadingOrder.Length; order++)
             {
-                for (byte j = 0; j < Dll.Dlls[i].Plugins.Length; j++)
-                {
-                    m_Writer.Write((ushort)i);
-                    m_Writer.Write((byte)j);
-                    m_Writer.Write((byte)Dll.Dlls[i].Plugins[j].PacketsAmount);
-                }
+                m_Writer.Write((ushort)Dll.LoadingOrder[order].Dll_Id);
+                m_Writer.Write((byte)Dll.LoadingOrder[order].Id);
+                m_Writer.Write((byte)Dll.LoadingOrder[order].PacketsAmount);
             }
         }
     }
