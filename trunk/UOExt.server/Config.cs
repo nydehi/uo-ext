@@ -29,8 +29,9 @@ namespace UOExt
 
         /// <summary>
         /// File with plugins init order. File format is:
-        /// [DllName], [PluginNumber]
+        /// [DllName], [PluginNumber | PluginName]
         /// Example:
+        /// ; This is comment. You can set ';' char only at start of a line.
         /// HelloWorld.plg, 0
         /// MyCoolPlugin.plg, 0
         /// MyOtherCoolPlugin.plg, 0
