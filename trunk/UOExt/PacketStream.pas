@@ -99,9 +99,7 @@ type
     procedure Flush; virtual;
   end;
 
-  {$IFDEF WRITELOG}
   procedure WriteDump(Point:Pointer; Len:Cardinal);
-  {$ENDIF}
 
 implementation
 
@@ -112,7 +110,6 @@ var
 
 // Local procedures
 
-{$IFDEF WRITELOG}
 procedure WriteDump(Point:Pointer; Len:Cardinal);
 var
   cLine:AnsiString;
@@ -152,7 +149,6 @@ begin
     WriteLn(cLine, '| ', cBuffer);
   End;
 end;
-{$ENDIF}
 
 //  TBuffer
 constructor TBuffer.Create;
