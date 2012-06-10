@@ -7,7 +7,7 @@ function CoreInitialize:Boolean; stdcall;
 
 implementation
 
-uses Windows, HookLogic, Plugins, Common, UOExtProtocol, WinSock, ShardSetup, zLib,
+uses Windows, HookLogic, Plugins, Common, WinSock, ShardSetup, zLib,
   GUI, ProtocolDescription, Updater;
 
 {$IFDEF DEBUG}

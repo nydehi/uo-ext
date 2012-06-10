@@ -226,6 +226,21 @@ Begin
   FGUIUpdateProcess(ProcessHandle, Min, Max, Current);
 End;
 
+procedure TPluginApi.UOExtProtocolRegisterHandler(Header:Byte; Handler:TUOExtProtocolHandler);
+Begin
+  FUOExtProtocolRegisterHandler(Header, Handler);
+End;
+
+procedure TPluginApi.UOExtProtocolUnRegisterHandler(Header:Byte; Handler:TUOExtProtocolHandler);
+Begin
+  FUOExtProtocolUnRegisterHandler(Header, Handler);
+End;
+
+procedure TPluginApi.UOExtProtocolSendPacket(Header:Byte; Packet: Pointer; Size: Cardinal);
+Begin
+  FUOExtProtocolSendPacket(Header, Packet, Size);
+End;
+
 
 initialization
   SetLength(Plugins, 0);

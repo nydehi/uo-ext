@@ -4,7 +4,7 @@ uses
   Windows,
   AbstractThread in 'UOExt\AbstractThread.pas',
   ListeningThread in 'UOExt\ListeningThread.pas',
-  Common in 'UOExt\Common.pas',
+  Common in 'Common\Common.pas',
   PacketStream in 'UOExt\PacketStream.pas',
   HuffmanAlgo in 'UOExt\HuffmanAlgo.pas',
   ProtocolDescription in 'UOExt\ProtocolDescription.pas',
@@ -16,16 +16,15 @@ uses
   Serials in 'UOExt\Serials.pas',
   zLib in 'UOExt\zLib.pas',
   Encryption in 'UOExt\Encryption.pas',
-  DCPcrypt in 'UOExt\DCPcrypt.pas',
-  Twofish in 'UOExt\Twofish.pas',
-  md5 in 'UOExt\md5.pas',
-  UOExtProtocol in 'UOExt\UOExtProtocol.pas',
+  DCPcrypt in 'Common\DCPcrypt.pas',
+  Twofish in 'Common\Twofish.pas',
   PreConnectIPDiscover in 'UOExt\PreConnectIPDiscover.pas',
   CoreInitialization in 'UOExt\CoreInitialization.pas',
   Executable in 'UOExt\Executable.pas',
   APIHooker in 'UOExt\APIHooker.pas',
   GUI in 'UOExt\GUI.pas',
-  Updater in 'UOExt\Updater.pas';
+  Updater in 'UOExt\Updater.pas',
+  md5 in 'Common\md5.pas';
 
 exports
   CoreInitialization.CoreInitialize

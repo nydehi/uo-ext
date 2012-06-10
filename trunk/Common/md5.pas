@@ -13,6 +13,11 @@ type
   end;
 
 function MD5Buffer(const Buffer; Size: Integer): TMD5Digest;
+
+function MD5Init: Pointer; overload;
+procedure MD5Update(Context: Pointer; Data: Pointer; Size: Integer); overload;
+function MD5Final(Context:Pointer): TMD5Digest; overload;
+
 implementation
 
 {
@@ -270,7 +275,7 @@ begin
   MD5_memset(PByteArray(@x), 0, SizeOf(x));
 end;
 
-procedure MD5Init(var Context: TMD5Context);
+procedure MD5Init(var Context: TMD5Context); overload;
 begin
   FillChar(Context, SizeOf(Context), 0);
   Context.state[0] := $67452301;
@@ -279,8 +284,18 @@ begin
   Context.state[3] := $10325476;
 end;
 
+function MD5Init: Pointer; overload;
+type
+  PMD5Context= ^TMD5Context;
+var
+  Ctx: TMD5Context;
+Begin
+  Result := GetMemory(SizeOf(TMD5Context));
+  MD5Init(PMD5Context(Result)^);
+End;
+
 procedure MD5Update(var Context: TMD5Context; Input: PByteArray; InputLen:
-  LongWord);
+  LongWord); overload;
 var
   i, index, partLen: LongWord;
 
@@ -309,7 +324,14 @@ begin
     - i);
 end;
 
-procedure MD5Final(var Digest: TMD5Digest; var Context: TMD5Context);
+procedure MD5Update(Context: Pointer; Data: Pointer; Size: Integer); overload;
+type
+  PMD5Context= ^TMD5Context;
+Begin
+  MD5Update(PMD5Context(Context)^, PByteArray(Data), Size);
+End;
+
+procedure MD5Final(var Digest: TMD5Digest; var Context: TMD5Context); overload;
 var
   bits: array[0..7] of Byte;
   index, padLen: LongWord;
@@ -325,6 +347,14 @@ begin
   MD5Encode(PByteArray(@Digest), PUINT4Array(@Context.state), 16);
   MD5_memset(PByteArray(@Context), 0, SizeOf(Context));
 end;
+
+function MD5Final(Context:Pointer): TMD5Digest; overload;
+type
+  PMD5Context= ^TMD5Context;
+Begin
+  MD5Final(Result, PMD5Context(Context)^);
+  FreeMemory(Context);
+End;
 
 function MD5Buffer(const Buffer; Size: Integer): TMD5Digest;
 var
