@@ -52,6 +52,7 @@ type
     function UOExtGetDllList: Boolean;
     function UOExtGetPluginsLoadingList: Boolean;
     function UOExtGetDlls(WantedList: PByteArray; WantedSize: Word): Boolean;
+    function UOExtGetEndSequence: Boolean;
     procedure UOExtDisconnect;
     function UOExtUpdateServerConnect:Boolean;
 
@@ -164,6 +165,8 @@ Begin
   if not Self.UOExtGetMissingDlls(MissingDlls, MissingDllsCount) then Exit;
   if not Self.UOExtGetDlls(MissingDlls, MissingDllsCount) then Exit;
   If Assigned(MissingDlls) Then FreeMemory(MissingDlls);
+  if not Self.UOExtGetEndSequence then Exit;
+
   Result := True;
 End;
 
@@ -339,6 +342,25 @@ begin
   FNeedUpdateUOExtGUI := UpdateSet AND $02 = $02;
 
   Result := True;
+end;
+
+function TUpdater.UOExtGetEndSequence:Boolean;
+const
+  PacketSize: Word = 35;
+var
+  Packet: Pointer;
+  incPacketSize: Cardinal;
+begin
+  Result := False;
+
+  Packet := Self.UOExtGetPacket(incPacketSize);
+  if Packet = nil then Exit;
+  if ((PByte(Packet)^ <> 0)or(PByte(Cardinal(Packet) + 1)^ <> $FF)) then Begin
+    FreeMemory(Packet);
+    Exit;
+  End;
+  Result := True;
+  FreeMemory(Packet);
 end;
 
 function TUpdater.SelfUpdate: Integer;
@@ -709,7 +731,7 @@ Begin
   recvLength := 0;
   headerSize := 2;
   startTime := GetTickCount;
-  If ShardSetup.EnableIntertalProtocol then headerSize := headerSize + 1;
+  If not ShardSetup.UsingUpdateServer then headerSize := headerSize + 1;
   repeat
     FD_ZERO(fd);
     FD_SET(FSocket, fd);
@@ -722,12 +744,14 @@ Begin
     ioctlsocket(FSocket, FIONREAD, iPending);
     If(iPending > (headerSize - recvLength)) Then iPending := headerSize - recvLength;
 
-    recived := recv(FSocket, Pointer(Cardinal(@header) + headerSize - 2)^, iPending, 0);
+    recived := recv(FSocket, Pointer(Cardinal(@header) +  3 - headerSize)^, iPending, 0);
     if recived <= 0 then Exit;
 
     recvLength := recvLength + recived;
   until recvLength >= headerSize;
   PacketSize := htons(header.Size);
+  PacketSize := PacketSize - 2;
+  if not ShardSetup.UsingUpdateServer then PacketSize := PacketSize - 1;
   pBuffer := GetMemory(PacketSize);
 
   recvLength := 0;
@@ -743,7 +767,7 @@ Begin
     ioctlsocket(FSocket, FIONREAD, iPending);
     If(iPending > (PacketSize - recvLength)) Then iPending := PacketSize - recvLength;
 
-    recived := recv(FSocket, Pointer(Cardinal(@pBuffer) + Cardinal(recvLength))^, iPending, 0);
+    recived := recv(FSocket, Pointer(Cardinal(pBuffer) + Cardinal(recvLength))^, iPending, 0);
     if recived <= 0 then Exit;
 
     recvLength := recvLength + recived;
