@@ -9,39 +9,46 @@ procedure HookIt;
 
 implementation
 
-uses Common, Plugins;
+uses Common, Plugins, ClientThread;
 
 type
   TWndProc = function(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
 
 var
   WndProc: TWndProc;
-  ListeningThread: TServerThread;
   iIP: Integer;
   iPort: Word;
 
 function connectHook(s: TSocket; var name: TSockAddr; namelen: Integer): Integer; stdcall;
 var
-  ConnInfo: TSockAddr;
+  ServSocket: TSocket;
+  SockPair:Boolean;
+  SockAddr:TSockAddr;
+  SA_Len: Integer;
 Begin
-  if(iIP = 0) Then Begin
-    iIP := htonl(name.sin_addr.S_addr);
-    iPort := htons(name.sin_port);
-  End;
-
-  ListeningThread := TServerThread.Create(iIP, iPort);
-  ListeningThread.Run;
-
-  CopyMemory(@ConnInfo, @name, SizeOf(ConnInfo));
-  ConnInfo.sin_addr.S_addr := htonl(INADDR_LOOPBACK);
-
-  repeat
-    ConnInfo.sin_port := htons(ListeningThread.LocalPort);
-  until (ConnInfo.sin_port<>0) or not ListeningThread.Running;
+  iIP := htonl(name.sin_addr.S_addr);
+  iPort := htons(name.sin_port);
 
   THooker.Hooker.TrueAPI;
-  Result := connect(s, ConnInfo, namelen);
+  SockPair := ClientThread.CreateSocketPair(ServSocket, s);
   THooker.Hooker.TrueAPIEnd;
+
+  if SockPair then
+    If getsockname(ServSocket, SockAddr, SA_Len) <> 0 Then SockPair := False;
+
+  if not SockPair then Begin
+    WSASetLastError(WSAECONNREFUSED);
+    Result := INVALID_SOCKET;
+  End Else Begin
+    with TClientThread.Create do begin
+      ServerIP:=iIP;
+      ServerPort:=iPort;
+      LocalPort := ntohs(SockAddr.sin_port);
+      ClientSocket:=ServSocket;
+      Run;
+    end;
+    Result := 0;
+  End;
 End;
 
 function MyWindowProc(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;

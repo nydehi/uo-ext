@@ -38,6 +38,8 @@ var
   CCTLock: TRTLCriticalSection;
   CurrentClientThread: TClientThread;
 
+  function CreateSocketPair(var ServerSocket: TSocket; var ClientSocket: TSocket): Boolean;
+
 implementation
 
 uses Common, Plugins, Encryption, ShardSetup;
@@ -46,6 +48,76 @@ var
   TV_Timeout:timeval;
 
 // Local procedures
+
+function CreateSocketPair(var ServerSocket: TSocket; var ClientSocket: TSocket): Boolean;
+var
+  ListenSocket: TSocket;
+  SockAddr:TSockAddr;
+  NonBlock:Integer;
+  SA_Len: Integer;
+
+  wLocalPort: Word;
+  iConnResult: Integer;
+  WSAGLE: Integer;
+begin
+  Result := False;
+
+  ListenSocket := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  If ListenSocket=INVALID_SOCKET Then Exit;
+
+  ZeroMemory(@SockAddr, SizeOf(SockAddr));
+  SockAddr.sin_family:=AF_INET;
+  SockAddr.sin_port:=0;
+  SockAddr.sin_addr.S_addr:=htonl(INADDR_LOOPBACK);
+
+  If bind(ListenSocket, SockAddr, SizeOf(SockAddr)) <> 0 Then Begin
+    closesocket(ListenSocket);
+    Exit;
+  End;
+  If listen(ListenSocket, SOMAXCONN) <> 0 Then Begin
+    closesocket(ListenSocket);
+    Exit;
+  End;
+  SA_Len := SizeOf(SockAddr);
+  If getsockname(ListenSocket, SockAddr, SA_Len) <> 0 Then Begin
+    closesocket(ListenSocket);
+    Exit;
+  End;
+
+  NonBlock:=1;
+  wLocalPort := ntohs(SockAddr.sin_port);
+
+  ZeroMemory(@SockAddr, SizeOf(SockAddr));
+  SockAddr.sin_family:=AF_INET;
+  SockAddr.sin_port:=htons(wLocalPort);
+  SockAddr.sin_addr.S_addr:=htonl(INADDR_LOOPBACK);
+
+  ioctlsocket(ClientSocket, FIONBIO, NonBlock);
+
+  iConnResult := connect(ClientSocket, SockAddr, SizeOf(SockAddr));
+  If iConnResult = SOCKET_ERROR Then Begin
+    WSAGLE := WSAGetLastError;
+    if WSAGLE <> WSAEWOULDBLOCK then Begin
+      closesocket(ClientSocket);
+      closesocket(ListenSocket);
+      Exit;
+    End;
+  End;
+
+  ServerSocket := accept(ListenSocket, nil, nil);
+  If ServerSocket = SOCKET_ERROR Then Begin
+    closesocket(ClientSocket);
+    closesocket(ListenSocket);
+    Exit;
+  End;
+
+  NonBlock := 0;
+  ioctlsocket(ClientSocket, FIONBIO, NonBlock);
+  closesocket(ListenSocket);
+
+  Result:=True;
+End;
+
 
 function SocketClosedReason(Sock: TSocket): Integer;
 var
