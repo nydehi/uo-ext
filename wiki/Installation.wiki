@@ -1,0 +1,58 @@
+This document describes howto install and use UOExt in your shard
+
+===Client===
+
+You need to make next steps:
+  # Download core package from Downloads section.
+  # Choose what kind of build you want to use. Right now there is 3 kind of builds:
+    * Debug (shows debug console with all info error and warning messages)
+    * DWO (Debug Window Only - shows only debug console)
+    * Release (dosn't shows anything)
+  # Copy selected build to your UO folder, and rename it to UOExt.dll
+  # Change current folder to your UO folder
+  # Open console window (WndKey + R, cmd, Endter)
+  # Type "RunDll32.exe UOExt.dll,Infect32 client.exe" and hit enter. (It is wise to make copy of client.exe before doing this)
+
+===Server===
+
+Right now only RunUO server is supported. If someone want to see Spehere or POL - mail me (I'll need some help from you).
+
+You need to make next steps:
+  # Download core package from Downloads section.
+  # Copy contents of "RunUO-Server" folder to you RunUO folder.
+  # Add some plugins to your %RunUO%\UOExt\Plugins\Client folder (files with plg extension)
+  # Run RunUO
+
+Right now there is... bug... in RunUO, that dosn't allow you to send bulk packets. So you need to rebuild RunUO with one modification:
+
+You need to get to Network\SendQueue.cs and find "private const int PendingCap". Set it to 96 `*` 1024.
+
+----
+Этот документ объясняет как установить UOExt на ваш шард.
+
+===Клиент===
+
+Выполните следующие шаги:
+  # Скачайте основной пакет из секции Загрузок.
+  # Выберите тип сборки. Сейчас существуют 3 типа:
+    * Debug (Показывает спец консольку и пишут туда умные слова)
+    * DWO (Debug Window Only - только показывает консольку)
+    * Release (Ничего не показывает)
+  # Скопируйте выбранную сборку в вашу папку с UO и переименуйте в UOExt.dll
+  # Откройте консоль (WndKey + R, cmd, Ввод)
+  # Перейдите в папку с UO
+  # Напечатайте "RunDll32.exe UOExt.dll,Infect32 client.exe" и нажмите ВВод. (Мудро сделать перед этим копию client.exe)
+
+===Сервер===
+
+На данный момент поддерживается только RunUO. Если кто-то хочет увидеть поддержку Sphere или POL - напишите мне (Мне потребуется ваша помощь).
+
+Выполните следующие шаги:
+  # Скачайте основной пакет из секции Загрузок.
+  # Скопируйте содержимое папки "RunUO-Server" в папку с RunUO.
+  # Добавьте плагины в папке %RunUO%\UOExt\Plugins\Client (Файлы с расширением plg)
+  # Запустите RunUO
+
+Сейчас в RunUO есть... баг... который не позволяет вам посылать большие пакеты. Вам необходимо пересобрать RunUO с одним изменением:
+
+Вам необходимо в Network\SendQueue.cs найти "private const int PendingCap" и поменять значение на 96 `*` 1024.
