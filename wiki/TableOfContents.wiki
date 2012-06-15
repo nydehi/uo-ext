@@ -16,3 +16,11 @@
   * zLib
     * [zLibCompress2]
     * [zLibDecompress]
+  * UOExt Protocol
+    * [UOExtProtocolRegisterHandler]
+    * [UOExtProtocolUnRegisterHandler]
+    * [UOExtProtocolSendPacket]
+  * GUI
+    * [GUISetLog]
+    * [GUIStartProcess]
+    * [GUIUpdateProcess]
