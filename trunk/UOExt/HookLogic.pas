@@ -2,7 +2,7 @@ unit HookLogic;
 
 interface
 
-uses Windows, APIHooker, ShardSetup, AbstractThread, ListeningThread, PluginsShared, WinSock, Messages;
+uses Windows, APIHooker, ShardSetup, AbstractThread, PluginsShared, WinSock, Messages;
 
 
 procedure HookIt;
@@ -21,34 +21,40 @@ var
 
 function connectHook(s: TSocket; var name: TSockAddr; namelen: Integer): Integer; stdcall;
 var
-  ServSocket: TSocket;
+  ServSocket, DistantServerSocket: TSocket;
   SockPair:Boolean;
   SockAddr:TSockAddr;
   SA_Len: Integer;
 Begin
+  Result := SOCKET_ERROR;
+  WSASetLastError(WSAECONNREFUSED);
   iIP := htonl(name.sin_addr.S_addr);
   iPort := htons(name.sin_port);
+
+  DistantServerSocket := ClientThread.ConnectToServer(iIP, iPort);
+  if DistantServerSocket = INVALID_SOCKET then Exit;
 
   THooker.Hooker.TrueAPI;
   SockPair := ClientThread.CreateSocketPair(ServSocket, s);
   THooker.Hooker.TrueAPIEnd;
-
-  if SockPair then
+  if SockPair then Begin
+    SA_Len := SizeOf(SockAddr);
     If getsockname(ServSocket, SockAddr, SA_Len) <> 0 Then SockPair := False;
+  End;
 
   if not SockPair then Begin
-    WSASetLastError(WSAECONNREFUSED);
-    Result := INVALID_SOCKET;
-  End Else Begin
-    with TClientThread.Create do begin
-      ServerIP:=iIP;
-      ServerPort:=iPort;
-      LocalPort := ntohs(SockAddr.sin_port);
-      ClientSocket:=ServSocket;
-      Run;
-    end;
-    Result := 0;
+    closesocket(DistantServerSocket);
+    closesocket(ServSocket);
+    Exit;
   End;
+
+  with TClientThread.Create do begin
+    LocalPort := ntohs(SockAddr.sin_port);
+    ServerSocket := DistantServerSocket;
+    ClientSocket := ServSocket;
+    Run;
+  end;
+  Result := 0;
 End;
 
 function MyWindowProc(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;

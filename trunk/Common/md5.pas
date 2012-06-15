@@ -287,8 +287,6 @@ end;
 function MD5Init: Pointer; overload;
 type
   PMD5Context= ^TMD5Context;
-var
-  Ctx: TMD5Context;
 Begin
   Result := GetMemory(SizeOf(TMD5Context));
   MD5Init(PMD5Context(Result)^);

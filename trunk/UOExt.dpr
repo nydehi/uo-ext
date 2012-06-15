@@ -3,7 +3,6 @@ library UOExt;
 uses
   Windows,
   AbstractThread in 'UOExt\AbstractThread.pas',
-  ListeningThread in 'UOExt\ListeningThread.pas',
   Common in 'Common\Common.pas',
   PacketStream in 'UOExt\PacketStream.pas',
   HuffmanAlgo in 'UOExt\HuffmanAlgo.pas',
