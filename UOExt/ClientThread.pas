@@ -10,14 +10,10 @@ type
     FClientConnection:TSocket;
     FServerConnection:TSocket;
 
-    FServerIp:Cardinal;
-    FServerPort:Word;
-
     FLocalPort:Word;
 
     FCSObj:TPacketStream;
     FSCObj:TPacketStream;
-    function ConnectToServer:Boolean;
     procedure Write(What:AnsiString);
     procedure OnCSPacket(Sender:TObject; Packet:Pointer; var Length:Cardinal; var Process:Boolean);
     procedure OnCSPacketDone(Sender:TObject; PacketHeader:Byte);
@@ -27,11 +23,11 @@ type
   protected
     function Execute:Integer; override;
   public
-    property ServerIP:Cardinal read FServerIp write FServerIp;
-    property ServerPort:Word read FServerPort write FServerPort;
+    property ServerSocket:TSocket read FServerConnection write FServerConnection;
     property LocalPort:Word read FLocalPort write FLocalPort;
     property ClientSocket:TSocket read FClientConnection write FClientConnection;
     function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean;
+
   end;
 
 var
@@ -39,6 +35,7 @@ var
   CurrentClientThread: TClientThread;
 
   function CreateSocketPair(var ServerSocket: TSocket; var ClientSocket: TSocket): Boolean;
+  function ConnectToServer(IP: Integer; Port: Word):TSocket;
 
 implementation
 
@@ -118,6 +115,27 @@ begin
   Result:=True;
 End;
 
+function ConnectToServer(IP: Integer; Port: Word):TSocket;
+var
+  SA: TSockAddr;
+Begin
+  Result := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  If Result = INVALID_SOCKET Then Begin
+    WSASetLastError(WSAECONNREFUSED);
+    Exit;
+  End;
+  ZeroMemory(@SA, SizeOf(SA));
+  SA.sin_family := AF_INET;
+  SA.sin_addr.S_addr := htonl(IP);
+  SA.sin_port := htons(Port);
+  THooker.Hooker.TrueAPI;
+  If connect(Result, SA, SizeOf(SA)) = SOCKET_ERROR Then Begin
+    closesocket(Result);
+    Result := INVALID_SOCKET;
+  End;
+  THooker.Hooker.TrueAPIEnd;
+End;
+
 
 function SocketClosedReason(Sock: TSocket): Integer;
 var
@@ -141,25 +159,8 @@ End;
 procedure TClientThread.Write(What:AnsiString);
 begin
   {$IFDEF DEBUG}
-  WriteLn(FServerIp shr 24, '.', (FServerIp shr 16) and $FF, '.', (FServerIp shr 8) and $FF, '.', FServerIp and $FF, ':', FServerPort, ' ', What);
+  WriteLn('ClientThread: ', What);
   {$ENDIF}
-end;
-
-function TClientThread.ConnectToServer:Boolean;
-var
-  SockAddr:TSockAddr;
-begin
-  THooker.Hooker.TrueAPI;
-  Result:=False;
-  FServerConnection:=socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  IF FServerConnection=INVALID_SOCKET Then Exit;
-  ZeroMemory(@SockAddr, SizeOf(SockAddr));
-  SockAddr.sin_family:=AF_INET;
-  SockAddr.sin_port:=htons(FServerPort);
-  SockAddr.sin_addr.S_addr:=htonl(FServerIp);
-  If connect(FServerConnection, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Exit;
-  Result:=True;
-  THooker.Hooker.TrueAPIEnd;
 end;
 
 function TClientThread.Execute:Integer;
@@ -169,13 +170,10 @@ var
   Buffer: Array [0..1] of Byte;
   Valid: Boolean;
 begin
-  Result:=-1;
   Write('Thread in.');
   CurrentClientThread := Self;
   TPluginSystem.Instance.ProxyStart;
   Write('ProxyStart done');
-  If not ConnectToServer Then Exit;
-  Write('Connected to server');
   ITrue:=1;
   ioctlsocket(FClientConnection, FIONBIO, ITrue);
   ioctlsocket(FServerConnection, FIONBIO, ITrue);
@@ -190,7 +188,7 @@ begin
   FCSObj.IsCliServ:=True;
   FCSObj.OnClientEncryptionDetected:=OnCryptDetected;
   {$IFDEF Debug}
-  FSCObj.DebugPresend:=IntToStr(FServerIp shr 24) + '.' + IntToStr((FServerIp shr 16) and $FF) + '.' + IntToStr((FServerIp shr 8) and $FF) + '.' + IntToStr(FServerIp and $FF) + ':' + IntToStr(FServerPort) + ' ';
+  FSCObj.DebugPresend:='ClientThread: ';
   FCSObj.DebugPresend:=FSCObj.DebugPresend;
   {$ENDIF}
   Write('Client thread ready to work.');
@@ -236,12 +234,12 @@ begin
   Write('C->S: Packet: Header: 0x' + IntToHex(PByte(Packet)^, 2) + ' Length: ' + IntToStr(Length));
   WriteDump(Packet, Length);
   {$ENDIF}
-  If PByte(Packet)^=239 Then Begin
+(*  If PByte(Packet)^=239 Then Begin
     FSCObj.Seed:=PCardinal(Cardinal(Packet) + 1)^;
     {$IFDEF Debug}
     Write('Seed is '+ IntToStr(FSCObj.Seed));
     {$ENDIF}
-  End;
+  End;*)
   If PByte(Packet)^=145 Then Begin
     FSCObj.Compression:=True;
     {$IFDEF Debug}
@@ -257,14 +255,14 @@ begin
   Write('S->C: Packet: Header: 0x' + IntToHex(PByte(Packet)^, 2) + ' Length: ' + IntToStr(Length));
   WriteDump(Packet, Length);
   {$ENDIF}
-  If PByte(Packet)^=140 Then Begin
+(*  If PByte(Packet)^=140 Then Begin
 
     PCardinal(Cardinal(Packet) + 1)^:=  htonl(INADDR_LOOPBACK);
     PWord(Cardinal(Packet) + 5)^:=htons(FLocalPort);
     {$IFDEF Debug}
     Write('S->C: Logging into game server with Auth_ID: '+IntToStr(PCardinal(Cardinal(Packet) + 7)^));
     {$ENDIF}
-  End;
+  End;*)
   Process := TPluginSystem.Instance.ServerToClientPacket(Packet, Length);
 end;
 

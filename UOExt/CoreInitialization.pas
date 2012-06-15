@@ -68,7 +68,7 @@ Begin
   Readln;
   {$ELSE}
   Msg := Msg + #0;
-  MessageBoxA(nil, @Msg[1], MB_OK);
+  MessageBoxA(0, @Msg[1], nil, MB_OK);
   {$ENDIF}
   Halt(1);
 End;
