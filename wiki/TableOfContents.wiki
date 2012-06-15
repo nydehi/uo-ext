@@ -1,3 +1,4 @@
+ * [Installation]
  * [WorkScheme Work scheme]
  * [PluginInit Plug-in init procedure]
  * [PluginsAPI Plug-ins API]
