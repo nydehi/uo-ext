@@ -20,6 +20,8 @@ Right now only RunUO server is supported. If someone want to see Spehere or POL 
 You need to make next steps:
   # Download core package from Downloads section.
   # Copy contents of "RunUO-Server" folder to you RunUO folder.
+  # Copy selected build to %RunUO%\UOExt and rename it to UOExt.dll
+  # Copy UOExt.GUI.dll to %RunUO%\UOExt
   # Add some plugins to your %RunUO%\UOExt\Plugins\Client folder (files with plg extension)
   # Run RunUO
 
@@ -51,6 +53,8 @@ You need to get to Network\SendQueue.cs and find "private const int PendingCap".
   # Скачайте основной пакет из секции Загрузок.
   # Скопируйте содержимое папки "RunUO-Server" в папку с RunUO.
   # Добавьте плагины в папке %RunUO%\UOExt\Plugins\Client (Файлы с расширением plg)
+  # Скопируйте выбранную вами сборку в %RunUO%\UOExt и переназовите её в UOExt.dll
+  # Скопируйте UOExt.GUI.dll в %RunUO%\UOExt
   # Запустите RunUO
 
 Сейчас в RunUO есть... баг... который не позволяет вам посылать большие пакеты. Вам необходимо пересобрать RunUO с одним изменением:
