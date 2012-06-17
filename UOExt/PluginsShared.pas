@@ -83,9 +83,7 @@ type
 
   TPacketSendedCallback = procedure(APackeHead: Byte; lParam: Pointer; IsFromServerToClient: Boolean); stdcall;
 
-  TUOExtPacketHandler = procedure (Data: Pointer; Size:Cardinal); stdcall;
-
-  TUOExtPacketSendedCallback = procedure(APackeHead: Byte; lParam: Pointer); stdcall;
+  TUOExtPacketSendedCallback = procedure(APacketHead: Byte; lParam: Pointer); stdcall;
 
   TPacketLengthDefinition=function(Packet:Pointer; Length:Cardinal):Cardinal; stdcall;
   (**
@@ -143,16 +141,15 @@ type
   TzLibDecompress = function(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer):Integer; stdcall;
 
   (**
-    UOExtProtocol stuff. Not working right now.
+    UOExtProtocol stuff.
   **)
   TUOExtProtocolHandler = procedure(Packet: Pointer; Size: Cardinal); stdcall;
   TUOExtProtocolRegisterHandler = procedure(Header:Byte; Handler:TUOExtProtocolHandler); stdcall;
   TUOExtProtocolUnRegisterHandler = procedure(Header:Byte; Handler:TUOExtProtocolHandler); stdcall;
   TUOExtProtocolSendPacket = procedure(Header:Byte; Packet: Pointer; Size: Cardinal); stdcall;
 
-
   (**
-    GUI visualization. Not working right now.
+    GUI visualization.
   **)
   TGUISetLog = function(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
   TGUIStartProcess = function(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; stdcall;
