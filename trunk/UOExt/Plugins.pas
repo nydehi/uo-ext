@@ -17,7 +17,7 @@ type
     end;
     TProtocolHandlerArray = array [0..255] of TPacketHandler;
     TUOExtPacketHandlerInfo = packed record
-      Handler: TUOExtPacketHandler;
+      Handler: TUOExtProtocolHandler;
       Plugin: Cardinal;
     end;
     PUOExtPacketHandlerInfo = ^TUOExtPacketHandlerInfo;
@@ -94,8 +94,8 @@ type
     function RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
 
     function UOExtPacket(UOExtHeader:Byte; Data: Pointer; Length: Cardinal): Boolean;
-    procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtPacketHandler);
-    procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtPacketHandler);
+    procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
+    procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
 
     destructor Destory;
   end;
@@ -159,12 +159,12 @@ begin
   InterlockedIncrement(TPluginSystem.Instance.FSyncEventCount);
 end;
 
-procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtPacketHandler) stdcall;
+procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler) stdcall;
 begin
   TPluginSystem.Instance.UOExtRegisterPacketHandler(Header, Handler);
 end;
 
-procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtPacketHandler) stdcall;
+procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler) stdcall;
 begin
   TPluginSystem.Instance.UOExtUnRegisterPacketHandler(Header, Handler);
 end;
@@ -574,7 +574,7 @@ begin
   End;
 end;
 
-procedure TPluginSystem.UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtPacketHandler);
+procedure TPluginSystem.UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
 Begin
   If FActivePlugin <> MAXDWORD then Begin
     if Header > FPlugins[FActivePlugin].UOExtPacketAmount then Begin
@@ -589,7 +589,7 @@ Begin
   End;
 End;
 
-procedure TPluginSystem.UOExtUnRegisterPacketHandler(Header: Byte; Handler: TUOExtPacketHandler);
+procedure TPluginSystem.UOExtUnRegisterPacketHandler(Header: Byte; Handler: TUOExtProtocolHandler);
 begin
   If FActivePlugin <> MAXDWORD then Begin
     If Header > FPlugins[FActivePlugin].UOExtPacketAmount then Begin
