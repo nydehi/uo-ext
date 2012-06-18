@@ -26,8 +26,6 @@ Begin
 End;
 
 procedure Free; stdcall;
-var
-  i: Integer;
 Begin
   if Assigned(GUI) then Begin
     GUI.Stop;

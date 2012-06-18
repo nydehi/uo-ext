@@ -75,7 +75,7 @@ Begin
   GWLA := GetWindowLongA(hWnd, GWL_USERDATA);
   Thread := TGUIThread(GWLA);
   bProcessed := False;
-  case Msg of
+  If Thread <> nil Then case Msg of
     WM_QUIT: Begin
       Thread.FNeedExit := True;
     End;

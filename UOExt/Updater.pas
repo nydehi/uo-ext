@@ -375,6 +375,7 @@ Begin
   Result := -1;
   If FNeedUpdateUOExt then begin
     Packet := Self.UOExtGetPacket(PacketSize);
+    If Packet = nil then Exit;
     If ((PByte(Packet)^ <> $00)or(PByte(Cardinal(Packet) + 1)^ <> $05)) then Begin
       FreeMemory(Packet);
       Exit;
@@ -406,6 +407,7 @@ Begin
     Result := 1;
   End Else If FNeedUpdateUOExtGUI then Begin
     Packet := Self.UOExtGetPacket(PacketSize);
+    If Packet = nil then Exit;
     If ((PByte(Packet)^ <> $00)or(PByte(Cardinal(Packet) + 1)^ <> $05)) then Begin
       FreeMemory(Packet);
       Exit;
