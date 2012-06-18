@@ -411,7 +411,7 @@ Begin
       Exit;
     End;
     fileSize := PCardinal(Cardinal(Packet) + 2)^;
-    cUpdateProcess := GUI.GUIStartProcess(MAXLONG, 0, 'UOExt.gui.dll', 0, fileSize, 0);
+    cUpdateProcess := GUI.GUIStartProcess($FFFFFFFF, 0, 'UOExt.gui.dll', 0, fileSize, 0);
     AssignFile(cFile, String(ShardSetup.UOExtBasePath + ShardSetup.GUIDLLName+'.new'));
     Rewrite(cFile, 1);
     chunkSize := PacketSize - 6;
@@ -442,10 +442,10 @@ procedure TUpdater.ReloadUOExt;
 var
   oldLib: AnsiString;
   newLib: AnsiString;
-
+{
   Si:TStartupInfoA;
   Pi:TProcessInformation;
-  cd:Array [0..MAX_PATH] of Byte;
+  cd:Array [0..MAX_PATH] of Byte;}
 begin
   UOExtDisconnect;
   oldLib := ShardSetup.UOExtBasePath + 'UOExt.dll';
@@ -455,11 +455,13 @@ begin
   newLib := ShardSetup.UOExtBasePath + 'UOExt.dll';
   MoveFileA(@oldLib[1], @newLib[1]);
 
+{
   ZeroMemory(@Si, SizeOf(Si));
   Si.cb := SizeOf(Si);
   newLib := AnsiString(ParamStr(0)) + #0;
   GetCurrentDirectoryA(MAX_PATH, @cd[0]);
   CreateProcessA(nil, @newLib[1], nil, nil, False, 0, nil, @cd[0], Si, Pi);
+}
 end;
 
 
