@@ -144,7 +144,7 @@ begin
       cPos:=cPos+1;
     until cPos>=Len;
 
-    For i := 0 to 61 - Length(cLine) do cLine := cLine + ' ';
+    For i := 0 to 60 - Length(cLine) do cLine := cLine + ' ';
     If cPos mod 16 > 0 Then For i := cPos mod 16 to 15 do cBuffer[i] := ' ';
     WriteLn(cLine, '| ', cBuffer);
   End;
