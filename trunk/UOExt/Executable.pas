@@ -507,12 +507,9 @@ procedure InjectProc(); asm
 
 
          AND ESI, $FFFF0000
-@_L1:    //CMP BYTE PTR [EBP + 5], $00
-         //JZ @_FL
-         CMP WORD PTR [ESI], "ZM"
+@_L1:    CMP WORD PTR [ESI], "ZM"
          JZ @_CPE
 @_L2:    SUB ESI, $10000
-         //DEC BYTE PTR [EBP + 5]
          JMP @_L1
 @_CPE:   MOV EDI, [ESI + $3C]
          ADD EDI, ESI
@@ -523,7 +520,7 @@ procedure InjectProc(); asm
 @_GK:    XCHG EAX, ESI
          // EAX = kernel base
          MOV EBX, EAX
-         POP EDX    // Pointer to data
+@_LOAD:  POP EDX    // Pointer to data
          PUSH EDX
          CALL @GPA  // EAX = Address of LoadLibraryExA
          POP EDX
@@ -538,18 +535,36 @@ procedure InjectProc(); asm
          PUSH EDX
          ADD EDX, 019h // EDX pointer to CoreInitialize
          CALL @GPA // EAX now pointer to CoreInitialize func
+         PUSH EDX
+         PUSH ECX
+         PUSH EBX
          CALL EAX
-         TEST AL, AL
-         JNZ @_ALL_OK
+         POP EBX
+         POP ECX
          POP EDX
+         CMP AL, 0
+         JZ @_ALL_OK
+         CMP AL, 1
+         JZ @_RELOAD
+         POP EDX
+         PUSH EDX
          ADD EDX, 028h // EDX pointer to FreeLibrary
          MOV EAX, EBX
          CALL @GPA // EAX pointer to FreeLibrary
          PUSH ECX
          CALL EAX // FreeLibrary
-         JMP @_NO_POP
+         JMP @_ALL_OK
+@_RELOAD:POP EDX
+         PUSH EDX
+         ADD EDX, 028h // EDX pointer to FreeLibrary
+         MOV EAX, EBX
+         CALL @GPA // EAX pointer to FreeLibrary
+         PUSH ECX
+         CALL EAX // FreeLibrary
+         MOV EAX, EBX
+         JMP @_LOAD
 @_ALL_OK:POP EDX
-@_NO_POP:PUSH 012345678h // Change this for real EntryPoint
+         PUSH 012345678h // Change this for real EntryPoint
          RET
 
 
@@ -698,14 +713,14 @@ const
   CI  : Array [0..14] of AnsiChar = 'CoreInitialize' + #0;
   FL  : Array [0..11] of AnsiChar = 'FreeLibrary' + #0;
 Begin
-  Size := $12D;
+  Size := $14A;
   Result := GetMemory(Size);
   CopyMemory(Result, @InjectProc, Size);
-  PCardinal(Cardinal(Result) + $6F)^ := RealStartPoint;
-  CopyMemory(Pointer(Cardinal(Result) + $F8), @LLE[0], 15);
-  CopyMemory(Pointer(Cardinal(Result) + $F8 + 15), @UOE[0], 10);
-  CopyMemory(Pointer(Cardinal(Result) + $F8 + 25), @CI[0], 15);
-  CopyMemory(Pointer(Cardinal(Result) + $F8 + 40), @FL[0], 12);
+  PCardinal(Cardinal(Result) + $8D)^ := RealStartPoint;
+  CopyMemory(Pointer(Cardinal(Result) + Size - 52), @LLE[0], 15);
+  CopyMemory(Pointer(Cardinal(Result) + Size - 37), @UOE[0], 10);
+  CopyMemory(Pointer(Cardinal(Result) + Size - 27), @CI[0], 15);
+  CopyMemory(Pointer(Cardinal(Result) + Size - 12), @FL[0], 12);
 End;
 
 function Align(Value, Factor: Cardinal): Cardinal;

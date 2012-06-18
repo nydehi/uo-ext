@@ -2,8 +2,7 @@ unit CoreInitialization;
 
 interface
 
-function CoreInitialize:Boolean; stdcall;
-//procedure CoreInitialize; stdcall;
+function CoreInitialize:Byte; stdcall;
 
 implementation
 
@@ -38,17 +37,25 @@ end;
 {$ENDIF}
 
 procedure CreateConsole;
+{$IFDEF DEBUGWINDOW}
+var
+  AlreadyAllocated: Boolean;
+{$ENDIF}
 Begin
   {$IFDEF DEBUGWINDOW}
-  If not AllocConsole Then Begin
-    MessageBoxA(0, PAnsiChar(IntToStr(GetLastError)), nil, MB_OK);
-    Exit;
-  End;
+  AlreadyAllocated := GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) <> FILE_TYPE_UNKNOWN;
+  If not AlreadyAllocated Then AllocConsole;
   TTextRec(Output).Handle := GetStdHandle(STD_OUTPUT_HANDLE);
   TTextRec(ErrOutput).Handle := GetStdHandle(STD_ERROR_HANDLE);
   SetConsoleCtrlHandler(@HandlerRoutine, True);
   oldDllProc := DllProc;
   DllProc := @Terminator;
+
+  if AlreadyAllocated then Begin
+    WriteLn;
+    WriteLn('UOExt.dll was successfully updated (or it think so).');
+    WriteLn;
+  End;
   WriteLn('UOExt.dll Ultima Online (C) protocol and client patch system.');
   WriteLn('Core: Debug window started.');
   WriteLn;
@@ -57,6 +64,8 @@ Begin
   {$IFDEF RELEASE} Write(', RELEASE');{$ENDIF}
   {$IFDEF WRITELOG} Write(', WRITELOG');{$ENDIF}
   WriteLn;
+  {$ELSE}
+  If GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) <> FILE_TYPE_UNKNOWN Then FreeConsole;
   {$ENDIF}
 End;
 
@@ -73,14 +82,14 @@ Begin
   Halt(1);
 End;
 
-function InProcess:Boolean;
+function InProcess:Byte;
 var
   Updater: TUpdater;
   Res: Integer;
   uMainLine: Cardinal;
   uStatusLine: Cardinal;
 Begin
-  Result := False;
+  Result := 2;
 
   ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
 
@@ -133,7 +142,9 @@ Begin
     {$IFDEF DEBUG}
     WriteLn('Core: Core has been updated. Reloading...');
     {$ENDIF}
-    Halt(0);
+    Updater.Cleanup;
+    Result := 1;
+    Exit;
   End Else if Res = 2 then Begin
     {$IFDEF DEBUG}
     WriteLn('Core: GUI has been updated.');
@@ -178,14 +189,14 @@ Begin
   GUI.CurrGUI.Free;
   GUI.CurrGUI := nil;
 
-  Result := True;
+  Result := 0;
 End;
 
-function CoreInitialize:Boolean; stdcall;
+function CoreInitialize:Byte; stdcall;
 Begin
   Result := InProcess;
   {$IFDEF DEBUGWINDOW}
-  if not Result then FreeConsole;
+  if Result = 2 then FreeConsole;
   {$ENDIF}
   if Assigned(GUI.CurrGUI) then GUI.CurrGUI.Free;
 End;

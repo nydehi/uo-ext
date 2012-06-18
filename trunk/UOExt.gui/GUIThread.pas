@@ -165,8 +165,10 @@ var
   hBackgroundImage: HBITMAP;
   DC: HDC;
   WaitEvents: Array[0..1] of THandle;
+  tmsg: tagMSG;
 Begin
   Result := 1;
+  PeekMessage(tmsg, 0, WM_USER, WM_USER, PM_NOREMOVE);
 
   hBackgroundImage := LoadBitmapA(HInstance, 'MAINIMAGE');
 
@@ -185,6 +187,7 @@ Begin
   WndClass.hIconSm := LoadCursor(0, IDC_ARROW);
   DeleteObject(hBackgroundImage);
 
+  UnregisterClassA('UOExt.GUI', 0);
   ClassAtom := RegisterClassExA(WndClass);
   if ClassAtom = 0 then Exit;
 
@@ -226,7 +229,7 @@ Begin
   WaitEvents[1]:= FFreeEvent;
   FCanAcceptCalls := True;
   while not FNeedExit do Begin
-    IF MsgWaitForMultipleObjects(1, FUpdateEvent, True, INFINITE, QS_ALLEVENTS) = WAIT_OBJECT_0 Then Begin
+    IF MsgWaitForMultipleObjects(1, FUpdateEvent, False, INFINITE, QS_ALLINPUT) = WAIT_OBJECT_0 Then Begin
       If FNeedExit then Break;
       InvokeUpdateLog;
     End Else Begin

@@ -31,11 +31,8 @@ var
 Begin
   if Assigned(GUI) then Begin
     GUI.Stop;
-    for i := 1 to 1000 do Begin
-      if GUI.Running = False then Break;
-      Sleep(1);
-    End;
-    if GUI.Running then GUI.ForceStop;
+    If WaitForSingleObject(GUI.Handle, 1000) = WAIT_TIMEOUT Then
+      If GUI.Running Then GUI.ForceStop;
   End;
   GUI.Free;
   GUI := nil;
