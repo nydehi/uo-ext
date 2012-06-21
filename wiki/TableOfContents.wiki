@@ -39,3 +39,8 @@
       * [SyncEvent]
     * UOExt Protocol
       * [UOExtProtocolHandler]
+  * Plugins Structures
+      * [!Initialize]
+        * [DllPlugins]
+        * [PluginInfo]
+        * [PluginDescriptor]               

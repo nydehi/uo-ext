@@ -1,0 +1,29 @@
+#sidebar TableOfContents
+*TPluginInfo* - Describes plugin.
+----
+
+*TPluginInfo* - Описывает плагин. 
+
+==Синтаксис==
+{{{
+  TPluginInfo=packed record
+    InitProcedure: TPluginProcedure;
+    DescriptorsCount: Cardinal;
+    Descriptors: Array [0..0] of TPluginDescriptor;
+  end;
+  PPluginInfo=^TPluginInfo;
+}}}
+==Параметры==
+!InitProcedure 
+ * *Тип*: Ссылка на T[PluginProcedure]
+ * *Описание*: Ссылка на [PluginProcedure] - основную процедуру "взаимодействия" с плагином.   
+!DescriptorsCount 
+ * *Тип*: Cardinal
+ * *Описание*: Количество описателей плагина.   
+!Descriptors 
+ * *Тип*: Array of T[PluginDescriptor]
+ * *Описание*: Описатели плагина.   
+==Замечания==
+Для тех, кто не знаком с Delphi - прием Array [0..0] of type - это метод записи массива с неопределенным количеством элементов внутри. Всегда должен идти последним в структуре.
+
+Описывает конекретный плагин.

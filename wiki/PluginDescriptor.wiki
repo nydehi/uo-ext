@@ -1,0 +1,27 @@
+#sidebar TableOfContents
+*TPluginDescriptor* - Describes some plugin property.
+----
+
+*TPluginDescriptor* - Описывает свойство плагина. 
+
+==Синтаксис==
+{{{
+  TPluginDescriptor=packed record
+    Descriptor: Cardinal;
+    Value: Cardinal;
+  end;
+}}}
+==Параметры==
+Descriptor 
+ * *Тип*: Cardinal
+ * *Описание*: Описатель   
+Value 
+ * *Тип*: Cardinal
+ * *Описание*: Значение   
+==Замечания==
+Список известных описателей:
+|| Symbollic descriptor || descriptor value || Value type || Description ||
+|| PD_NAME || 0 || PAnsiChar || Название плагина. Значение указывает на символьную, нуль-терминированную строку в кодировке ANSI ||
+|| PD_UOEXTPROTO_PACKETAMOUNT || 1 || Cardinal || Количество подзаголовком в протоколе UOExt, необходимое данному плагину. Не может быть больше 255 ||
+
+Содержит описание определенного свойства плагина из приведенных в списке.
