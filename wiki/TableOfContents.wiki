@@ -23,7 +23,7 @@
      * [UOExtProtocolRegisterHandler]
      * [UOExtProtocolUnRegisterHandler]
      * [UOExtProtocolSendPacket]
-   * GUI
+   * [GUI]
      * [GUISetLog]
      * [GUIStartProcess]
      * [GUIUpdateProcess]
