@@ -1,0 +1,44 @@
+#sidebar TableOfContents
+*APIFunc* - Describes API function.
+----
+
+*APIFunc* - Описатель функции API. 
+
+==Синтаксис==
+{{{
+  TAPIFunc = packed record
+    FuncType: Cardinal;
+    Func: Pointer;
+  End;
+}}}
+==Параметры==
+!FuncType 
+ * *Тип*: Cardinal
+ * *Описание*: Тип экспортируемой API функции   
+!Func
+ * *Тип*: Pointer
+ * *Описание*: Ссылка на экспортируемую функцию   
+==Замечания==
+Таблица экспортируемых функций:
+|| Название константы API || Значение константы || ссылка на соответствующую ей функцию ||
+|| PF_REGISTERPACKETHANDLER || 1 || [RegisterPackethandler] ||
+|| PF_UNREGISTERPACKETHANDLER || 2 || [UnRegisterPackethandler] ||
+|| PF_REGISTERPACKETTYPE || 3 || [RegisterPacketType] ||
+|| PF_SENDPACKET || 4 || [SendPacket] ||
+|| PF_GETNEWSERIAL || 5 || [GetNewSerial] ||
+|| PF_FREESERIAL || 6 || [FreeSerial] ||
+|| PF_GETSERVERSERIAL || 7 || [GetServerSerial] ||
+|| PF_GETCLIENTSERIAL || 8 || [GetClientSerial] ||
+|| PF_REGISTERSYNCEVENTHANDLER || 9 || [RegisterSyncEventHandler] ||
+|| PF_ASKSYNCEVENT || 10 || [AskSyncEvent] ||
+|| PF_ZLIBCOMPRESS2 || 11 || [zLibCompress2] ||
+|| PF_ZLIBDECOMPRESS || 12 || [zLibDecompress] ||
+|| PF_AFTERPACKETCALLBACK || 13 || [AfterPacketCallback] ||
+|| PF_UOEXTREGISTERPACKETHANDLER || 14 || [UOExtRegisterPacketHandler] ||
+|| PF_UOEXTUNREGISTERPACKETHANDLER || 15 || [UOExtUnRegisterPacketHandler] ||
+|| PF_UOEXTSENDPACKET || 16 || [UOExtSendPacket] ||
+|| PF_GUISETLOG || 17 || [GUISetLog] ||
+|| PF_GUISTARTPROCESS || 18 || [GUIStartProcess] ||
+|| PF_GUIUPDATEPROCESS || 19 || [GUIUpdateProcess] ||
+
+Содержит константное имя и ссылку на начало функции.

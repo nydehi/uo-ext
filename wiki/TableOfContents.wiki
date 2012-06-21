@@ -43,4 +43,7 @@
       * Initialize
         * [DllPlugins]
         * [PluginInfo]
-        * [PluginDescriptor]               
+        * [PluginDescriptor]
+        * [API APIStruct]
+        * [APIFunc]
+        * [ProxyEndEvent PE_ProxyEndEvent]                                       

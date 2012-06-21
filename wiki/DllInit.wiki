@@ -1,15 +1,15 @@
 #sidebar TableOfContents
-*AskSyncEvent* - Ask UOExt to run sync event handler
+*DllInit* - Initialize plugins library.
 ----
 
-*AskSyncEvent* - Попросить UOExt запустить обработчик события синхронизации
+*DllInit* - Инииализирует бибилиотеку плагинов.
 
 ==Синтаксис==
 {{{
 function DllInit: PDllPlugins; stdcall;
 }}}
 ==Параметры==
-!PDllPlugins
+PDllPlugins
  * *Тип*: P[DllPlugins]
  * *Описание*: Ссылка на список плагинов, находящийся в библиотеке
 ==Замечания==
@@ -17,6 +17,3 @@ function DllInit: PDllPlugins; stdcall;
 Подробнее по процессе инициализации плагинов можно прочесть в инструкции по [PluginInit инициализации плагинов].
 ==Требования==
 Функция должна экспортироваться из библиотеки плагинов.
-
-
-
