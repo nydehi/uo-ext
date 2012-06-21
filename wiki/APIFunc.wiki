@@ -21,8 +21,8 @@
 ==Замечания==
 Таблица экспортируемых функций:
 || Название константы API || Значение константы || ссылка на соответствующую ей функцию ||
-|| PF_REGISTERPACKETHANDLER || 1 || [RegisterPackethandler] ||
-|| PF_UNREGISTERPACKETHANDLER || 2 || [UnRegisterPackethandler] ||
+|| PF_REGISTERPACKETHANDLER || 1 || [RegisterPacketHandler] ||
+|| PF_UNREGISTERPACKETHANDLER || 2 || [UnRegisterPacketHandler] ||
 || PF_REGISTERPACKETTYPE || 3 || [RegisterPacketType] ||
 || PF_SENDPACKET || 4 || [SendPacket] ||
 || PF_GETNEWSERIAL || 5 || [GetNewSerial] ||
