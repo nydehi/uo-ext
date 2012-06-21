@@ -1,32 +1,32 @@
- * [Installation]
- * [WorkScheme Work scheme]
- * [PluginInit Plug-in init procedure]
- * [PluginsAPI Plug-ins API]
-   * Packets
-     * [RegisterPacketHandler]
-     * [UnRegisterPacketHandler]
-     * [RegisterPacketType]
-     * [SendPacket]
-     * [AfterPacketCallback]
-   * Serials
-     * [GetNewSerial]
-     * [FreeSerial]
-     * [GetServerSerial]
-     * [GetClientSerial]
-   * Events
-     * [RegisterSyncEventHandler]
-     * [AskSyncEvent]
-   * zLib
-     * [zLibCompress2]
-     * [zLibDecompress]
-   * UOExt Protocol
-     * [UOExtProtocolRegisterHandler]
-     * [UOExtProtocolUnRegisterHandler]
-     * [UOExtProtocolSendPacket]
-   * [GUI]
-     * [GUISetLog]
-     * [GUIStartProcess]
-     * [GUIUpdateProcess]
+  * [Installation]
+  * [WorkScheme Work scheme]
+  * [PluginInit Plug-in init procedure]
+  * [PluginsAPI Plug-ins API]
+    * Packets
+      * [RegisterPacketHandler]
+      * [UnRegisterPacketHandler]
+      * [RegisterPacketType]
+      * [SendPacket]
+      * [AfterPacketCallback]
+    * Serials
+      * [GetNewSerial]
+      * [FreeSerial]
+      * [GetServerSerial]
+      * [GetClientSerial]
+    * Events
+      * [RegisterSyncEventHandler]
+      * [AskSyncEvent]
+    * zLib
+      * [zLibCompress2]
+      * [zLibDecompress]
+    * UOExt Protocol
+      * [UOExtProtocolRegisterHandler]
+      * [UOExtProtocolUnRegisterHandler]
+      * [UOExtProtocolSendPacket]
+    * [GUI]
+      * [GUISetLog]
+      * [GUIStartProcess]
+      * [GUIUpdateProcess]
   * Plugins Export Procedures
     * Initialize
       * [DllInit]
