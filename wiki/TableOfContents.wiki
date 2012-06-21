@@ -40,7 +40,7 @@
     * UOExt Protocol
       * [UOExtProtocolHandler]
   * Plugins Structures
-      * [!Initialize]
+      * Initialize
         * [DllPlugins]
         * [PluginInfo]
         * [PluginDescriptor]               
