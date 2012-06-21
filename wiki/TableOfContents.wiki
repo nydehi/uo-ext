@@ -44,6 +44,6 @@
         * [DllPlugins]
         * [PluginInfo]
         * [PluginDescriptor]
-        * [API APIStruct]
+        * [APIStruct API]
         * [APIFunc]
         * [ProxyEndEvent PE_ProxyEndEvent]                                       
