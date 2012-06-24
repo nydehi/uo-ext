@@ -450,13 +450,7 @@ begin
   If FIncommingBuffer.Amount > 0 Then repeat
     If not FCompression Then Begin
       PacketLength:=ProtocolDescriptor.GetLength(FIncommingBuffer.Base, FIncommingBuffer.Amount);
-      If PacketLength=0 Then Begin
-        {$IFDEF Debug}
-        WriteLn(FDebugPresent, 'Uncompressed protocol: Some data lost in process. Header: ', IntToHex(PByte(FIncommingBuffer.Base)^, 2), 'Buffer dump: ');
-        WriteDump(FIncommingBuffer.Base, FIncommingBuffer.Amount);
-        {$ENDIF}
-        Break;
-      end;
+      If PacketLength=0 Then Break; // Not all data arrived. Wait for next loop.
       If PacketLength > FIncommingBuffer.Amount Then Begin
         {$IFDEF Debug}
         WriteLn(FDebugPresent, 'UO packet length more than current data buffer. Waiting next frame.');

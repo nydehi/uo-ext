@@ -23,7 +23,8 @@ uses
   APIHooker in 'UOExt\APIHooker.pas',
   GUI in 'UOExt\GUI.pas',
   Updater in 'UOExt\Updater.pas',
-  md5 in 'Common\md5.pas';
+  md5 in 'Common\md5.pas',
+  PluginsExceptionHandling in 'UOExt\PluginsExceptionHandling.pas';
 
 exports
   CoreInitialization.CoreInitialize

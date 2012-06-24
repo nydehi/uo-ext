@@ -80,7 +80,6 @@ begin
   if not Assigned(FUpdateProcess) then Exit;
 
   FFree := GetProcAddress(Flib, 'Free');
-  if not Assigned(FFree) then Exit;
 
   Init;
   Result := True;
@@ -101,10 +100,11 @@ end;
 
 Destructor TGUI.Destroy;
 type
-  TFree = procedure; stdcall;
+  TFree = function: Boolean; stdcall;
+  
 begin
   if FLib <> 0 then Begin
-    TFree(FFree)();
+    If Assigned(FFree) Then If TFree(FFree)() Then FreeLibrary(FLib);  
   End;
   Inherited;
 end;
