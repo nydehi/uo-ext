@@ -8,7 +8,7 @@
 {{{
 function PacketHandler(
   Data: Pointer;
-  var Size:Cardinal;
+  var Size: Cardinal;
   var Send: Boolean;
   IsFromServerToClient: Boolean
 ):Boolean; stdcall;
@@ -18,7 +18,7 @@ Data
  * *Тип*: Pointer
  * *Описание*: Указатель на первый байт пакета (заголовок пакета).
 Size
- * *Тип*: Pointer
+ * *Тип*: Cardinal
  * *Описание*: Размер пакета.
 Send
  * *Тип*: Boolean

@@ -1,9 +1,9 @@
 #sidebar TableOfContents
-*!UnRegisterPacketHandler* - Registers a handler for packet
+*!UnRegisterPacketHandler* - Unregisters a handler for packet
 
 ----
 
-*!UnRegisterPacketHandler* - Регистрирует обработчик пакета.
+*!UnRegisterPacketHandler* - Разрегистрирует обработчик пакета.
 
 ==Синтаксис==
 {{{
@@ -26,4 +26,4 @@ Handler
 ==Требования==
 Вызов процедуры необходимо делать в потоке прокси-сервера
 ==Пример==
-Пример использования *!UnRegisterPacketHandler* можно найти в PacketsCodeExample1
+Пример использования *!UnRegisterPacketHandler* можно найти в [PacketsCodeExample1]

@@ -1,6 +1,9 @@
   * [Installation]
   * [WorkScheme Work scheme]
   * [PluginInit Plug-in init procedure]
+  * [UOExtUpdate Update sequence and UOExt protocol]
+    * [UOExtUpdateServer Update server]
+    * [UOExtProtocol UOExt protocol]        
   * [PluginsAPI Plug-ins API]
     * Packets
       * [RegisterPacketHandler]
@@ -8,7 +11,7 @@
       * [RegisterPacketType]
       * [SendPacket]
       * [AfterPacketCallback]
-    * Serials
+    * Serials (Not working. Maybe reimplemented later)
       * [GetNewSerial]
       * [FreeSerial]
       * [GetServerSerial]
@@ -19,7 +22,7 @@
     * zLib
       * [zLibCompress2]
       * [zLibDecompress]
-    * UOExt Protocol
+    * [UOExtProtocol UOExt Protocol]
       * [UOExtProtocolRegisterHandler]
       * [UOExtProtocolUnRegisterHandler]
       * [UOExtProtocolSendPacket]
