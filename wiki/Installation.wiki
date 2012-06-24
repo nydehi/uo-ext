@@ -1,3 +1,4 @@
+#sidebar TableOfContents
 This document describes howto install and use UOExt in your shard
 
 ===Client===
