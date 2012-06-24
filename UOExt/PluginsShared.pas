@@ -31,7 +31,7 @@ const
   PF_GUIUPDATEPROCESS = 19;
 
 
-  // Plugin secriptors
+  // Plugin dsecriptors
   PD_NAME = 0;
   PD_UOEXTPROTO_PACKETAMOUNT = 1;
   (***
@@ -41,13 +41,18 @@ const
 
 type
 
+  TPluginProcedure = function (APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; stdcall;
+  {***
+    Defines in dll. One procedure inits one plugin.
+  ***}
+
   TPluginDescriptor=packed record
     Descriptor: Cardinal;
     Value: Cardinal;
   end;
 
   TPluginInfo=packed record
-    InitProcedure: Pointer;
+    InitProcedure: TPluginProcedure;
     DescriptorsCount: Cardinal;
     Descriptors: Array [0..0] of TPluginDescriptor;
   end;
@@ -67,11 +72,6 @@ type
   {***
     Procedure in Dll with name 'DllInitDone', that runs after DllInit to free data from Plugins pointer.
     May not present in Dll, if Plugin not need to free memory from Plugins pointer.
-  ***}
-
-  TPluginProcedure = function (APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; stdcall;
-  {***
-    Defines in dll. One procedure inits one plugin.
   ***}
 
   TPacketHandler = function (Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean; stdcall;
