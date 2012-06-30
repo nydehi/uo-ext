@@ -25,6 +25,8 @@ function SwapBytes4(Value: Cardinal): Cardinal;
 
 function GetExeVersion(var Major, Minor, Build: Cardinal): Boolean;
 
+function Split2(const Splitter:AnsiString; const ToSplit: AnsiString; var Right: AnsiString):AnsiString;
+
 implementation
 
 function IntToStr(Value: Int64): AnsiString;
@@ -144,5 +146,26 @@ Begin
   Result := True;
 End;
 
+function Split2(const Splitter:AnsiString; const ToSplit: AnsiString; var Right: AnsiString):AnsiString;
+var
+  i, j: Integer;
+  Match: Boolean;
+Begin
+  for i := 1 to Length(ToSplit) - Length(Splitter) + 1 do if Splitter[1] = ToSplit[i] then Begin
+    Match := True;
+    for j := 1 to Length(Splitter) do if Splitter[j] <> ToSplit[i - 1 + j] then Begin
+      Match := False;
+      Break;
+    End;
+    If Match Then Begin
+      SetLength(Result, i - 1);
+      CopyMemory(@Result[1], @ToSplit[1], i - 1);
+      SetLength(Right, Length(ToSplit) - i - Length(Splitter) + 1);
+      CopyMemory(@Right[1], @ToSplit[i + Length(Splitter)], Length(Right));
+      Exit;
+    End;
+  End;
+  Result := '';
+End;
 
 end.

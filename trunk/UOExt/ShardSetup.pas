@@ -10,6 +10,8 @@ type
 var
   UpdateIP: Cardinal = 0;
   UpdatePort: Word = 0;
+  IP: Cardinal = 0;
+  Port: Word = 0;
   PersistentConnect: Boolean = False;
   UsingUpdateServer: Boolean = False;
 

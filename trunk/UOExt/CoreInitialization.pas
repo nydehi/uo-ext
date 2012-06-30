@@ -82,6 +82,24 @@ Begin
   Halt(1);
 End;
 
+procedure GetIPOverride;
+var
+  Host, sPort: AnsiString;
+  rHost: PHostEnt;
+  WSAGLE: Integer;
+  WSAData: TWSAData;
+Begin
+  if ParamCount >= 1 then Begin
+    WSAStartup($101, WSAData);
+    Host := Split2(':', AnsiString(ParamStr(1)), sPort);
+    Host := Host + #0;
+    rHost := gethostbyname(@Host[1]);
+    ShardSetup.Port := htons(StrToInt(sPort));
+    ShardSetup.IP := PCardinal(rHost.h_addr_list)^;
+    WSACleanup;
+  End;
+End;
+
 function InProcess:Byte;
 var
   Updater: TUpdater;
@@ -92,6 +110,9 @@ Begin
   Result := 2;
 
   ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
+
+// Check for IP override
+  GetIPOverride;
 
 // Create console if needed
   CreateConsole;

@@ -181,7 +181,12 @@ var
   bNoDelay: BOOL;
 begin
   Result := False;
-  If not PreConnectIPDiscover.GetConnInfo(IP, Port) Then Exit;
+  if ShardSetup.Port = 0 then Begin
+    If not PreConnectIPDiscover.GetConnInfo(IP, Port) Then Exit;
+  End Else Begin
+    IP := ShardSetup.IP;
+    Port := ShardSetup.Port;
+  End;
   ShardSetup.UpdateIP := IP;
   WSAStartup($101, WSAData);
 
@@ -190,8 +195,8 @@ begin
   ZeroMemory(@SockAddr, SizeOf(SockAddr));
   SockAddr.sin_family:=AF_INET;
 
-  SockAddr.sin_port:=htons(Port);
-  SockAddr.sin_addr.S_addr:=htonl(IP);
+  SockAddr.sin_port:=Port;
+  SockAddr.sin_addr.S_addr:=IP;
 
   If WinSock.connect(FSocket, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Begin
     closesocket(FSocket);
