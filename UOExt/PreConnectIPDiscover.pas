@@ -240,6 +240,8 @@ Begin
   Until not Process32NextA(hSnapshot, pe);
   CloseHandle(hSnapshot);
   If not Result Then Result := GetLoginCfgConnInfo(IP, Port);
+  IP := htonl(IP);
+  Port := htons(Port);
 End;
 
 end.
