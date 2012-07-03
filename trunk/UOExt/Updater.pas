@@ -46,7 +46,7 @@ type
     // Network
     function UOExtGetPacket(var Size: Cardinal): Pointer;
 
-    function UOExtConnect: Boolean;
+    function UOExtConnect(bReverse: Boolean): Boolean;
     function UOExtGetConfig: Boolean;
     function UOExtHandshake: Boolean;
     function UOExtGetDllList: Boolean;
@@ -147,7 +147,7 @@ End;
 function TUpdater.Connect:Boolean;
 begin
   Result := False;
-  If not UOExtConnect then Exit;
+  If not UOExtConnect(False) then if not UOExtConnect(True) Then Exit;
   if not UOExtGetConfig then Exit;
   if not UOExtHandshake then Exit;
   Result := True;
@@ -170,7 +170,7 @@ Begin
   Result := True;
 End;
 
-function TUpdater.UOExtConnect: Boolean;
+function TUpdater.UOExtConnect(bReverse: Boolean): Boolean;
 var
   IP: Cardinal;
   Port: Word;
@@ -188,6 +188,7 @@ begin
     Port := ShardSetup.Port;
   End;
   ShardSetup.UpdateIP := IP;
+  if bReverse then Port := NOT Port;
   WSAStartup($101, WSAData);
 
   FSocket := WinSock.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
