@@ -86,7 +86,6 @@ procedure GetIPOverride;
 var
   Host, sPort: AnsiString;
   rHost: PHostEnt;
-  WSAGLE: Integer;
   WSAData: TWSAData;
 Begin
   if ParamCount >= 1 then Begin

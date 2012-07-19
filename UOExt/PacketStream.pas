@@ -71,6 +71,10 @@ type
     function DetectEncryption:Boolean;
 
     procedure SetCryptObject(Value: TNoEncryption);
+
+    {$IFDEF Debug}
+    procedure LogPacket(Data: Pointer; Length: Cardinal);
+    {$ENDIF}
   public
     {$IFDEF Debug}
     property DebugPresend:AnsiString read FDebugPresent write FDebugPresent;
@@ -99,7 +103,8 @@ type
     procedure Flush; virtual;
   end;
 
-  procedure WriteDump(Point:Pointer; Len:Cardinal);
+  procedure WriteDump(Point:Pointer; Len:Cardinal; var F: Text); overload;
+  procedure WriteDump(Point:Pointer; Len:Cardinal); overload;
 
 implementation
 
@@ -110,7 +115,7 @@ var
 
 // Local procedures
 
-procedure WriteDump(Point:Pointer; Len:Cardinal);
+procedure WriteDump(Point:Pointer; Len:Cardinal; var F: Text); overload;
 var
   cLine:AnsiString;
   cBuffer: Array [0..16] of AnsiChar;
@@ -125,7 +130,7 @@ begin
     repeat
       if cPos mod 16 = 0 Then Begin
         if cPos<>0 Then Begin
-          WriteLn(cLine, '| ', cBuffer);
+          WriteLn(F, cLine, '| ', cBuffer);
         End;
         cLine:=IntToStr(cPos);
         if cPos<100000 Then cLine:='0'+cLine;
@@ -146,9 +151,14 @@ begin
 
     For i := 0 to 60 - Length(cLine) do cLine := cLine + ' ';
     If cPos mod 16 > 0 Then For i := cPos mod 16 to 15 do cBuffer[i] := ' ';
-    WriteLn(cLine, '| ', cBuffer);
+    WriteLn(F, cLine, '| ', cBuffer);
   End;
 end;
+
+procedure WriteDump(Point:Pointer; Len:Cardinal); overload;
+Begin
+  WriteDump(Point, Len, Output);
+End;
 
 //  TBuffer
 constructor TBuffer.Create;
@@ -451,6 +461,12 @@ begin
     If not FCompression Then Begin
       PacketLength:=ProtocolDescriptor.GetLength(FIncommingBuffer.Base, FIncommingBuffer.Amount);
       If PacketLength=0 Then Break; // Not all data arrived. Wait for next loop.
+      if PacketLength = $FFFFFFFF then Begin
+        {$IFDEF Debug}
+        WriteLn(FDebugPresent, 'Unknown packet in buffer. Packet header: ', PByte(FIncommingBuffer.Base)^, '. Packet logged.');
+        LogPacket(FIncommingBuffer.Base, FIncommingBuffer.Amount);
+        {$ENDIF}
+      End;
       If PacketLength > FIncommingBuffer.Amount Then Begin
         {$IFDEF Debug}
         WriteLn(FDebugPresent, 'UO packet length more than current data buffer. Waiting next frame.');
@@ -468,7 +484,8 @@ begin
         FIncommingBuffer.Shift(SourceLen);
       End Else Begin
         {$IFDEF Debug}
-        WriteLn(FDebugPresent, 'Compressed protocol: Can''t decompress data in buffer. Size := ', SourceLen);
+        WriteLn(FDebugPresent, 'Compressed protocol: Can''t decompress data in buffer. Size := ', SourceLen, '. Packet logged.');
+        LogPacket(FIncommingBuffer.Base, FIncommingBuffer.Amount);
         {$ENDIF}
         Break;
       End;
@@ -512,6 +529,20 @@ Begin
     FCryptObject := Value;
   End;
 End;
+
+{$IFDEF Debug}
+procedure TPacketStream.LogPacket(Data: Pointer; Length: Cardinal);
+var
+  F: Text;
+begin
+  {$I-}
+  AssignFile(F, ExtractFilePath(ParamStr(0)) + 'UOExt.packetlog.log');
+  Reset(F);
+  WriteDump(Data, Length, F);
+  CloseFile(F);
+  {$I+}
+end;
+{$ENDIF}
 
 initialization
   TV_Timeout.tv_usec:=100;
