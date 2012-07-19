@@ -418,6 +418,7 @@ Begin
   If Length=0 Then Exit;
   If FPackets[PByte(Data)^].Length<1048576 Then Begin
     Result:=FPackets[PByte(Data)^].Length;
+    if Result = 0 then Result := $FFFFFFFF;
   End Else Begin
     Result:=FPackets[PByte(Data)^].Handler(Data, Length);
   End;

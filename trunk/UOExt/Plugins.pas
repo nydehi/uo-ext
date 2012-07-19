@@ -24,6 +24,7 @@ type
     TUOExtProtocolHandlerArray = array [0..255] of TUOExtPacketHandlerInfo;
     TPluginInfo = record
       Handle: Byte;
+      Name: PAnsiChar;
       InitProc: TPluginProcedure;
       ProtocolHandlers: TProtocolHandlerArray;
       SyncEventCount: Integer;
@@ -96,6 +97,7 @@ type
     function UOExtPacket(UOExtHeader:Byte; Data: Pointer; Length: Cardinal): Boolean;
     procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
     procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
+
 
     destructor Destory;
   end;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
@@ -18,7 +18,7 @@ namespace UOExt
         private static bool m_externalServerInRunUO = false;
 
         /// <summary>
-        /// If code inside RunUO - this is encapsulation for UOExt protocol. Dosn't used in Standalone.
+        /// If code inside RunUO - this is encapsulation for UOExt protocol.
         /// </summary>
         private static byte m_encapsulationHeader = 0xFF;
 
@@ -55,12 +55,12 @@ namespace UOExt
         private static string m_UOExtPath = @"UOExt\UOExt.dll";
 
         /// <summary>
-        /// If code is Standalone - this is IP for server to Listen. If code insude RunUO and ExternalServerInRunUO == true, than this is IP to route UOExt during support detection phase.
+        /// If code is Standalone - this is IP for server to Listen. If code inside RunUO and ExternalServerInRunUO == true, than this is IP to route UOExt during support detection phase.
         /// </summary>
         private static string m_ip = "127.0.0.1";
 
         /// <summary>
-        /// If code is Standalone - this is port for server to Listen. If code insude RunUO and ExternalServerInRunUO == true, than this is port to route UOExt during support detection phase.
+        /// If code is Standalone - this is port for server to Listen. If code inside RunUO and ExternalServerInRunUO == true, than this is port to route UOExt during support detection phase.
         /// </summary>
         private static int m_port = 2594;
 

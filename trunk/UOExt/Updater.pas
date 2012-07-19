@@ -40,6 +40,7 @@ type
     FUOExtGUIMD5: TMD5Digest;
     FNeedUpdateUOExt: Boolean;
     FNeedUpdateUOExtGUI: Boolean;
+    FReverse: Boolean;
 
     procedure ReloadUOExt;
 
@@ -48,6 +49,7 @@ type
 
     function UOExtConnect(bReverse: Boolean): Boolean;
     function UOExtGetConfig: Boolean;
+    function UOExtGetReverseConfig: Boolean;
     function UOExtHandshake: Boolean;
     function UOExtGetDllList: Boolean;
     function UOExtGetPluginsLoadingList: Boolean;
@@ -148,7 +150,11 @@ function TUpdater.Connect:Boolean;
 begin
   Result := False;
   If not UOExtConnect(False) then if not UOExtConnect(True) Then Exit;
-  if not UOExtGetConfig then Exit;
+  if not FReverse Then Begin
+    If not UOExtGetConfig then Exit;
+  End Else Begin
+    If Not UOExtGetReverseConfig then Exit;
+  End;
   if not UOExtHandshake then Exit;
   Result := True;
 end;
@@ -207,11 +213,19 @@ begin
   setsockopt(FSocket, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay));
 
   ZeroMemory(@bufPacket[0], 21);
-  bufPacket[0] := $EF;
-  If send(FSocket, bufPacket, 21, 0) <> 21 Then Begin
-    closesocket(FSocket);
-    Exit;
+  if bReverse then Begin
+    bufPacket[0] := $EF;
+    If send(FSocket, bufPacket, 21, 0) <> 21 Then Begin
+      closesocket(FSocket);
+      Exit;
+    End;
+  End Else Begin
+    ShardSetup.UsingUpdateServer := True;
+
+    bufPacket[1] := 254;
+    Self.UOExtPacket(@bufPacket[0], 2);
   End;
+  FReverse := bReverse;
   Result := True;
 end;
 
@@ -270,10 +284,15 @@ begin
     WORD Size
     BYTE Flags 0x01 = Encrypted
     BYTE UOExtHeader
+    [
+    DWORD IP
+    WORD Port
+    ]
   }
 
   ShardSetup.Encrypted := bufPacket[3] AND $01 = $01;
   ShardSetup.InternalProtocolHeader := bufPacket[4];
+  ShardSetup.PersistentConnect := bufPacket[3] AND $04 = $04;
   if(bufPacket[3] AND $02 = $02) Then Begin
     if PCardinal(@bufPacket[5])^ <> 0 then ShardSetup.UpdateIP := PCardinal(@bufPacket[5])^;
     ShardSetup.UpdatePort := htons(PCardinal(@bufPacket[9])^);
@@ -284,6 +303,23 @@ begin
     Result := True;
   End;
 end;
+
+function TUpdater.UOExtGetReverseConfig: Boolean;
+var
+  Packet: Pointer;
+  Size: Cardinal;
+Begin
+  Result := False;
+  Packet := UOExtGetPacket(Size);
+  if Packet = nil then Exit;
+  if PByte(Packet)^ <> $FE then Begin
+    FreeMemory(Packet);
+    Exit;
+  End;
+  ShardSetup.Encrypted := False;
+  ShardSetup.InternalProtocolHeader := PByte(Cardinal(Packet) + 2)^;
+  ShardSetup.PersistentConnect := PByte(Cardinal(Packet) + 1)^ AND $04 = $04;
+End;
 
 procedure TUpdater.UOExtDisconnect;
 begin

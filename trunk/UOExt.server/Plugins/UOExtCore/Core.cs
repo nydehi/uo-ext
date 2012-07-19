@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
@@ -17,6 +17,7 @@ namespace UOExt.Plugins.UOExtCore
         private LibraryList m_libraryList;
         private PluginsList m_pluginsList;
         private InitializationComplete m_initComplete;
+        private EFAnswer m_efpacket;
 
 
         public override void UOExtInitialize(PacketHandler hndlr)
@@ -24,6 +25,7 @@ namespace UOExt.Plugins.UOExtCore
             m_libraryList = new LibraryList();
             m_pluginsList = new PluginsList();
             m_initComplete = new InitializationComplete();
+            m_efpacket = null;
 
             hndlr.RegisterPacketHandler(0x00, 0, new OnPacketRecive(UOExtPacket));
 
@@ -106,6 +108,13 @@ namespace UOExt.Plugins.UOExtCore
                         }
                     }
                     peer.Send(m_initComplete);
+                    break;
+                case (0xFE):
+                    if(m_efpacket == null)
+                    {
+                        m_efpacket = new EFAnswer();
+                    }
+                    peer.Send(m_efpacket);
                     break;
             }
         }
@@ -294,6 +303,9 @@ namespace UOExt.Plugins.UOExtCore
         [DllImport("kernel32.dll")]
         internal static extern bool FreeLibrary(IntPtr hModule);
 
+        [DllImport("kernel32.dll")]
+        internal static extern uint GetLastError();
+
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         internal delegate IntPtr DllInit();
 
@@ -329,8 +341,14 @@ namespace UOExt.Plugins.UOExtCore
             : this(path)
         {
             Id = dll_id;
-            Console.WriteLine("UOExt: Loading {0}", Path.GetFileNameWithoutExtension(path));
+            Console.WriteLine("UOExt: Loading {0} ({1})", Path.GetFileNameWithoutExtension(path), path);
             IntPtr hModule = LoadLibrary(path);
+            if (hModule == IntPtr.Zero){
+                if (GetLastError() == 193)
+                {
+                    Console.WriteLine("You are trying to load 32 bit plg in 64 bit env. UOExt can't work here right now.");
+                }
+            }
             IntPtr ptrDllInit = GetProcAddress(hModule, "DllInit");
             IntPtr ptrDllInitDone = GetProcAddress(hModule, "DllInitDone");
 
@@ -340,6 +358,7 @@ namespace UOExt.Plugins.UOExtCore
             IntPtr plgs = plgDllInit();
             int plgs_count = Marshal.ReadInt32(plgs);
             Plugins = new Plugin[plgs_count];
+Console.WriteLine("6");
             for (int i = 0; i < plgs_count; i++)
             {
                 IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 4));

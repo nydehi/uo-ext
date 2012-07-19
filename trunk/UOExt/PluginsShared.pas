@@ -34,10 +34,31 @@ const
   // Plugin dsecriptors
   PD_NAME = 0;
   PD_UOEXTPROTO_PACKETAMOUNT = 1;
+  PD_UOEXTPROTO_PERSISTENT = 2; // Plugin need persistent connection to server
+  PD_VERSION = 3;
+  PD_ERRORURL = 4; // URL to send error reports. I.E.: www.warstone.ru/plugins?name={$Name}&ver={$Ver}.
+  (**
+    Avail constants:
+    {$Name} - Plugin name
+    {$Ver} - Plugin version
+
+    UOExt will make POST request with file.
+  **)
+  PD_APIEXPORT = 5; // Reference to PPluginAPIInfo. Expots API from plugin, if any.
+
+
   (***
     Amount of packet headers that Plugin will need to comunicate with server
     If not present, than 0.
   ***)
+  UF_INPROXY = 1; // API can be used in proxy thread
+  UF_INCLIENT = 2; // API can be used in client thread
+  UF_THREADSAFE = 4; // API can be used any thread
+  UF_ALLTHREADS = 7;
+  UF_MAKETRAMPOLINECHECK = 8; // UOExt MUST make trampoline procedure, that check UF flags
+  (**
+    Used Flag constants
+  **)
 
 type
 
@@ -63,6 +84,19 @@ type
     Plugins: Array [0..0] of PPluginInfo;
   end;
   PDllPlugins=^TDllPlugins;
+
+  TPluginAPIEntry=packed record
+    AName: PAnsiChar;
+    AnAPI: Pointer;
+    Flags: Cardinal;
+  end;
+  PPluginAPIEntry = ^TPluginAPIEntry;
+
+  TPluginAPIInfo=packed record
+    Count: Cardinal;
+    API: Array [0..0] of PPluginAPIEntry;
+  end;
+  PPluginAPIInfo = ^TPluginAPIInfo;
 
   TDllInit = function: PDllPlugins; stdcall;
   {***
@@ -154,6 +188,11 @@ type
   TGUISetLog = function(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
   TGUIStartProcess = function(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; stdcall;
   TGUIUpdateProcess = procedure(ProcessHandle, Min, Max, Current: Cardinal); stdcall;
+
+  (***
+    Plugins API
+  *)
+  TAPISearch = function(APluginName: PAnsiChar; AnAPIName: PAnsiChar): Pointer;
 implementation
 
 end.
