@@ -4,6 +4,7 @@ interface
 
 uses Windows, Common;
 
+{
 function RunUOReg: Boolean; stdcall;
 function RunUOA(AExecutablePath: PAnsiChar): Boolean; stdcall;
 function RunUOW(AExecutablePath: PWideChar): Boolean; stdcall;
@@ -16,17 +17,21 @@ function InjectDllW(ADllPath: PWideChar; AInitProcedure: PAnsiChar): Boolean; st
 function InjectThisDllA: Boolean; stdcall;
 function InjectThisDllW: Boolean; stdcall;
 function ResumeLoading: Boolean; stdcall;
+}
 
 function Infect32(Wnd: HWnd; Instance: HInst; CmdLine: PAnsiChar; nCmdShow: Integer): Bool; stdcall;
 
 function InfectA(AExecutablePath: PAnsiChar):Boolean; stdcall;
 function InfectW(AExecutablePath: PWideChar):Boolean; stdcall;
 
+{
 Function InjectDllAInvoke(ASuspendedProcess:THandle; ADllPath, AInitProcedure: PAnsiChar): THandle;
 Function InjectDllWInvoke(ASuspendedProcess:THandle; ADllPath: PWideChar; AInitProcedure: PAnsiChar): THandle;
+}
 
 implementation
 
+(*
 {$REGION 'Injection'}
 type
   PRunProcessParams=^RRunProcessParams;
@@ -487,7 +492,7 @@ Begin
 End;
 
 {$ENDREGION}
-
+*)
 
 {$REGION 'Infection'}
 

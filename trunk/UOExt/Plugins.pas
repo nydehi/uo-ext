@@ -36,6 +36,8 @@ type
       UOExtPacketAmount: Byte;
       OnUOExtPacketSended: TUOExtPacketSendedCallback;
       OnUOExtPacketSendedParam: Pointer;
+
+      ExportedAPI: PPluginAPIInfo;
     end;
   strict private var
     FDlls: Array of TDllInfo;
@@ -98,6 +100,7 @@ type
     procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
     procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
 
+    function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
 
     destructor Destory;
   end;
@@ -108,7 +111,7 @@ uses ClientThread, ProtocolDescription, Serials, zLib, HookLogic
 , ShardSetup, PreConnectIPDiscover, GUI;
 
 const
-  LastAPIFuncNum = 18;
+  LastAPIFuncNum = 19;
 type
   TRealAPI=packed record
     APICount: Cardinal;
@@ -118,6 +121,32 @@ type
 var
   API: TRealAPI;
 
+// Local functions
+function DuplicatePluginsAPIStruct(AStruct: PPluginAPIInfo): PPluginAPIInfo;
+var
+  Size, i: Cardinal;
+  pWriter: Pointer;
+Begin
+  Size := 0;
+  Size := Size + SizeOf(TPluginAPIInfo) + (AStruct^.Count - 1) * (SizeOf(Pointer) + SizeOf(TPluginAPIEntry));
+  If AStruct^.Count > 0 Then for i := 0 to AStruct^.Count - 1 do Size := Size + Length(AStruct^.API[i]^.AName) + 1;
+  Result := GetMemory(Size);
+  CopyMemory(Result, AStruct, SizeOf(TPluginAPIInfo) + (AStruct^.Count - 1) * SizeOf(Pointer));
+  pWriter := Pointer(Cardinal(Result) + SizeOf(TPluginAPIInfo) + (AStruct^.Count - 1) * SizeOf(Pointer));
+  If AStruct^.Count > 0 Then for i := 0 to AStruct^.Count - 1 do Begin
+    Result^.API[i] := pWriter;
+    CopyMemory(pWriter, AStruct.API[i], SizeOf(TPluginAPIEntry));
+    pWriter := Pointer(Cardinal(pWriter) + SizeOf(TPluginAPIEntry));
+    Result^.API[i].AName := pWriter;
+    CopyMemory(pWriter, AStruct^.API[i]^.AName, Length(AStruct^.API[i]^.AName) + 1);
+    pWriter := Pointer(Cardinal(pWriter) + Length(AStruct^.API[i]^.AName) + 1);
+  End;
+End;
+
+procedure DestroyPluginsAPIStruct(AStruct: PPluginAPIInfo);
+Begin
+  FreeMemory(AStruct);
+End;
 // Plugin functions
 
 procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler) stdcall;
@@ -178,6 +207,11 @@ begin
   Result := TPluginSystem.Instance.UOExtPacket(Header, Packet, Length);
 end;
 
+function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; stdcall;
+Begin
+  Result := TPluginSystem.Instance.APISearch(APluginName, AnAPIName, Flags);
+End;
+
 // TPluginSystem
 
 class constructor TPluginSystem.CCreate;
@@ -202,8 +236,11 @@ begin
 end;
 
 destructor TPluginSystem.Destory;
+var
+  i: Integer;
 begin
   SetLength(FDlls, 0);
+  for i := 0 to FPluginsCount - 1 do DestroyPluginsAPIStruct(FPlugins[i].ExportedAPI);
   SetLength(FPlugins, 0);
   if FSocket <> 0 then Begin
     closesocket(FSocket);
@@ -349,6 +386,8 @@ begin
     CurrentPluginDescriptors := FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin];
     If CurrentPluginDescriptors^.DescriptorsCount > 0 Then For j := 0 to CurrentPluginDescriptors^.DescriptorsCount - 1 Do Begin
       if CurrentPluginDescriptors^.Descriptors[j].Descriptor = PD_UOEXTPROTO_PACKETAMOUNT then FPlugins[i].UOExtPacketAmount := CurrentPluginDescriptors^.Descriptors[j].Value;
+      if CurrentPluginDescriptors^.Descriptors[j].Descriptor = PD_APIEXPORT then FPlugins[i].ExportedAPI := DuplicatePluginsAPIStruct(PPluginAPIInfo(CurrentPluginDescriptors^.Descriptors[j].Value));
+
     End;
 
     If TPluginProcedure(FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin].InitProcedure)(PE_INIT, @API) Then Begin
@@ -644,6 +683,23 @@ Begin
   Result := FCurrentUpdater.UOExtPacket(FPlugins[FActivePlugin].UOExtPacketMin + UOExtHeader, Data, Length);
 End;
 
+function TPluginSystem.APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
+var
+  i, j: Cardinal;
+  PlName, APIName: AnsiString;
+begin
+  Result := nil;
+  PlName := AnsiString(APluginName);
+  APIName := AnsiString(AnAPIName);
+  for i := 0 to FPluginsCount - 1 do
+    if AnsiString(FPlugins[i].Name) = PlName then
+      If FPlugins[i].ExportedAPI^.Count > 0 Then for j := 0 to FPlugins[i].ExportedAPI^.Count - 1 do
+        if AnsiString(FPlugins[i].ExportedAPI^.API[j]^.AName) = APIName then Begin
+          Result := FPlugins[i].ExportedAPI^.API[j]^.AnAPI;
+          if Flags <> nil then Flags^ := FPlugins[i].ExportedAPI^.API[j]^.Flags;
+          Exit;
+        End;
+end;
 
 initialization
   API.APICount := LastAPIFuncNum + 1;
@@ -685,4 +741,6 @@ initialization
   API.APIs[17].Func := @GUI.GUIStartProcess;
   API.APIs[18].FuncType := PF_GUIUPDATEPROCESS;
   API.APIs[18].Func := @GUI.GUIUpdateProcess;
+  API.APIs[19].FuncType := PF_APISEARCH;
+  API.APIs[19].Func := @APISearch;
 end.

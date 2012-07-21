@@ -536,7 +536,7 @@ var
   F: Text;
 begin
   {$I-}
-  AssignFile(F, ExtractFilePath(ParamStr(0)) + 'UOExt.packetlog.log');
+  AssignFile(F, String(ExtractFilePath(AnsiString(ParamStr(0)))) + 'UOExt.packetlog.log');
   Reset(F);
   WriteDump(Data, Length, F);
   CloseFile(F);

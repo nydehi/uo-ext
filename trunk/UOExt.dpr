@@ -28,7 +28,7 @@ uses
 
 exports
   CoreInitialization.CoreInitialize
-  , Executable.RunUOReg name 'RunUOReg'
+(*  , Executable.RunUOReg name 'RunUOReg'
   , Executable.RunUOA name 'RunUOA'
   , Executable.RunUOW name 'RunUOW'
   , Executable.StartSuspendedA
@@ -39,6 +39,7 @@ exports
   , Executable.InjectDllW
   , Executable.ResumeLoading
   , Executable.RunUO32
+*)
   , Executable.Infect32
   , Executable.InfectA
   , Executable.InfectW

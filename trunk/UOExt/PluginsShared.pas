@@ -29,14 +29,15 @@ const
   PF_GUISETLOG = 17;
   PF_GUISTARTPROCESS = 18;
   PF_GUIUPDATEPROCESS = 19;
+  PF_APISEARCH = 20;
 
 
   // Plugin dsecriptors
   PD_NAME = 0;
   PD_UOEXTPROTO_PACKETAMOUNT = 1;
-  PD_UOEXTPROTO_PERSISTENT = 2; // Plugin need persistent connection to server
-  PD_VERSION = 3;
-  PD_ERRORURL = 4; // URL to send error reports. I.E.: www.warstone.ru/plugins?name={$Name}&ver={$Ver}.
+  PD_UOEXTPROTO_PERSISTENT = 2; // (Not working now) Plugin need persistent connection to server
+  PD_VERSION = 3; // (Not working now)
+  PD_ERRORURL = 4; // (Not working now) URL to send error reports. I.E.: www.warstone.ru/plugins?name={$Name}&ver={$Ver}.
   (**
     Avail constants:
     {$Name} - Plugin name
@@ -44,7 +45,7 @@ const
 
     UOExt will make POST request with file.
   **)
-  PD_APIEXPORT = 5; // Reference to PPluginAPIInfo. Expots API from plugin, if any.
+  PD_APIEXPORT = 5; // Reference to PPluginAPIInfo. Expots API from plugin, if any. You can free any memory after PE_INIT done. UOExt will copy this information to it's own.
 
 
   (***
@@ -192,7 +193,7 @@ type
   (***
     Plugins API
   *)
-  TAPISearch = function(APluginName: PAnsiChar; AnAPIName: PAnsiChar): Pointer;
+  TAPISearch = function(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; stdcall;
 implementation
 
 end.
