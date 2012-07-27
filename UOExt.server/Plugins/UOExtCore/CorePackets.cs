@@ -122,7 +122,6 @@ namespace UOExt.Plugins.UOExtCore
             : base(0x00, 2)
         {
             m_Writer.Write((byte)0xFE);
-            m_Writer.Write((byte)0); // Flags
             m_Writer.Write((byte)Config.EncapsulationHeader);
         } 
     }

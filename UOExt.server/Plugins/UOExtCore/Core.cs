@@ -1,4 +1,5 @@
 using System;
+using System.Xml;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
@@ -154,12 +155,16 @@ namespace UOExt.Plugins.UOExtCore
         static Dll()
         {
             m_md5Provider = new MD5CryptoServiceProvider();
-
+            if (Config.Is64Bit || Config.IsUnix)
+            {
+                Console.WriteLine("UOExt: 64bit or Unix env. Plugins info will be loaded from XML.");
+            }
 
 
             if (!Directory.Exists(Config.ClientPluginsPath))
             {
                 Dlls = new Dll[0];
+                m_loadingOrder = new Plugin[0];
                 return;
             }
             if (!File.Exists(Config.PluginInitOrderFile))
@@ -342,53 +347,90 @@ namespace UOExt.Plugins.UOExtCore
         {
             Id = dll_id;
             Console.WriteLine("UOExt: Loading {0} ({1})", Path.GetFileNameWithoutExtension(path), path);
-            IntPtr hModule = LoadLibrary(path);
-            if (hModule == IntPtr.Zero){
-                if (GetLastError() == 193)
-                {
-                    Console.WriteLine("You are trying to load 32 bit plg in 64 bit env. UOExt can't work here right now.");
-                }
-            }
-            IntPtr ptrDllInit = GetProcAddress(hModule, "DllInit");
-            IntPtr ptrDllInitDone = GetProcAddress(hModule, "DllInitDone");
-
-            DllInit plgDllInit = (DllInit)Marshal.GetDelegateForFunctionPointer(ptrDllInit, typeof(DllInit));
-            DllInitDone plgDllInitDone = (DllInitDone)Marshal.GetDelegateForFunctionPointer(ptrDllInitDone, typeof(DllInitDone));
-
-            IntPtr plgs = plgDllInit();
-            int plgs_count = Marshal.ReadInt32(plgs);
-            Plugins = new Plugin[plgs_count];
-Console.WriteLine("6");
-            for (int i = 0; i < plgs_count; i++)
+            if (Config.Is64Bit || Config.IsUnix)
             {
-                IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 4));
-                uint descriptors_count = (uint)(Marshal.ReadInt32(currentPlgInfo, 4));
-
-                byte packets = 0;
-                string name = null;
-                for (int j = 0; j < descriptors_count; j++)
+                if (!File.Exists(path + ".xml"))
                 {
-                    uint key = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 4));
-                    uint value = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 8));
-
-                    switch (key)
+                    throw new FileNotFoundException("Can't find {0}", path + ".xml");
+                }
+                XmlTextReader xml = new XmlTextReader(path + ".xml");
+                xml.WhitespaceHandling = WhitespaceHandling.None;
+                string name = "";
+                byte packets = 0;
+                while (xml.Read())
+                {
+                    if (xml.NodeType == XmlNodeType.Element)
                     {
-                        case PD_NAME:
-                            name = Marshal.PtrToStringAnsi(new IntPtr(value));
-                            break;
-                        case PD_PACKETSAMOUNT:
-                            packets = (byte)value;
-                            break;
+                        if (xml.Name == "Plugin")
+                        {
+                            uint id = UInt32.Parse(xml.GetAttribute("Id"));
+                            uint amount = UInt32.Parse(xml.GetAttribute("Count"));
+                            Plugins = new Plugin[amount];
+                            while (xml.Read() && xml.Name == "Descriptor")
+                            {
+                                uint descr = UInt32.Parse(xml.GetAttribute("Id"));
+                                string value = xml.GetAttribute("Value");
+                                switch (descr)
+                                {
+                                    case PD_NAME:
+                                        name = value;
+                                        break;
+                                    case PD_PACKETSAMOUNT:
+                                        packets = Byte.Parse(value);
+                                        break;
+
+                                }
+                            }
+                            Plugins[id] = new Plugin(dll_id, (byte)id, packets, name);
+                            Console.WriteLine("UOExt:  {0}) Name: '{1}', Packets: {2}", id, name, packets);
+                        }
                     }
                 }
-                Plugins[i] = new Plugin(dll_id, (byte)i, packets, name);
-                Console.WriteLine("UOExt:  {0}) Name: '{1}', Packets: {2}", i, name, packets);
+
             }
+            else
+            {
+                IntPtr hModule = LoadLibrary(path);
+                IntPtr ptrDllInit = GetProcAddress(hModule, "DllInit");
+                IntPtr ptrDllInitDone = GetProcAddress(hModule, "DllInitDone");
+
+                DllInit plgDllInit = (DllInit)Marshal.GetDelegateForFunctionPointer(ptrDllInit, typeof(DllInit));
+                DllInitDone plgDllInitDone = (DllInitDone)Marshal.GetDelegateForFunctionPointer(ptrDllInitDone, typeof(DllInitDone));
+
+                IntPtr plgs = plgDllInit();
+                int plgs_count = Marshal.ReadInt32(plgs);
+                Plugins = new Plugin[plgs_count];
+                for (int i = 0; i < plgs_count; i++)
+                {
+                    IntPtr currentPlgInfo = new IntPtr(Marshal.ReadInt32(plgs, i * 4 + 4));
+                    uint descriptors_count = (uint)(Marshal.ReadInt32(currentPlgInfo, 4));
+
+                    byte packets = 0;
+                    string name = null;
+                    for (int j = 0; j < descriptors_count; j++)
+                    {
+                        uint key = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 4));
+                        uint value = (uint)(Marshal.ReadInt32(currentPlgInfo, j * 4 + 8));
+
+                        switch (key)
+                        {
+                            case PD_NAME:
+                                name = Marshal.PtrToStringAnsi(new IntPtr(value));
+                                break;
+                            case PD_PACKETSAMOUNT:
+                                packets = (byte)value;
+                                break;
+                        }
+                    }
+                    Plugins[i] = new Plugin(dll_id, (byte)i, packets, name);
+                    Console.WriteLine("UOExt:  {0}) Name: '{1}', Packets: {2}", i, name, packets);
+                }
 
 
-            plgDllInitDone();
+                plgDllInitDone();
 
-            FreeLibrary(hModule);
+                FreeLibrary(hModule);
+            }
         }
     }
 }
