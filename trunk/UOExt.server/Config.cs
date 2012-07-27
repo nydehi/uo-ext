@@ -64,6 +64,16 @@ namespace UOExt
         /// </summary>
         private static int m_port = 2594;
 
+        /// <summary>
+        /// Autodetect.
+        /// </summary>
+        private static bool m_Unix = false;
+
+        /// <summary>
+        /// Autodetect.
+        /// </summary>
+        private static bool m_64bit = false;
+
         public static bool InRunUO { get { return m_inRunUO; } }
         public static byte EncapsulationHeader { get { return m_encapsulationHeader; } }
         public static string ClientPluginsPath { get { return m_clientPluginsPath; } }
@@ -74,6 +84,8 @@ namespace UOExt
         public static string IP { get { return m_ip; } }
         public static int Port { get { return m_port; } }
         public static bool ExternalServerInRunUO { get { return m_externalServerInRunUO; } }
+        public static bool IsUnix { get { return m_Unix; } set { m_Unix = value; } }
+        public static bool Is64Bit { get { return m_64bit; } set { m_64bit = value; } }
 
         private static void ConfigurePaths()
         {
@@ -99,6 +111,16 @@ namespace UOExt
         {
             m_inRunUO = false;
             ConfigurePaths();
+			int platform = (int)Environment.OSVersion.Platform;
+            if (platform == 4 || platform == 128)
+            {
+                m_Unix = true;
+            }
+#if Framework_4_0
+		    m_64bit = Environment.Is64BitProcess;
+#else
+		    m_64bit = (IntPtr.Size == 8);	//Returns the size for the current /process/
+#endif
         }
     }
 }

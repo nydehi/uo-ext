@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using Server;
 using Server.Network;
 using UOExt;
 
@@ -14,6 +15,7 @@ namespace Scripts.UOExtAdapter
         private static Server.Network.Packet m_UOExtSupport;
 
         private static UOExt.PacketHandler m_handler;
+
         public static void Initialize()
         {
             m_OldEFHandler = PacketHandlers.GetHandler(0xEF);
@@ -28,6 +30,12 @@ namespace Scripts.UOExtAdapter
             m_handler = UOExt.PacketHandler.Instatinate();
 
             Console.WriteLine("UOExt: Adapter started.");
+        }
+
+        public static void Configure()
+        {
+            Config.IsUnix = Server.Core.Unix;
+            Config.Is64Bit = Server.Core.Is64Bit;
         }
 
         private static byte GetServerFlags()
