@@ -25,7 +25,7 @@ Begin
   End;
 End;
 
-function Free:Boolean; stdcall;
+procedure Free; stdcall;
 Begin
   if Assigned(GUI) then Begin
     GUI.Stop;
@@ -34,7 +34,6 @@ Begin
   End;
   GUI.Free;
   GUI := nil;
-  Result := True;
 End;
 
 function SetLog(LineHandle, ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
