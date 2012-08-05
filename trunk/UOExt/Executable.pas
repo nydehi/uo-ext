@@ -509,10 +509,10 @@ Begin
   AssignFile(F, String(AnsiString(CmdLine) + '.xml'));
   Rewrite(F);
   WriteLn(F, '<?xml version="1.0" encoding="utf-8" ?>');
-  WriteLn(F, '<Library>');
+  WriteLn(F, '<Library Plugins="', Plugins^.PluginsCount,'">');
 
   For PlgCntr := 0 to Plugins^.PluginsCount - 1 do Begin
-    WriteLn(F, '  <Plugin Id="', PlgCntr, '" Count="', Plugins^.Plugins[PlgCntr]^.DescriptorsCount, '">');
+    WriteLn(F, '  <Plugin Id="', PlgCntr, '" Descriptors="', Plugins^.Plugins[PlgCntr]^.DescriptorsCount, '">');
     if Plugins^.Plugins[PlgCntr]^.DescriptorsCount > 0 then for DescrCntr := 0 to Plugins^.Plugins[PlgCntr]^.DescriptorsCount - 1 do Begin
       if Plugins^.Plugins[PlgCntr]^.Descriptors[DescrCntr].Descriptor = PD_NAME then Begin
         WriteLn(F, '    <Descriptor Id="', Plugins^.Plugins[PlgCntr]^.Descriptors[DescrCntr].Descriptor, '" Value="', PAnsiChar(Plugins^.Plugins[PlgCntr]^.Descriptors[DescrCntr].Value), '" />');

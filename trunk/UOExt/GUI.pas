@@ -20,7 +20,7 @@ type
     property StartProcess: TGUIStartProcess read FStartProcess;
     property UpdateProcess: TGUIUpdateProcess read FUpdateProcess;
     function Init(Path: AnsiString):Boolean;
-    function Reload: Boolean;
+    procedure Replace;
     destructor Destroy; override;
   end;
 
@@ -85,26 +85,29 @@ begin
   Result := True;
 end;
 
-function TGUI.Reload:Boolean;
+procedure TGUI.Replace;
+type
+  TFree = procedure; stdcall;
 var
   newPath: AnsiString;
 begin
-  if FLib <> 0 then FreeLibrary(FLib);
   newPath := Copy(FPath, 1, Length(FPath) - 1) + '.old' + #0;
   MoveFileA(@FPath[1], @newPath[1]);
   newPath := Copy(FPath, 1, Length(FPath) - 1) + '.new' + #0;
   MoveFileA(@newPath[1], @FPath[1]);
   newPath := Copy(FPath, 1, Length(FPath) - 1);
-  Result := Init(newPath);
 end;
 
 Destructor TGUI.Destroy;
 type
-  TFree = function: Boolean; stdcall;
-  
+  TFree = procedure; stdcall;
+
 begin
   if FLib <> 0 then Begin
-    If Assigned(FFree) Then If TFree(FFree)() Then FreeLibrary(FLib);  
+    If Assigned(FFree) Then Begin
+      TFree(FFree)();
+      FreeLibrary(FLib);
+    End;
   End;
   Inherited;
 end;

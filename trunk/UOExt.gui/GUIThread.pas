@@ -28,10 +28,6 @@ type
   private
     FCanAcceptCalls:Boolean;
     FDataLines: Array of TDataLine;
-    FUpdateEventFree: THandle;
-    FUpdateEvent: THandle;
-    FUpdateEventDone: THandle;
-    FFreeEvent: THandle;
 
     FWindow: HWND;
     FFont: HFONT;
@@ -210,7 +206,6 @@ var
   ClassAtom: Word;
 
   Msg: TMsg;
-  WaitEvents: Array[0..1] of THandle;
   tmsg: tagMSG;
 Begin
   Result := 1;
@@ -260,35 +255,15 @@ Begin
   InvokeUpdateWindow;
   ShowWindow(FWindow, SW_SHOW);
 
-  FUpdateEvent := CreateEventA(nil, False, False, 'UpdateEvent');
-  If FUpdateEvent = 0 Then Exit;
-  FUpdateEventDone := CreateEventA(nil, False, False, 'UpdateEventDone');
-  If FUpdateEventDone = 0 Then Exit;
-  FUpdateEventFree := CreateEventA(nil, False, True, 'UpdateEventFree');
-  If FUpdateEventFree = 0 Then Exit;
-  FFreeEvent := CreateEventA(nil, False, False, 'FreeEvent');
-  If FUpdateEvent = 0 Then Exit;
-
-  WaitEvents[0]:= FUpdateEvent;
-  WaitEvents[1]:= FFreeEvent;
   FCanAcceptCalls := True;
   while not FNeedExit do Begin
-    IF MsgWaitForMultipleObjects(1, FUpdateEvent, False, INFINITE, QS_ALLINPUT) = WAIT_OBJECT_0 Then Begin
-      If FNeedExit then Break;
-      InvokeUpdateLog;
-    End Else Begin
-      If FNeedExit then Break;
-      GetMessageA(Msg, 0, 0, 0);
-      TranslateMessage(Msg);
-      DispatchMessageA(Msg);
-    End;
+    GetMessageA(Msg, 0, 0, 0);
+    TranslateMessage(Msg);
+    DispatchMessageA(Msg);
+    If FNeedExit then Break;
   End;
   DestroyWindow(FWindow);
   DeleteObject(FFont);
-
-  CloseHandle(FUpdateEvent);
-  CloseHandle(FUpdateEventDone);
-  CloseHandle(FUpdateEventFree);
 End;
 
 procedure TGUIThread.InvokeUpdateWindow;
@@ -348,6 +323,7 @@ begin
     rct.Right := 0;
     DrawTextExA(TmpDC, @Text^[1], Length(Text^), rct, DT_CALCRECT XOR DT_LEFT XOR DT_TOP XOR DT_SINGLELINE XOR DT_NOPREFIX, nil);
     DrawTextExA(TmpDC, @Text^[1], Length(Text^), rct, DT_LEFT XOR DT_TOP XOR DT_SINGLELINE XOR DT_NOPREFIX, nil);
+
     cY := rct.Bottom + 1;
     if CurrentData^.ProgressMax > 0 then Begin
       if rct.Right + 5 < (FUpdateRect.Right - FUpdateRect.Left) then Begin
@@ -389,9 +365,6 @@ begin
   DeleteDC(TmpDC);
   DeleteObject(BMP);
 
-  BF.SourceConstantAlpha := $FF;
-  BF.AlphaFormat := AC_SRC_ALPHA;
-
   UpdateLayeredWindow(FWindow, ScreenDC, @FWindowPosition, @FSize, FBufferDC, @FZeroPoint, 0, @BF, ULW_ALPHA);
   ReleaseDC(0, ScreenDC);
 end;
@@ -428,35 +401,27 @@ begin
   InvokeUpdateWindow;
 
   FLastInsertedHandle := iPos;
-  SetEvent(FUpdateEventDone);
 end;
 
 procedure TGUIThread.Stop;
 begin
   FNeedExit := True;
-  SetEvent(FFreeEvent);
   PostMessageA(FWindow, WM_QUIT, 0, 0);
 end;
 
 // TGUIThread - Thread safe
 function TGUIThread.SetLog(LogHandle: Cardinal; ParentHandle: Cardinal; Text: AnsiString):Cardinal;
 begin
-  Result := $FFFFFFFF;
-  If WaitForSingleObject(FUpdateEventFree, INFINITE) <> WAIT_OBJECT_0 Then Exit;
   ZeroMemory(@FInsertData, SizeOf(FInsertData));
   FInsertData.CurrentLine := LogHandle;
   FInsertData.ParentLine := ParentHandle;
   FInsertData.Text:= Text;
-  SetEvent(FUpdateEvent);
-  If WaitForSingleObject(FUpdateEventDone, INFINITE) <> WAIT_OBJECT_0 then Exit;
+  InvokeUpdateLog;
   Result := FLastInsertedHandle;
-  SetEvent(FUpdateEventFree);
 end;
 
 function TGUIThread.StartProgress(LogHandle: Cardinal; ParentHandle: Cardinal; ProcessLabel: AnsiString; Min: Cardinal; Max: Cardinal; Current: Cardinal): Cardinal;
 begin
-  Result := $FFFFFFFF;
-  If WaitForSingleObject(FUpdateEventFree, INFINITE) <> WAIT_OBJECT_0 Then Exit;
   ZeroMemory(@FInsertData, SizeOf(FInsertData));
   FInsertData.CurrentLine := LogHandle;
   FInsertData.ParentLine := ParentHandle;
@@ -465,26 +430,20 @@ begin
   FInsertData.ProgressMax := Max;
   FInsertData.Progress := Current;
   FInsertData.HasProgress := True;
-  SetEvent(FUpdateEvent);
-  If WaitForSingleObject(FUpdateEventDone, INFINITE) <> WAIT_OBJECT_0 then Exit;
+  InvokeUpdateLog;
   Result := FLastInsertedHandle;
-  SetEvent(FUpdateEventFree);
 end;
 
 function TGUIThread.UpdateProgress(ProcessHandle: Cardinal; Min: Cardinal; Max: Cardinal; Current: Cardinal): Cardinal;
 begin
-  Result := $FFFFFFFF;
-  If WaitForSingleObject(FUpdateEventFree, INFINITE) <> WAIT_OBJECT_0 Then Exit;
   ZeroMemory(@FInsertData, SizeOf(FInsertData));
   FInsertData.CurrentLine := ProcessHandle;
   FInsertData.ProgressMin := Min;
   FInsertData.ProgressMax := Max;
   FInsertData.Progress := Current;
   FInsertData.HasProgress := True;
-  SetEvent(FUpdateEvent);
-  If WaitForSingleObject(FUpdateEventDone, INFINITE) <> WAIT_OBJECT_0 then Exit;
+  InvokeUpdateLog;
   Result := FLastInsertedHandle;
-  SetEvent(FUpdateEventFree);
 end;
 
 end.

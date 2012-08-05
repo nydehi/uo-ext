@@ -120,8 +120,11 @@ Begin
   GUI.CurrGUI := TGUI.Create;
   GUI.CurrGUI.Init(ShardSetup.UOExtBasePath + ShardSetup.GUIDLLName);
 
-  uMainLine := GUI.GUISetLog($FFFFFFFF, $FFFFFFFF, 'Initializing ... ');
-  uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Loading protocol info');
+  uMainLine := GUI.GUISetLog($FFFFFFFF, $FFFFFFFF, 'Loading ... ');
+  uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Initializing');
+
+
+  HookLogic.ReadExecutableSections;
 
 // Init Protocol info.
   ProtocolDescription.Init;
@@ -169,7 +172,9 @@ Begin
     {$IFDEF DEBUG}
     WriteLn('Core: GUI has been updated.');
     {$ENDIF}
-    if not GUI.CurrGUI.Reload Then CriticalError('Core: Failed to reload GUI. Critical!');
+    GUI.CurrGUI.Replace;
+    GUI.CurrGUI.Free;
+    GUI.CurrGUI := TGUI.Create;
     uStatusLine := $FFFFFFFF;
     uMainLine := $FFFFFFFF;
   End Else if Res = -1 then Begin
