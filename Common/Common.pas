@@ -15,6 +15,7 @@ function StrToInt(const S: AnsiString): Integer;
 function UpperCase(const S: AnsiString): AnsiString;
 
 function FileExists(const AFilePath: AnsiString): Boolean;
+function DirectoryExists(const ADirectoryPath: AnsiString): Boolean;
 
 function ExtractFilePath(const FileName: AnsiString): AnsiString;
 
@@ -85,6 +86,15 @@ function FileExists(const AFilePath: AnsiString): Boolean;
 Begin
   Result := Windows.GetFileAttributesA(PAnsiChar(AFilePath)) <> INVALID_FILE_ATTRIBUTES;
 End;
+
+function DirectoryExists(const ADirectoryPath: AnsiString): Boolean;
+var
+  fa: Cardinal;
+Begin
+  fa := Windows.GetFileAttributesA(PAnsiChar(ADirectoryPath));
+  Result := (fa <> INVALID_FILE_ATTRIBUTES) AND (fa AND FILE_ATTRIBUTE_DIRECTORY = FILE_ATTRIBUTE_DIRECTORY);
+End;
+
 
 function ExtractFilePath(const FileName: AnsiString): AnsiString;
 var

@@ -213,7 +213,7 @@ begin
   setsockopt(FSocket, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay));
 
   ZeroMemory(@bufPacket[0], 21);
-  if bReverse then Begin
+  if NOT bReverse then Begin
     bufPacket[0] := $EF;
     If send(FSocket, bufPacket, 21, 0) <> 21 Then Begin
       closesocket(FSocket);
@@ -598,6 +598,7 @@ Begin
     Path := '';
     for j := 0 to 15 do Path := Path + IntToHex(CurrentDll^.MD5[j], 2);
     Path := ShardSetup.UOExtBasePath + 'Plugins\' + Path + '.cache';
+    if not DirectoryExists(ShardSetup.UOExtBasePath + 'Plugins\') then CreateDirectoryA(PAnsiChar(ShardSetup.UOExtBasePath + 'Plugins\'), nil);
     AssignFile(F, String(Path));
     Rewrite(F, 1);
     BlockWrite(F, Pointer(Cardinal(Packet) + 4)^, PacketSize - 4);

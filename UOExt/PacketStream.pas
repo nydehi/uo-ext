@@ -115,7 +115,7 @@ var
 
 // Local procedures
 
-procedure WriteDump(Point:Pointer; Len:Cardinal; var F: Text); overload;
+procedure WriteDump(Point:Pointer; Len:Cardinal; var F: TextFile); overload;
 var
   cLine:AnsiString;
   cBuffer: Array [0..16] of AnsiChar;
@@ -533,14 +533,15 @@ End;
 {$IFDEF Debug}
 procedure TPacketStream.LogPacket(Data: Pointer; Length: Cardinal);
 var
-  F: Text;
+  F: TextFile;
 begin
-  {$I-}
-  AssignFile(F, String(ExtractFilePath(AnsiString(ParamStr(0)))) + 'UOExt.packetlog.log');
-  Reset(F);
+//  {$I-}
+
+  AssignFile(F, String(ExtractFilePath(AnsiString(ParamStr(0))) + 'UOExt.packetlog.log'));
+  Rewrite(F);
   WriteDump(Data, Length, F);
   CloseFile(F);
-  {$I+}
+//  {$I+}
 end;
 {$ENDIF}
 

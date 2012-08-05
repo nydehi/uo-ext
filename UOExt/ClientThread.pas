@@ -128,12 +128,10 @@ Begin
   SA.sin_family := AF_INET;
   SA.sin_addr.S_addr := IP;
   SA.sin_port := Port;
-  THooker.Hooker.TrueAPI;
   If connect(Result, SA, SizeOf(SA)) = SOCKET_ERROR Then Begin
     closesocket(Result);
     Result := INVALID_SOCKET;
   End;
-  THooker.Hooker.TrueAPIEnd;
 End;
 
 
