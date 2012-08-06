@@ -147,7 +147,7 @@ Begin
     FreeMemory(AIP);
     Exit;
   End;
-  IP := inet_addr(AIP);
+  IP := htonl(inet_addr(AIP));
 
   QueryResult := RegQueryValueExA(hOpendedKey, 'LastPort', nil, nil, PByte(AIP), @AIPSize);
   If QueryResult <> ERROR_SUCCESS Then Begin
@@ -199,6 +199,7 @@ Begin
   End;
 
   Result := CompareStrings(pFileInfo, 'Razor');
+
   FreeMemory(pFileVersion);
 End;
 
@@ -222,10 +223,12 @@ Begin
 
           if FindInStrU(pe.szExeFile, 'RAZOR.EXE') then Begin
             Result := GetRazorConnInfo(IP, Port);
+            ShardSetup.Razor := True;
             bDone := True;
             Break;
           End Else If ValidateRazor(pe.th32ProcessID) then Begin
             Result := GetRazorConnInfo(IP, Port);
+            ShardSetup.Razor := True;
             bDone := True;
             Break;
           End Else Begin

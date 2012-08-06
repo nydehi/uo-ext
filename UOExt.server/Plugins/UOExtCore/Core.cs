@@ -184,8 +184,12 @@ namespace UOExt.Plugins.UOExtCore
                 }
 
                 Queue<Plugin> order = new Queue<Plugin>();
+                Console.WriteLine("UOExt: Debug: Dlls: {0}", Dlls.Length);
                 for (int i = 0; i < Dlls.Length; i++)
+                {
+                    Console.WriteLine("UOExt: Debug: Dll {0}: Plugins: {1}", i, Dlls[i].Plugins.Length);
                     for (int j = 0; j < Dlls[i].Plugins.Length; j++) order.Enqueue(Dlls[i].Plugins[j]);
+                }
                 m_loadingOrder = order.ToArray();
 
             }
@@ -359,30 +363,34 @@ namespace UOExt.Plugins.UOExtCore
                 byte packets = 0;
                 while (xml.Read())
                 {
-                    if (xml.NodeType == XmlNodeType.Element)
+                    if (xml.NodeType == XmlNodeType.Element && xml.Name == "Library")
                     {
-                        if (xml.Name == "Plugin")
+                        uint amount = UInt32.Parse(xml.GetAttribute("Plugins"));
+                        Plugins = new Plugin[amount];
+                        while (xml.Read())
                         {
-                            uint id = UInt32.Parse(xml.GetAttribute("Id"));
-                            uint amount = UInt32.Parse(xml.GetAttribute("Count"));
-                            Plugins = new Plugin[amount];
-                            while (xml.Read() && xml.Name == "Descriptor")
+                            if (xml.Name == "Plugin")
                             {
-                                uint descr = UInt32.Parse(xml.GetAttribute("Id"));
-                                string value = xml.GetAttribute("Value");
-                                switch (descr)
+                                uint id = UInt32.Parse(xml.GetAttribute("Id"));
+//                                uint amount = UInt32.Parse(xml.GetAttribute("Descriptors"));
+                                while (xml.Read() && xml.Name == "Descriptor")
                                 {
-                                    case PD_NAME:
-                                        name = value;
-                                        break;
-                                    case PD_PACKETSAMOUNT:
-                                        packets = Byte.Parse(value);
-                                        break;
+                                    uint descr = UInt32.Parse(xml.GetAttribute("Id"));
+                                    string value = xml.GetAttribute("Value");
+                                    switch (descr)
+                                    {
+                                        case PD_NAME:
+                                            name = value;
+                                            break;
+                                        case PD_PACKETSAMOUNT:
+                                            packets = Byte.Parse(value);
+                                            break;
 
+                                    }
                                 }
+                                Plugins[id] = new Plugin(dll_id, (byte)id, packets, name);
+                                Console.WriteLine("UOExt:  {0}) Name: '{1}', Packets: {2}", id, name, packets);
                             }
-                            Plugins[id] = new Plugin(dll_id, (byte)id, packets, name);
-                            Console.WriteLine("UOExt:  {0}) Name: '{1}', Packets: {2}", id, name, packets);
                         }
                     }
                 }
