@@ -14,6 +14,7 @@ var
   Port: Word = 0;
   PersistentConnect: Boolean = False;
   UsingUpdateServer: Boolean = False;
+  Razor: Boolean = False;
 
   SerialSupplyMethod: TSerialSupplyMethods = ssmStatic;
   ItemSerialMin:Cardinal = $70000001;

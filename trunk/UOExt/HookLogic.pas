@@ -2,7 +2,7 @@ unit HookLogic;
 
 interface
 
-uses Windows, APIHooker, ShardSetup, AbstractThread, PluginsShared, WinSock, Messages;
+uses Windows, APIHooker, ShardSetup, AbstractThread, PluginsShared, WinSock, Messages, TLHelp32;
 
 var
   iIP: Integer;
@@ -27,11 +27,11 @@ type
   PSectionsRanges = ^TSectionsRanges;
 var
   ExeSections: PSectionsRanges;
+  RazorCryptSections: PSectionsRanges;
   connectReturnAddr: Cardinal;
   connectHookInvokeAddr: Cardinal;
 
-
-procedure ReadExecutableSections;
+function ReadSections(aModule: THandle): PSectionsRanges;
 type
   TSections = Array [0..999] of TImageSectionHeader;
   PSections = ^TSections;
@@ -42,7 +42,7 @@ var
   pSect: PSections;
   i, j, cSections, cSectionStart: Cardinal;
 Begin
-  pDOS := Pointer(GetModuleHandleA(nil));
+  pDOS := Pointer(aModule);
   pPE := Pointer(Cardinal(pDOS) + Cardinal(pDOS^._lfanew) + 4);
   pOpt := Pointer(Cardinal(pPE) + SizeOf(TImageFileHeader));
   pSect := Pointer(Cardinal(pOpt) + SizeOf(TImageOptionalHeader) + (pOpt^.NumberOfRvaAndSizes - IMAGE_NUMBEROF_DIRECTORY_ENTRIES) * SizeOf(TImageDataDirectory));
@@ -54,17 +54,22 @@ Begin
     End;
   End;
 
-  ExeSections := GetMemory(SizeOf(TSectionsRanges) + (cSections - 1) * SizeOf(RMemoryRange));
-  ExeSections^.Count := cSections;
+  Result := GetMemory(SizeOf(TSectionsRanges) + (cSections - 1) * SizeOf(RMemoryRange));
+  Result^.Count := cSections;
   j := 0;
   For i := 0 to pPE^.NumberOfSections - 1 do Begin
     If pSect^[i].Characteristics AND IMAGE_SCN_MEM_EXECUTE = IMAGE_SCN_MEM_EXECUTE Then Begin
       cSectionStart := Cardinal(pDOS) + pSect^[i].VirtualAddress{ + pOpt^.ImageBase};
-      ExeSections^.Items[j].Start := cSectionStart;
-      ExeSections^.Items[j].Length := pSect^[i].Misc.VirtualSize;
+      Result^.Items[j].Start := cSectionStart;
+      Result^.Items[j].Length := pSect^[i].Misc.VirtualSize;
       j := j + 1;
     End;
   End;
+End;
+
+procedure ReadExecutableSections;
+Begin
+  ExeSections := ReadSections(GetModuleHandleA(nil));
 End;
 
 function connectHookInvoke(s: TSocket; var name: TSockAddr; namelen: Integer): Integer; stdcall;
@@ -77,10 +82,18 @@ var
   bFromExe: Boolean;
 Begin
   bFromExe := False;
+  if ShardSetup.Razor AND (RazorCryptSections = nil) then RazorCryptSections := ReadSections(GetModuleHandleA('Crypt.dll'));
+
   For i := 0 to ExeSections^.Count - 1 do if (ExeSections^.Items[i].Start <= connectReturnAddr) AND ((ExeSections^.Items[i].Length + ExeSections^.Items[i].Start) >= connectReturnAddr) then Begin
     bFromExe := True;
     Break;
   End;
+  if not bFromExe and ShardSetup.Razor then for i := 0 to RazorCryptSections^.Count - 1 do if (RazorCryptSections^.Items[i].Start <= connectReturnAddr) AND ((RazorCryptSections^.Items[i].Length + RazorCryptSections^.Items[i].Start) >= connectReturnAddr) then Begin
+    bFromExe := True;
+    Break;
+  End;
+
+
   if not bFromExe then Begin
     THooker.Hooker.TrueAPI;
     Result := connect(s, name, namelen);
@@ -144,4 +157,7 @@ begin
   THooker.Hooker.InjectIt;
 end;
 
+initialization
+  ExeSections := nil;
+  RazorCryptSections := nil;
 end.
