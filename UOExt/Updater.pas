@@ -47,16 +47,14 @@ type
     // Network
     function UOExtGetPacket(var Size: Cardinal): Pointer;
 
-    function UOExtConnect(bReverse: Boolean): Boolean;
-    function UOExtGetConfig: Boolean;
-    function UOExtGetReverseConfig: Boolean;
+    function TryServerConnect: Boolean;
+    function TryUpdaterConnect: Boolean;
     function UOExtHandshake: Boolean;
     function UOExtGetDllList: Boolean;
     function UOExtGetPluginsLoadingList: Boolean;
     function UOExtGetDlls(WantedList: PByteArray; WantedSize: Word): Boolean;
     function UOExtGetEndSequence: Boolean;
     procedure UOExtDisconnect;
-    function UOExtUpdateServerConnect:Boolean;
 
     function UOExtGetMissingDlls(var Dlls:Pointer; var Count: Byte): Boolean;
 
@@ -149,12 +147,7 @@ End;
 function TUpdater.Connect:Boolean;
 begin
   Result := False;
-  If not UOExtConnect(False) then if not UOExtConnect(True) Then Exit;
-  if not FReverse Then Begin
-    If not UOExtGetConfig then Exit;
-  End Else Begin
-    If Not UOExtGetReverseConfig then Exit;
-  End;
+  If not TryServerConnect then if not TryUpdaterConnect Then Exit;
   if not UOExtHandshake then Exit;
   Result := True;
 end;
@@ -176,7 +169,7 @@ Begin
   Result := True;
 End;
 
-function TUpdater.UOExtConnect(bReverse: Boolean): Boolean;
+function TUpdater.TryServerConnect: Boolean;
 var
   IP: Cardinal;
   Port: Word;
@@ -185,6 +178,13 @@ var
   SockAddr: TSockAddr;
   bufPacket: Array [0..20] of Byte;
   bNoDelay: BOOL;
+
+  WriteOffSet: Cardinal;
+  recvResult: Integer;
+  startGTC, currGTC: Cardinal;
+  fdset: TFDSet;
+  tv: TTimeVal;
+
 begin
   Result := False;
   if ShardSetup.Port = 0 then Begin
@@ -194,7 +194,6 @@ begin
     Port := ShardSetup.Port;
   End;
   ShardSetup.UpdateIP := IP;
-  if bReverse then Port := NOT Port;
   WSAStartup($101, WSAData);
 
   FSocket := WinSock.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -213,38 +212,14 @@ begin
   setsockopt(FSocket, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay));
 
   ZeroMemory(@bufPacket[0], 21);
-  if NOT bReverse then Begin
-    bufPacket[0] := $EF;
-    If send(FSocket, bufPacket, 21, 0) <> 21 Then Begin
-      closesocket(FSocket);
-      Exit;
-    End;
-  End Else Begin
-    ShardSetup.UsingUpdateServer := True;
 
-    bufPacket[1] := 254;
-    Self.UOExtPacket(@bufPacket[0], 2);
+  bufPacket[0] := $EF;
+  If send(FSocket, bufPacket, 21, 0) <> 21 Then Begin
+    closesocket(FSocket);
+    Exit;
   End;
-  FReverse := bReverse;
-  Result := True;
-end;
-
-function TUpdater.UOExtGetConfig:Boolean;
-const
-  bufSize = 65535;
-var
-  WriteOffSet, PacketSize: Cardinal;
-  recvResult: Integer;
-  startGTC, currGTC: Cardinal;
-  fdset: TFDSet;
-  tv: TTimeVal;
-
-  bufPacket: Array [0..bufSize] of Byte;
-begin
   Result := False;
-
   WriteOffSet := 0;
-  PacketSize := 0;
   startGTC := GetTickCount;
   Repeat
     FD_ZERO(fdset);
@@ -254,72 +229,69 @@ begin
     tv.tv_usec := 5 - (currGTC - startGTC) MOD 1000;
     select(0, @fdset, nil, nil, @tv);
     If FD_ISSET(FSocket, fdset) then Begin
-      recvResult := recv(FSocket, Pointer(@bufPacket[WriteOffSet])^, bufSize - WriteOffSet, 0);
+      recvResult := recv(FSocket, Pointer(@bufPacket[WriteOffSet])^, 3 - WriteOffSet, 0);
       If recvResult <= 0 then Begin
         closesocket(FSocket);
         Exit;
       End;
-
       WriteOffSet := WriteOffSet + Cardinal(recvResult);
-      If PacketSize = 0 then Begin
-        If WriteOffSet > 3 then
-          if bufPacket[0] <> 0 then Begin
-            closesocket(FSocket);
-            Exit;
-          End;
-          PacketSize := htons(PWord(@bufPacket[1])^);
+      If (WriteOffSet >= 1) AND (bufPacket[0] <> 0) then Begin
+        closesocket(FSocket);
+        Exit;
       End;
     End;
-  Until ((WriteOffSet >= PacketSize)AND(PacketSize > 0))OR((GetTickCount - startGTC) DIV 1000 > 5);
+  Until (WriteOffSet >= 3)OR((GetTickCount - startGTC) DIV 1000 > 5);
 
-  If(WriteOffSet < 3)OR(PacketSize < htons(PWord(@bufPacket[1])^)) Then Begin
+  If(WriteOffSet < 3) Then Begin
     {$IFDEF DEBUG}
     WriteLn('UOExtProtocol: Server didn''t respond on UOExt support ask.');
     {$ENDIF}
     closesocket(FSocket);
     Exit;
   End;
-  {
-    BYTE Header = $FF
-    WORD Size
-    BYTE Flags 0x01 = Encrypted
-    BYTE UOExtHeader
-    [
-    DWORD IP
-    WORD Port
-    ]
-  }
-
-  ShardSetup.Encrypted := bufPacket[3] AND $01 = $01;
-  ShardSetup.InternalProtocolHeader := bufPacket[4];
-  ShardSetup.PersistentConnect := bufPacket[3] AND $04 = $04;
-  if(bufPacket[3] AND $02 = $02) Then Begin
-    if PCardinal(@bufPacket[5])^ <> 0 then ShardSetup.UpdateIP := PCardinal(@bufPacket[5])^;
-    ShardSetup.UpdatePort := htons(PCardinal(@bufPacket[9])^);
-    UOExtDisconnect;
-    Result := UOExtUpdateServerConnect;
-    ShardSetup.UsingUpdateServer := true;
-  End Else Begin
-    Result := True;
-  End;
+  ShardSetup.Encrypted := bufPacket[1] AND $01 = $01;
+  ShardSetup.InternalProtocolHeader := bufPacket[2];
+  Result := True;
 end;
 
-function TUpdater.UOExtGetReverseConfig: Boolean;
+function TUpdater.TryUpdaterConnect:Boolean;
 var
-  Packet: Pointer;
-  Size: Cardinal;
-Begin
+  IP: Cardinal;
+  Port: Word;
+
+  WSAData: TWSAData;
+  SockAddr: TSockAddr;
+  bufPacket: Array [0..20] of Byte;
+  bNoDelay: BOOL;
+begin
   Result := False;
-  Packet := UOExtGetPacket(Size);
-  if Packet = nil then Exit;
-  if PByte(Packet)^ <> $FE then Begin
-    FreeMemory(Packet);
+  if ShardSetup.Port = 0 then Begin
+    If not PreConnectIPDiscover.GetConnInfo(IP, Port) Then Exit;
+  End Else Begin
+    IP := ShardSetup.IP;
+    Port := ShardSetup.Port;
+  End;
+  ShardSetup.UpdateIP := IP;
+  Port := NOT Port;
+  WSAStartup($101, WSAData);
+
+  FSocket := WinSock.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  IF FSocket=INVALID_SOCKET Then Exit;
+  ZeroMemory(@SockAddr, SizeOf(SockAddr));
+  SockAddr.sin_family:=AF_INET;
+
+  SockAddr.sin_port:=Port;
+  SockAddr.sin_addr.S_addr:=IP;
+
+  If WinSock.connect(FSocket, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Begin
+    closesocket(FSocket);
     Exit;
   End;
-  ShardSetup.Encrypted := False;
-  ShardSetup.InternalProtocolHeader := PByte(Cardinal(Packet) + 2)^;
-  ShardSetup.PersistentConnect := PByte(Cardinal(Packet) + 1)^ AND $04 = $04;
-End;
+  bNoDelay := True;
+  setsockopt(FSocket, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay));
+  ShardSetup.UsingUpdateServer := True;
+  Result := True;
+end;
 
 procedure TUpdater.UOExtDisconnect;
 begin
@@ -329,39 +301,13 @@ begin
   WSACleanup;
 end;
 
-function TUpdater.UOExtUpdateServerConnect;
-var
-  WSAData: TWSAData;
-  SockAddr: TSockAddr;
-  bNoDelay: BOOL;
-begin
-  Result := False;
-  WSAStartup($101, WSAData);
-
-  FSocket := WinSock.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  IF FSocket=INVALID_SOCKET Then Exit;
-  ZeroMemory(@SockAddr, SizeOf(SockAddr));
-  SockAddr.sin_family:=AF_INET;
-
-  SockAddr.sin_port:=htons(ShardSetup.UpdatePort);
-  SockAddr.sin_addr.S_addr:=htonl(ShardSetup.UpdateIP);
-
-  If WinSock.connect(FSocket, SockAddr, SizeOf(SockAddr)) = SOCKET_ERROR Then Begin
-    closesocket(FSocket);
-    Exit;
-  End;
-  bNoDelay := True;
-  setsockopt(FSocket, IPPROTO_TCP, TCP_NODELAY, @bNoDelay, SizeOf(bNoDelay));
-  Result := True;
-end;
-
 function TUpdater.UOExtHandshake:Boolean;
 const
   PacketSize: Word = 35;
 var
   Packet: Pointer;
   incPacketSize: Cardinal;
-  UpdateSet: Byte;
+  UpdateSet, FlagsSet: Byte;
 begin
   Result := False;
 
@@ -379,9 +325,19 @@ begin
     Exit;
   End;
 
+
   UpdateSet := PByte(Cardinal(Packet) + 2)^;
   FNeedUpdateUOExt := UpdateSet AND $01 = $01;
   FNeedUpdateUOExtGUI := UpdateSet AND $02 = $02;
+
+  FlagsSet := PByte(Cardinal(Packet) + 3)^;
+  If (FlagsSet AND $01) <> $01 then Begin
+    ShardSetup.Encrypted := (FlagsSet AND $02) = $02;
+    if (FlagsSet AND $04) = $04 then Begin
+      ShardSetup.IP := PCardinal(Cardinal(Packet) + 4)^;
+      ShardSetup.Port := PWord(Cardinal(Packet) + 8)^;
+    End;
+  End;
 
   Result := True;
 end;
@@ -669,7 +625,7 @@ Begin
   End;
 
   if ShardSetup.UsingUpdateServer then
-    Size := htons(PWord(Result)^) - 2
+    Size := PWord(Result)^ - 2
   Else
     Size := htons(PWord(Cardinal(Result) + 1)^) - 3;
   FreeMemory(Result);
