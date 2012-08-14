@@ -24,6 +24,8 @@ namespace UOExt.Standalone
 
         private AsyncCallback m_AsyncRecive;
 
+        private Object m_ReciveLockObject;
+
         /// <summary>
         /// Подключен ли основной объект SocketClient к удаленному серверу.
         /// </summary>
@@ -213,7 +215,6 @@ namespace UOExt.Standalone
         {
             try
             {
-                Console.WriteLine("BeginReceive");
                 if (!m_connected && m_disposed) return;
 
                 m_socket.BeginReceive(m_buffer, m_bufferPointer, 65536 * 2 - m_bufferPointer, SocketFlags.None, m_AsyncRecive, m_socket);
@@ -240,7 +241,6 @@ namespace UOExt.Standalone
 
         private void OnRecive(IAsyncResult ar)
         {
-            Console.WriteLine("ReceiveComplete ");
             if (!m_connected && m_disposed) return;
 
             Socket s = (Socket)ar.AsyncState;
@@ -254,6 +254,11 @@ namespace UOExt.Standalone
             try
             {
                 int m_recived = s.EndReceive(ar);
+                if (m_recived == 0)
+                {
+                    Dispose();
+                    return;
+                }
                 m_bufferPointer += m_recived;
                 if (m_bufferPointer > 3)
                 {
@@ -266,9 +271,10 @@ namespace UOExt.Standalone
                         if ((m_bufferPointer + size) < m_bufferPosition) break;
 
                         byte header = m_buffer[m_bufferPosition + 2];
-
-                        Console.WriteLine("C -> S: New packet with size: {0}", size);
+#if DEBUG
+                        Console.WriteLine("C -> S, Length {0}:", size);
                         Packet.DumpArray(Console.Out, m_buffer, m_bufferPosition, size);
+#endif
                         m_handler.ProcessBuffer(this, header, m_buffer, m_bufferPosition + 3, (short)(size - 3));
                         m_bufferPosition += size;
                     } while (m_bufferPosition < m_bufferPointer);
@@ -278,7 +284,7 @@ namespace UOExt.Standalone
                         Array.Copy(m_buffer, m_bufferPosition, tmpBuffer, 0, m_bufferPointer - m_bufferPosition);
                         Array.Copy(tmpBuffer, m_buffer, tmpBuffer.Length);
                     }
-                    m_bufferPosition -= m_bufferPointer;
+                    m_bufferPointer -= m_bufferPosition;
                 }
 
                 s.BeginReceive(m_buffer, m_bufferPointer, 65536 * 2 - m_bufferPointer, SocketFlags.None, m_AsyncRecive, s);

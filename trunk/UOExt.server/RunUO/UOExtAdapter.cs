@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using Server;
 using Server.Network;
@@ -8,9 +8,6 @@ namespace Scripts.UOExtAdapter
 {
     public class Adapter
     {
-        // Game server wants encrypted protocol?
-        private static bool m_Encrypted = false;
-
         private static Server.Network.PacketHandler m_OldEFHandler;
         private static Server.Network.Packet m_UOExtSupport;
 
@@ -24,34 +21,12 @@ namespace Scripts.UOExtAdapter
 
             uint ip = (uint)(BitConverter.ToInt32(IPAddress.Parse(Config.IP).GetAddressBytes(), 0));
 
-            m_UOExtSupport = new UOExtSupport(Config.EncapsulationHeader, ip, (short)Config.Port, GetServerFlags());
+            m_UOExtSupport = new UOExtSupport();
             m_UOExtSupport.SetStatic();
 
             m_handler = UOExt.PacketHandler.Instatinate();
 
             Console.WriteLine("UOExt: Adapter started.");
-        }
-
-        public static void Configure()
-        {
-            Config.IsUnix = Server.Core.Unix;
-            Config.Is64Bit = Server.Core.Is64Bit;
-        }
-
-        private static byte GetServerFlags()
-        {
-            byte flag = 0;
-
-            if (m_Encrypted)
-            {
-                flag |= 0x01;
-            }
-            if (Config.ExternalServerInRunUO)
-            {
-                flag |= 0x02;
-            }
-
-            return flag;
         }
 
         public static void LoginServerSeed(NetState state, PacketReader pvSrc)
@@ -87,23 +62,15 @@ namespace Scripts.UOExtAdapter
 
         private sealed class UOExtSupport : Server.Network.Packet
         {
-            public UOExtSupport(byte encapsulation, uint ip, short port, byte flags)
-                : base(0x00)
+            public UOExtSupport()
+                : base(0x00, 3)
             {
-                int size = 5;
-                if (Config.ExternalServerInRunUO)
-                {
-                    size += 6;
+                if(Config.GameEncrypted){
+                    m_Stream.Write((byte)1);
+                } else {
+                    m_Stream.Write((byte)0);
                 }
-                EnsureCapacity(size);
-                m_Stream.Write((byte)flags);
-                m_Stream.Write((byte)encapsulation);
-                if (Config.ExternalServerInRunUO)
-                {
-                    m_Stream.Write((uint)ip);
-                    m_Stream.Write((short)port);
-                    
-                }
+                m_Stream.Write((byte)Config.EncapsulationHeader);
             }
         }
     }

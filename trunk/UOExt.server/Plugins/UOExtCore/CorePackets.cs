@@ -9,11 +9,13 @@ namespace UOExt.Plugins.UOExtCore
         /// <summary>
         /// UOExt handshake packet. Send "all ok"
         /// </summary>
-        public Handshake(byte flags)
-            : base(0x00, 2)
+        public Handshake(byte updateflags)
+            : base(0x00)
         {
+            EnsureCapacity((ushort)(Config.ConfigurationPacket.Length + 2));
             m_Writer.Write((byte)0x00);
-            m_Writer.Write((byte)flags);
+            m_Writer.Write((byte)updateflags);
+            m_Writer.Write(Config.ConfigurationPacket);
         }
     }
 
@@ -115,15 +117,4 @@ namespace UOExt.Plugins.UOExtCore
             m_Writer.Write((byte)0xFF);
         }
     }
-    
-    public sealed class EFAnswer : Packet
-    {
-        public EFAnswer()
-            : base(0x00, 2)
-        {
-            m_Writer.Write((byte)0xFE);
-            m_Writer.Write((byte)Config.EncapsulationHeader);
-        } 
-    }
-
 }

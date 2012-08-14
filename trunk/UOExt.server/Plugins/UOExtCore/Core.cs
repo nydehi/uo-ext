@@ -18,7 +18,6 @@ namespace UOExt.Plugins.UOExtCore
         private LibraryList m_libraryList;
         private PluginsList m_pluginsList;
         private InitializationComplete m_initComplete;
-        private EFAnswer m_efpacket;
 
 
         public override void UOExtInitialize(PacketHandler hndlr)
@@ -26,7 +25,6 @@ namespace UOExt.Plugins.UOExtCore
             m_libraryList = new LibraryList();
             m_pluginsList = new PluginsList();
             m_initComplete = new InitializationComplete();
-            m_efpacket = null;
 
             hndlr.RegisterPacketHandler(0x00, 0, new OnPacketRecive(UOExtPacket));
 
@@ -93,7 +91,7 @@ namespace UOExt.Plugins.UOExtCore
                         }
                         else
                         {
-                            peer.Send(new Handshake(0));
+                            peer.Send(new Handshake(0x00));
                         }
                         peer.Send(m_libraryList);
                         peer.Send(m_pluginsList);
@@ -109,13 +107,6 @@ namespace UOExt.Plugins.UOExtCore
                         }
                     }
                     peer.Send(m_initComplete);
-                    break;
-                case (0xFE):
-                    if(m_efpacket == null)
-                    {
-                        m_efpacket = new EFAnswer();
-                    }
-                    peer.Send(m_efpacket);
                     break;
             }
         }
@@ -184,10 +175,8 @@ namespace UOExt.Plugins.UOExtCore
                 }
 
                 Queue<Plugin> order = new Queue<Plugin>();
-                Console.WriteLine("UOExt: Debug: Dlls: {0}", Dlls.Length);
                 for (int i = 0; i < Dlls.Length; i++)
                 {
-                    Console.WriteLine("UOExt: Debug: Dll {0}: Plugins: {1}", i, Dlls[i].Plugins.Length);
                     for (int j = 0; j < Dlls[i].Plugins.Length; j++) order.Enqueue(Dlls[i].Plugins[j]);
                 }
                 m_loadingOrder = order.ToArray();

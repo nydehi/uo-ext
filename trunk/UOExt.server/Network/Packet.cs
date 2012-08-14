@@ -44,7 +44,7 @@ namespace UOExt.Network
         public virtual void OnSend(IClientPeer p)
         {
             #if DEBUG
-            Console.WriteLine("Sending to client packet with length {0}", m_Buffer.Length);
+            Console.WriteLine("S -> C, Length {0}:", m_Buffer.Length);
             DumpArray(Console.Out, m_Buffer);
             #endif
         }
@@ -59,7 +59,7 @@ namespace UOExt.Network
         }
         public static void DumpArray(TextWriter output, byte[] buffer, int offset, int size)
         {
-            output.WriteLine("00000000 | 00 01 02 03  04 05 06 07  08 09 0A 0B  0C 0D 0E 0F | 0123456789ABCDEF");
+            output.Write("00000000 | 00 01 02 03  04 05 06 07  08 09 0A 0B  0C 0D 0E 0F | 0123456789ABCDEF");
             int length = buffer.Length - offset;
             if (size == 0) size = buffer.Length - offset;
             size += offset;
@@ -71,13 +71,18 @@ namespace UOExt.Network
                     output.Write(locOffset.ToString("X8") + " |");
                 }
                 output.Write(" " + buffer[locOffset + offset].ToString("X2"));
-                if (((offset + 1) % 4) == 0)
+                if (((locOffset + 1) % 4) == 0)
                 {
                     output.Write(" ");
                 }
-                if ((offset % 16) == 15)
+                if ((locOffset % 16) == 15)
                 {
                     output.WriteLine("| ");
+                    if (locOffset >= 1024)
+                    {
+                        output.WriteLine("There is more {0} bytes.", size = locOffset);
+                        break;
+                    }
                 }
                 locOffset++;
             } while ((offset + locOffset) < size);
