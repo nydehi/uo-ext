@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Net.Sockets;
 using UOExt.Network;
 
@@ -21,6 +22,7 @@ namespace UOExt.Standalone
 
         private AsyncCallback m_AsyncSend;
         private bool m_sending;
+        private AutoResetEvent m_chunkSended;
 
         private AsyncCallback m_AsyncRecive;
 
@@ -50,6 +52,7 @@ namespace UOExt.Standalone
             m_AsyncSend = new AsyncCallback(OnSend);
             m_AsyncRecive = new AsyncCallback(OnRecive);
             m_sending = false;
+            m_chunkSended = new AutoResetEvent(false);
 
             m_socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, 65536 * 2); // this should be enough for every packet
             m_socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendBuffer, 65536 * 2);
@@ -126,21 +129,38 @@ namespace UOExt.Standalone
         public void Send(byte[] buffer)
         {
             if (!m_connected || m_disposed) return;
-            lock (m_sendBuffer)
+            bool waitforsend = false;
+            do
             {
-                if (!m_sending)
+                if (waitforsend)
                 {
-                    byte[] tmp = new byte[buffer.Length];
-                    Array.Copy(buffer, tmp, buffer.Length);
-                    m_socket.BeginSend(buffer, 0, buffer.Length, SocketFlags.None, m_AsyncSend, m_socket);
-                    m_sending = true;
+                    m_chunkSended.WaitOne();
                 }
-                else
+                lock (m_sendBuffer)
                 {
-                    Array.Copy(buffer, 0, m_sendBuffer, m_sendBufferPos, buffer.Length);
-                    m_sendBufferPos += buffer.Length;
+                    if (!m_sending)
+                    {
+                        byte[] tmp = new byte[buffer.Length];
+                        Array.Copy(buffer, tmp, buffer.Length);
+                        m_socket.BeginSend(tmp, 0, tmp.Length, SocketFlags.None, m_AsyncSend, m_socket);
+                        m_sending = true;
+                    }
+                    else
+                    {
+                        if (m_sendBufferPos + buffer.Length > m_sendBuffer.Length)
+                        {
+                            waitforsend = true;
+                            m_chunkSended.Set();
+                        }
+                        else
+                        {
+                            Array.Copy(buffer, 0, m_sendBuffer, m_sendBufferPos, buffer.Length);
+                            m_sendBufferPos += buffer.Length;
+                            waitforsend = false;
+                        }
+                    }
                 }
-            }
+            } while (waitforsend);
         }
 
         public void Close()
@@ -184,10 +204,12 @@ namespace UOExt.Standalone
                     else
                     {
                         m_sending = false;
+                        m_chunkSended.Reset();
                         return;
                     }
                 }
                 m_socket.BeginSend(tmp, 0, tmp.Length, SocketFlags.None, m_AsyncSend, s);
+                m_chunkSended.Reset();
             }
             catch (SocketException se)
             {
