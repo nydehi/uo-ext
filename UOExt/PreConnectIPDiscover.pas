@@ -3,6 +3,7 @@ unit PreConnectIPDiscover;
 interface
 
 function GetConnInfo(var IP: Cardinal; var Port: Word): Boolean;
+function GetTransServPort: Word;
 
 implementation
 
@@ -201,6 +202,57 @@ Begin
   Result := CompareStrings(pFileInfo, 'Razor');
 
   FreeMemory(pFileVersion);
+End;
+
+function GetTransServPort: Word;
+var
+  F:File;
+  fContent: Pointer;
+  fCLength: Cardinal;
+  cStartChar, cCurrentChar: PAnsiChar;
+  sFileName: AnsiString;
+
+Begin
+  Result := 0;
+
+  sFileName := ShardSetup.UOExtBasePath + 'uo.cfg';
+  AssignFile(F, String(sFileName));
+  Reset(F, 1);
+  fContent := GetMemory(FileSize(F));
+  BlockRead(F, fContent^, FileSize(F), fCLength);
+  CloseFile(F);
+  cCurrentChar := fContent;
+  repeat
+    if (cCurrentChar^ = ';') then Begin
+      repeat
+        cCurrentChar := PAnsiChar(Cardinal(cCurrentChar) + 1);
+      until cCurrentChar^ = #10;
+    End Else Begin
+      UpString(cCurrentChar);
+      if CompareStrings(cCurrentChar, 'TRANSLATIONSERVERIPADDRESS=') then Begin
+        cCurrentChar := PAnsiChar(Cardinal(cCurrentChar) + 12);
+        Break;
+      End;
+    End;
+    cCurrentChar := PAnsiChar(Cardinal(cCurrentChar) + 1);
+  until Cardinal(cCurrentChar) >= (Cardinal(fContent) + fCLength);
+  FreeMemory(fContent);
+  if Cardinal(cCurrentChar) >= (Cardinal(fContent) + fCLength) then Exit;
+
+  repeat
+    cCurrentChar := PAnsiChar(Cardinal(cCurrentChar) + 1);
+  until cCurrentChar^ = ',';
+
+  cCurrentChar := PAnsiChar(Cardinal(cCurrentChar) + 1);
+  cStartChar := cCurrentChar;
+  repeat
+    cCurrentChar := PAnsiChar(Cardinal(cCurrentChar) + 1);
+  until (cCurrentChar^ = ' ') or (cCurrentChar^ = #9) or (cCurrentChar^ = #10) or (cCurrentChar^ = #13) or (cCurrentChar^ = ';');
+
+  SetLength(sFileName, Cardinal(cCurrentChar) - Cardinal(cStartChar));
+  CopyMemory(@sFileName[1], cStartChar, Cardinal(cCurrentChar) - Cardinal(cStartChar));
+  sFileName := sFileName;
+  Result := StrToInt(sFileName);
 End;
 
 function GetConnInfo(var IP: Cardinal; var Port: Word): Boolean;

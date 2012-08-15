@@ -7,6 +7,7 @@ uses Windows, APIHooker, ShardSetup, AbstractThread, PluginsShared, WinSock, Mes
 var
   iIP: Integer;
   iPort: Word;
+  TransServerPort: Word;
 
 procedure ReadExecutableSections;
 procedure HookIt;
@@ -82,19 +83,21 @@ var
   bFromExe: Boolean;
 Begin
   bFromExe := False;
-  if ShardSetup.Razor AND (RazorCryptSections = nil) then RazorCryptSections := ReadSections(GetModuleHandleA('Crypt.dll'));
+  if NOT ((name.sin_addr.S_addr = 16777343) AND (name.sin_port = htons(TransServerPort))) then Begin
+    if ShardSetup.Razor AND (RazorCryptSections = nil) then RazorCryptSections := ReadSections(GetModuleHandleA('Crypt.dll'));
 
-  For i := 0 to ExeSections^.Count - 1 do if (ExeSections^.Items[i].Start <= connectReturnAddr) AND ((ExeSections^.Items[i].Length + ExeSections^.Items[i].Start) >= connectReturnAddr) then Begin
-    bFromExe := True;
-    Break;
+    For i := 0 to ExeSections^.Count - 1 do if (ExeSections^.Items[i].Start <= connectReturnAddr) AND ((ExeSections^.Items[i].Length + ExeSections^.Items[i].Start) >= connectReturnAddr) then Begin
+      bFromExe := True;
+      Break;
+    End;
+    if not bFromExe and ShardSetup.Razor then for i := 0 to RazorCryptSections^.Count - 1 do if (RazorCryptSections^.Items[i].Start <= connectReturnAddr) AND ((RazorCryptSections^.Items[i].Length + RazorCryptSections^.Items[i].Start) >= connectReturnAddr) then Begin
+      bFromExe := True;
+      Break;
+    End;
   End;
-  if not bFromExe and ShardSetup.Razor then for i := 0 to RazorCryptSections^.Count - 1 do if (RazorCryptSections^.Items[i].Start <= connectReturnAddr) AND ((RazorCryptSections^.Items[i].Length + RazorCryptSections^.Items[i].Start) >= connectReturnAddr) then Begin
-    bFromExe := True;
-    Break;
-  End;
 
 
-  if not bFromExe then Begin
+  if not bFromExe Then Begin
     THooker.Hooker.TrueAPI;
     Result := connect(s, name, namelen);
     THooker.Hooker.TrueAPIEnd;
@@ -160,4 +163,5 @@ end;
 initialization
   ExeSections := nil;
   RazorCryptSections := nil;
+  TransServerPort := 0;
 end.

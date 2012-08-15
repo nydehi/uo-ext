@@ -280,9 +280,12 @@ namespace UOExt.Standalone
                     } while (m_bufferPosition < m_bufferPointer);
                     if (m_bufferPosition > m_bufferPointer)
                     {
-                        byte[] tmpBuffer = new byte[m_bufferPointer - m_bufferPosition];
-                        Array.Copy(m_buffer, m_bufferPosition, tmpBuffer, 0, m_bufferPointer - m_bufferPosition);
-                        Array.Copy(tmpBuffer, m_buffer, tmpBuffer.Length);
+                        if ((m_bufferPointer - m_bufferPosition) > 0)
+                        {
+                            byte[] tmpBuffer = new byte[m_bufferPointer - m_bufferPosition];
+                            Array.Copy(m_buffer, m_bufferPosition, tmpBuffer, 0, m_bufferPointer - m_bufferPosition);
+                            Array.Copy(tmpBuffer, m_buffer, tmpBuffer.Length);
+                        }
                     }
                     m_bufferPointer -= m_bufferPosition;
                 }
