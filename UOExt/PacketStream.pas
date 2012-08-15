@@ -55,6 +55,7 @@ type
 
     {$IFDEF Debug}
     FDebugPresent:AnsiString;
+    FLogLock: TRTLCriticalSection;
     {$ENDIF}
 
     FCryptObject: TNoEncryption;
@@ -73,7 +74,7 @@ type
     procedure SetCryptObject(Value: TNoEncryption);
 
     {$IFDEF Debug}
-    procedure LogPacket(Data: Pointer; Length: Cardinal);
+    procedure LogPacket(Data: Pointer; Length: Cardinal; Msg:AnsiString = '');
     {$ENDIF}
   public
     {$IFDEF Debug}
@@ -261,6 +262,10 @@ begin
   FCompression:=False;
 
   FCryptObject := nil;
+
+  {$IFDEF Debug}
+  InitializeCriticalSection(FLogLock);
+  {$ENDIF}
 end;
 
 destructor TPacketStream.Destroy;
@@ -268,6 +273,9 @@ begin
   FIncommingBuffer.Free;
   FOutcommingBuffer.Free;
   If Assigned(FCryptObject) Then FCryptObject.Free;
+  {$IFDEF Debug}
+  DeleteCriticalSection(FLogLock);
+  {$ENDIF}
   Inherited Destroy;
 end;
 
@@ -450,7 +458,8 @@ var
   PacketLength:Cardinal;
 
   Decoded:Array [0..70000] of AnsiChar;
-  DecodedLen:Cardinal;
+  DecodedLen, DecodedOffset:Cardinal;
+  PacketBase: Pointer;
   SourceLen:Cardinal;
 begin
   If not GetSeed Then Exit;
@@ -464,7 +473,6 @@ begin
       if PacketLength = $FFFFFFFF then Begin
         {$IFDEF Debug}
         WriteLn(FDebugPresent, 'Unknown packet in buffer. Packet header: ', PByte(FIncommingBuffer.Base)^, '. Packet logged.');
-        LogPacket(FIncommingBuffer.Base, FIncommingBuffer.Amount);
         {$ENDIF}
       End;
       If PacketLength > FIncommingBuffer.Amount Then Begin
@@ -474,18 +482,48 @@ begin
         {$ENDIF}
         Break;
       End;
+      {$IFDEF Debug}
+      LogPacket(FIncommingBuffer.Base, PacketLength, 'Not compressed (' + IntToHex(PByte(FIncommingBuffer.Base)^, 2) + ') - ' + IntToStr(PacketLength) + ':');
+      {$ENDIF}
       DoSendPacket(FIncommingBuffer.Base, PacketLength, False, False);
       FIncommingBuffer.Shift(PacketLength);
     End Else Begin
       SourceLen:=FIncommingBuffer.Amount;
       DecodedLen:=DecodedLength;
       If Huffman.decompress(@Decoded, DecodedLen, FIncommingBuffer.Base, SourceLen) Then Begin
-        DoSendPacket(@Decoded, DecodedLen, False, False);
+        DecodedOffset := 0;
+        PacketBase := @Decoded;
+        repeat
+          PacketLength := ProtocolDescriptor.GetLength(PacketBase, DecodedLen - DecodedOffset);
+          if PacketLength = 0 then Begin
+            {$IFDEF Debug}
+            WriteLn(FDebugPresent, 'Protocol corrupted in decompressed data. Packet header: ', PByte(PacketBase)^);
+            {$ENDIF}
+            Break;
+          End;
+          if PacketLength = $FFFFFFFF then Begin
+            {$IFDEF Debug}
+            WriteLn(FDebugPresent, 'Unknown packet in decompressed buffer. Packet header: ', PByte(PacketBase)^);
+            {$ENDIF}
+            Break;
+          End;
+          if PacketLength > (DecodedLen - DecodedOffset) then Begin
+            {$IFDEF Debug}
+            WriteLn(FDebugPresent, 'Protocol corrupted in decompressed data. Packet is more than decoded. Packet header: ', PByte(PacketBase)^);
+            {$ENDIF}
+            Break;
+          End;
+          {$IFDEF Debug}
+          LogPacket(PacketBase, PacketLength, 'Compressed (' + IntToHex(PByte(PacketBase)^, 2) + ') - ' + IntToStr(PacketLength) + ':');
+          {$ENDIF}
+          DoSendPacket(PacketBase, PacketLength, False, False);
+          PacketBase := Pointer(Cardinal(PacketBase) + PacketLength);
+          DecodedOffset := DecodedOffset + PacketLength;
+        until DecodedLen - DecodedOffset <= 0;
         FIncommingBuffer.Shift(SourceLen);
       End Else Begin
         {$IFDEF Debug}
         WriteLn(FDebugPresent, 'Compressed protocol: Can''t decompress data in buffer. Size := ', SourceLen, '. Packet logged.');
-        LogPacket(FIncommingBuffer.Base, FIncommingBuffer.Amount);
         {$ENDIF}
         Break;
       End;
@@ -531,16 +569,22 @@ Begin
 End;
 
 {$IFDEF Debug}
-procedure TPacketStream.LogPacket(Data: Pointer; Length: Cardinal);
+procedure TPacketStream.LogPacket(Data: Pointer; Length: Cardinal; Msg:AnsiString = '');
 var
   F: TextFile;
 begin
 //  {$I-}
 
-  AssignFile(F, String(ExtractFilePath(AnsiString(ParamStr(0))) + 'UOExt.packetlog.log'));
-  Rewrite(F);
-  WriteDump(Data, Length, F);
-  CloseFile(F);
+  EnterCriticalSection(FLogLock);
+  try
+    AssignFile(F, String(ExtractFilePath(AnsiString(ParamStr(0))) + 'UOExt.packetlog.log'));
+    if not FileExists(ExtractFilePath(AnsiString(ParamStr(0))) + 'UOExt.packetlog.log') then Rewrite(F) else Append(F);
+    if Msg <> '' then Writeln(F, Msg);
+    WriteDump(Data, Length, F);
+  finally
+    CloseFile(F);
+  end;
+  LeaveCriticalSection(FLogLock);
 //  {$I+}
 end;
 {$ENDIF}

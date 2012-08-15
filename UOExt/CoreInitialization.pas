@@ -118,8 +118,8 @@ Begin
   uMainLine := GUI.GUISetLog($FFFFFFFF, $FFFFFFFF, 'Loading ... ');
   uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Initializing');
 
-
   ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
+  DeleteFileA(PAnsiChar(ExtractFilePath(AnsiString(ParamStr(0))) + 'UOExt.packetlog.log')); // Delete file, if any
   GetIPOverride; // Check for IP override
   HookLogic.ReadExecutableSections; // Read all code sections for futher hook
   HookLogic.TransServerPort := PreConnectIPDiscover.GetTransServPort; // For 2.0.3 - avoid TransServ connection
