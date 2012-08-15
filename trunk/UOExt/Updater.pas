@@ -40,7 +40,6 @@ type
     FUOExtGUIMD5: TMD5Digest;
     FNeedUpdateUOExt: Boolean;
     FNeedUpdateUOExtGUI: Boolean;
-    FReverse: Boolean;
 
     procedure ReloadUOExt;
 
@@ -261,7 +260,6 @@ var
 
   WSAData: TWSAData;
   SockAddr: TSockAddr;
-  bufPacket: Array [0..20] of Byte;
   bNoDelay: BOOL;
 begin
   Result := False;

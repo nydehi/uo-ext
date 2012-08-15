@@ -7,7 +7,7 @@ function CoreInitialize:Byte; stdcall;
 implementation
 
 uses Windows, HookLogic, Plugins, Common, WinSock, ShardSetup, zLib,
-  GUI, ProtocolDescription, Updater;
+  GUI, ProtocolDescription, Updater, PreConnectIPDiscover;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}
@@ -108,11 +108,6 @@ var
 Begin
   Result := 2;
 
-  ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
-
-// Check for IP override
-  GetIPOverride;
-
 // Create console if needed
   CreateConsole;
 
@@ -124,10 +119,11 @@ Begin
   uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Initializing');
 
 
-  HookLogic.ReadExecutableSections;
-
-// Init Protocol info.
-  ProtocolDescription.Init;
+  ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
+  GetIPOverride; // Check for IP override
+  HookLogic.ReadExecutableSections; // Read all code sections for futher hook
+  HookLogic.TransServerPort := PreConnectIPDiscover.GetTransServPort; // For 2.0.3 - avoid TransServ connection
+  ProtocolDescription.Init; // Try to fill protocol table from client
 
 // Try to connect to server and ask for support
   GUI.GUISetLog(uStatusLine, uMainLine, 'Performing self-update');
