@@ -1,0 +1,42 @@
+Changes from RC1 to RC2
+[Core]
+  [ADD] UOExt now can read client launch params and use it like IP/Port (I.E: client.exe 127.0.0.1:2593 will force client to connect to this IP/Port. Razor will be overrided).
+  [ADD] If normal connect won't answer as needed during Update process, UOExt wil try NOT port for same IP.
+  [ADD] Persistent connection to Update server if needed.
+  [ADD] Plugins can now export API for other plugins.
+  [ADD] x64 and Unix server support based on XML information of plugins.
+  [ADD] If this is debug build, than packet logging enabled.
+  [ADD] Standalone server now can listen all IPs, if m_IP is null in config.
+  [ADD] Several fixes for 2.0.3 support. Right now UOExt can work with 2.0.3 client if you patch it's encryption.
+  [FIX] (Speedup) Updater now can update UOExt and reload it without reloading client.
+  [FIX] Broken "connect" API call.
+  [FIX] Broken UOExt.GUI.dll update reload.
+  [FIX] When update packet(s) hasn't come from server UOExt crashes.
+  [FIX] If no Plugins folder in UO - UOExt crashes.
+  [FIX] GetPacketLength error.
+  [DROP] WindowProc hook.
+  [DROP] Runtime injection API.
+[GUI]
+  [CHANGE] New logo, that generated in runtime with semi-transparency. :P   
+  
+Изменения с RC1 к RC2    
+[Ядро]
+  [ADD] UOExt теперь проверяет параметры запуска клиента и если там есть IP/Port, то использует их переопределяя Login.cfg и/или Razor (Например: client.exe 127.0.0.1:2593).
+  [ADD] Если обычный порт не отвечает, UOExt попробует подключиться к инвертированному (NOT) порту.
+  [ADD] UOExt сохраняет подключение к Update серверу, если его об этом попросят.
+  [ADD] Плагины теперь могут экспортировать и искать API.
+  [ADD] Сервер теперь работает под x64 и Юниксом соновываясь на XML информации о плагинах.
+  [ADD] В дебаг режиме логгируются неизвестные пакеты. 
+  [ADD] Выделенный сервер теперь слушает все IP которые есть на машине, если в конфиге прописать m_ip = null
+  [ADD] Ряд фиксов для поддержки клиента 2.0.3. На данный момент UOExt может работать с 2.0.3 клиентом, если убрать шифрование.
+  [FIX] (Ускорение) Система обновления теперь умеет перезагружать UOExt без перезагрузки клиента.
+  [FIX] API "connect" было сломанно.
+  [FIX] Перезагрузка UOExt.GUI.dll была сломанна.
+  [FIX] Если некоторые пакеты во время обновления не приходили с сервера UOExt падала.
+  [FIX] Если в папке с клиентом небыло папки Plugins - UOExt падала.
+  [FIX] Ошибка в GetPacketLength.
+  [DROP] Перехват Window процедуры.
+  [DROP] Инъекция UOExt в runtime режиме.
+[GUI]
+  [CHANGE] Новый логотип. Кодогенерирован и с полупрозрачностью. :P   
+   
