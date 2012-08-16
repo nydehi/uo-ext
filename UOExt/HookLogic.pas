@@ -96,6 +96,11 @@ Begin
     End;
   End;
 
+  {$IFDEF DEBUG}
+  Write('HookLogic: Trying to connect to ', inet_ntoa(name.sin_addr), ':', htons(name.sin_port));
+  If(bFromExe) Then Write(' from client');
+  WriteLn;
+  {$ENDIF}
 
   if not bFromExe Then Begin
     THooker.Hooker.TrueAPI;

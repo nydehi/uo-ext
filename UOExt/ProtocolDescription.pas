@@ -113,10 +113,14 @@ var
   currId: Byte;
   currPnt: Pointer;
   currSize: Word;
+  {$IFDEF Debug}
   FoundPackets: Word;
+  {$ENDIF}
 Begin
   currPnt := Table;
+  {$IFDEF Debug}
   FoundPackets := 0;
+  {$ENDIF}
   currId := PCardinal(Cardinal(currPnt) + Id)^;
   repeat
     if SizeSize = 2 then
@@ -126,7 +130,9 @@ Begin
     if currSize = $8000 then currSize := 0;
     Descriptor.AddPacketInfo(currId, currSize);
 
+    {$IFDEF Debug}
     FoundPackets := FoundPackets + 1;
+    {$ENDIF}
 
     currPnt := Pointer(Cardinal(currPnt) + Row);
 
