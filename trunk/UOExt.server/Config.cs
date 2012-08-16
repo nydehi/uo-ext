@@ -54,7 +54,7 @@ namespace UOExt
         /// <summary>
         /// If code is Standalone - this is IP for server to Listen. If code inside RunUO and ExternalServerInRunUO == true, than this is IP to route UOExt during support detection phase.
         /// </summary>
-        private static string m_ip = "127.0.0.1";
+        private static string m_ip = null;
 
         /// <summary>
         /// If code is Standalone - this is port for server to Listen. If code inside RunUO and ExternalServerInRunUO == true, than this is port to route UOExt during support detection phase.

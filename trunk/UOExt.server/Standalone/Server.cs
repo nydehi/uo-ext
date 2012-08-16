@@ -65,7 +65,10 @@ namespace UOExt.Standalone
             try
 			{
 Console.WriteLine("AcceptThread Start");
-                m_listener = new TcpListener(Dns.Resolve(Config.IP).AddressList[0], Config.Port);
+                IPAddress ip = IPAddress.Any;
+                if (Config.IP != null) ip = Dns.GetHostEntry(Config.IP).AddressList[0];
+
+                m_listener = new TcpListener(ip, Config.Port);
                 m_listener.Start();
 				while (true)
 				{

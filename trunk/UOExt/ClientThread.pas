@@ -31,7 +31,6 @@ type
   end;
 
 var
-  CCTLock: TRTLCriticalSection;
   CurrentClientThread: TClientThread;
 
   function CreateSocketPair(var ServerSocket: TSocket; var ClientSocket: TSocket): Boolean;
@@ -169,6 +168,12 @@ var
   Valid: Boolean;
 begin
   Write('Thread in.');
+  repeat
+    if CurrentClientThread <> nil then Begin
+      CurrentClientThread.FNeedExit := True;
+    End;
+    Sleep(1);
+  until CurrentClientThread = nil;
   CurrentClientThread := Self;
   TPluginSystem.Instance.ProxyStart;
   Write('ProxyStart done');
