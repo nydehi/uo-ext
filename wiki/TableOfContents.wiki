@@ -11,6 +11,7 @@
       * [RegisterPacketType]
       * [SendPacket]
       * [AfterPacketCallback]
+      * [APISearch]      
     * Serials (Not working. Maybe reimplemented later)
       * [GetNewSerial]
       * [FreeSerial]
