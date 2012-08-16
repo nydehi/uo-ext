@@ -11,7 +11,6 @@
       * [RegisterPacketType]
       * [SendPacket]
       * [AfterPacketCallback]
-      * [APISearch]      
     * Serials (Not working. Maybe reimplemented later)
       * [GetNewSerial]
       * [FreeSerial]
@@ -31,6 +30,8 @@
       * [GUISetLog]
       * [GUIStartProcess]
       * [GUIUpdateProcess]
+    * Misc
+      * [APISearch]      
   * Plugins Export Procedures
     * Initialize
       * [DllInit]
