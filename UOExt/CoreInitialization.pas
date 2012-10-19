@@ -7,7 +7,7 @@ function CoreInitialize:Byte; stdcall;
 implementation
 
 uses Windows, HookLogic, Plugins, Common, WinSock, ShardSetup, zLib,
-  GUI, ProtocolDescription, Updater, PreConnectIPDiscover;
+  GUI, ProtocolDescription, PreConnectIPDiscover;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}
@@ -101,13 +101,9 @@ End;
 
 function InProcess:Byte;
 var
-  Updater: TUpdater;
-  Res: Integer;
   uMainLine: Cardinal;
   uStatusLine: Cardinal;
 Begin
-  Result := 2;
-
 // Create console if needed
   CreateConsole;
 
@@ -116,72 +112,35 @@ Begin
   GUI.CurrGUI.Init(ShardSetup.UOExtBasePath + ShardSetup.GUIDLLName);
 
   uMainLine := GUI.GUISetLog($FFFFFFFF, $FFFFFFFF, 'Loading ... ');
-  uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Initializing');
+  GUI.GUISetLog($FFFFFFFF, uMainLine, 'Initializing');
 
   ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
-  DeleteFileA(PAnsiChar(ExtractFilePath(AnsiString(ParamStr(0))) + 'UOExt.packetlog.log')); // Delete file, if any
+  DeleteFileA(PAnsiChar(ShardSetup.UOExtBasePath + 'UOExt.packetlog.log')); // Delete file, if any
   GetIPOverride; // Check for IP override
   HookLogic.ReadExecutableSections; // Read all code sections for futher hook
   HookLogic.TransServerPort := PreConnectIPDiscover.GetTransServPort; // For 2.0.3 - avoid TransServ connection
   ProtocolDescription.Init; // Try to fill protocol table from client
 
-// Try to connect to server and ask for support
-  GUI.GUISetLog(uStatusLine, uMainLine, 'Performing self-update');
-  Updater := TUpdater.Create;
-
-// For initial handshake we need MD5 for self, and GUI
-  If not Updater.GatherMD5Info Then CriticalError('Core: Can''t get MD5 sizes of myself and GUI. Critical!');
-
-// If all ok, then we are ready for connection
-  {$IFDEF DEBUG}
-  WriteLn('Core: Asking server for UOExt support.');
-  {$ENDIF}
-  If Updater.Connect Then Begin
+  PluginSystem := TPluginSystem.Create;
+  PluginSystem.LoadMasterLibrary(ShardSetup.UOExtBasePath + 'MP.HddLoad.msp');
+(*
+  if Plugins.TPluginSystem.Instance.MasterPluginRequest = 1 then Begin
     {$IFDEF DEBUG}
-    WriteLn('Core: UOExt supported. Config:');
-    Write('Core:  Server side protocol is ');
-    if ShardSetup.Encrypted then WriteLn('encrypted') else WriteLn('unencrypted');
-    WriteLn('Core:  UOExt protocol encapsulation header: ', IntToHex(ShardSetup.InternalProtocolHeader, 2));
+    Writeln('Core: Core has been updated. Reloading...');
     {$ENDIF}
-  End Else Begin
-   {$IFDEF DEBUG}
-   WriteLn('Core: UOExt is not supported on this server. Gracefull exit.');
-   Sleep(5000);
-   {$ENDIF}
-   Exit;
-  End;
-
-// Ok. We get some info about self-updating. Update if need.
-  Res := Updater.SelfUpdate;
-  If Res = 0 Then Begin
-    {$IFDEF DEBUG}
-    WriteLn('Core: Core is up to date.');
-    {$ENDIF}
-  End Else If Res = 1 then Begin
-    {$IFDEF DEBUG}
-    WriteLn('Core: Core has been updated. Reloading...');
-    {$ENDIF}
-    Updater.Cleanup;
     Result := 1;
     Exit;
-  End Else if Res = 2 then Begin
+  End Else if Plugins.TPluginSystem.Instance.MasterPluginRequest = 2 then Begin
     {$IFDEF DEBUG}
     WriteLn('Core: GUI has been updated.');
     {$ENDIF}
     GUI.CurrGUI.Replace;
     GUI.CurrGUI.Free;
     GUI.CurrGUI := TGUI.Create;
-    uStatusLine := $FFFFFFFF;
     uMainLine := $FFFFFFFF;
-  End Else if Res = -1 then Begin
+  End Else if Plugins.TPluginSystem.Instance.MasterPluginRequest = 3 then Begin
     CriticalError('Core: Failed to self-update. Critical!');
-  End;
-
-// Ok. We are now updated and still running! It's time to load plugins
-  GUI.GUISetLog(uStatusLine, uMainLine, 'Updating plugins');
-  If not Updater.GetDllsFromServer Then Begin
-    CriticalError('Core: Can''t load plugins from server. Critical!');
-  End;
+  End;*)
 
 // Hook needed WinAPI, before plugins init.
   uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Hooking');
@@ -196,15 +155,7 @@ Begin
   WriteLn('done.');
   WriteLn('Core: Starting plug-ins loading.');
   {$ENDIF}
-  TPluginSystem.Instance.Initialize(Updater);
-
-  // Now we need to allow plugins to work with update server
-//  TPluginSystem.Instance.InvokeUpdateProcess(Updater);
-
-// Now we need to close update connection if needed
-  Updater.Cleanup;
-  if not ShardSetup.PersistentConnect then Updater.Free;
-
+  PluginSystem.Init;
 
 // Clean GUI. It's need only on Initialize process.
   GUI.CurrGUI.Free;

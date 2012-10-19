@@ -9,7 +9,6 @@ uses Windows, WinSock, PluginAPI, PluginsShared;
 var
   HelloWorldPacket: Array [0..63] of Byte;
   API: TPluginApi;
-  PluginInfo: PPluginInfo;
 
 function HelloHandler(Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean stdcall;
 var
@@ -53,7 +52,6 @@ var
 Begin
   if APluginEvent = PE_INIT then Begin
     API := TPluginApi.Create;
-    FreeMemory(PluginInfo);
   End;
   Result := API.HandlePluginEvent(APluginEvent, APluginEventData);
   if APluginEvent = PE_INIT then Begin

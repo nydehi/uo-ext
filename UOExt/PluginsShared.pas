@@ -8,6 +8,7 @@ const
   PE_FREE        = 2; {Free plugin}
   PE_PROXYSTART  = 3; {Proxy start}
   PE_PROXYEND    = 4; {Proxy end}
+  PE_MASTERINIT  = 5; {Master initialization}
 
   {API Entries}
   PF_REGISTERPACKETHANDLER = 1;
@@ -30,6 +31,8 @@ const
   PF_GUISTARTPROCESS = 18;
   PF_GUIUPDATEPROCESS = 19;
   PF_APISEARCH = 20;
+  PF_GUICOMMAND = 21;
+  PF_LOADPLUGINLIBRARY = 22;
 
 
   // Plugin dsecriptors
@@ -46,6 +49,7 @@ const
     UOExt will make POST request with file.
   **)
   PD_APIEXPORT = 5; // Reference to PPluginAPIInfo. Expots API from plugin, if any. You can free any memory after PE_INIT done. UOExt will copy this information to it's own.
+  PD_NEEDTHREADSAFE = 6; // (Not working now) If Value = 1, then UOExt MUST make trampoline functions for its own API.
 
 
   (***
@@ -63,10 +67,10 @@ const
 
 type
 
-  TPluginProcedure = function (APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; stdcall;
   {***
     Defines in dll. One procedure inits one plugin.
   ***}
+  TPluginProcedure = function (APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; stdcall;
 
   TPluginDescriptor=packed record
     Descriptor: Cardinal;
@@ -99,31 +103,34 @@ type
   end;
   PPluginAPIInfo = ^TPluginAPIInfo;
 
-  TDllInit = function: PDllPlugins; stdcall;
   {***
     Procedure in Dll with name 'DllInit', that runs after LoadLibrary, returns Plugins entry point list.
   ***}
-  TDllInitDone = procedure; stdcall;
+  TDllInit = function: PDllPlugins; stdcall;
+
   {***
     Procedure in Dll with name 'DllInitDone', that runs after DllInit to free data from Plugins pointer.
     May not present in Dll, if Plugin not need to free memory from Plugins pointer.
   ***}
+  TDllInitDone = procedure; stdcall;
 
-  TPacketHandler = function (Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean; stdcall;
-  (**
+  (***
     Send - Send this package to reciver.
     Result - If true - this event breaks bubbling.
     If Send = false then Result forced to true.
-  **)
+  ***)
+  TPacketHandler = function (Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean; stdcall;
 
   TPacketSendedCallback = procedure(APackeHead: Byte; lParam: Pointer; IsFromServerToClient: Boolean); stdcall;
 
   TUOExtPacketSendedCallback = procedure(APacketHead: Byte; lParam: Pointer); stdcall;
 
-  TPacketLengthDefinition=function(Packet:Pointer; Length:Cardinal):Cardinal; stdcall;
-  (**
+  (***
     In this procedure you can't register or unregister handlers.
-  **)
+  ***)
+  TPacketLengthDefinition=function(Packet:Pointer; Length:Cardinal):Cardinal; stdcall;
+
+  TLoadPluginsLibrary=function(APath: PAnsiChar):Boolean; stdcall;
 
   TAPIFunc = packed record
     FuncType: Cardinal;
@@ -142,6 +149,12 @@ type
     ClientCloseReason: Integer;
   end;
   PPE_ProxyEndEvent = ^ TPE_ProxyEndEvent;
+
+  TPE_MasterPluginInit = packed record
+    API: PAPI;
+    Result: Cardinal;
+  end;
+  PPE_MasterPluginInit = ^TPE_MasterPluginInit;
 
   TRegisterPacketHandler = procedure(Header:Byte; Handler: TPacketHandler) stdcall;
   TUnRegisterPacketHandler = procedure(Header: Byte; Handler: TPacketHandler) stdcall;
@@ -189,6 +202,7 @@ type
   TGUISetLog = function(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
   TGUIStartProcess = function(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; stdcall;
   TGUIUpdateProcess = procedure(ProcessHandle, Min, Max, Current: Cardinal); stdcall;
+  TGUICommand = function(Command: Cardinal; lParam: Pointer; wParam: Pointer): Pointer; stdcall;
 
   (***
     Plugins API

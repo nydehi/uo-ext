@@ -31,6 +31,9 @@ type
     FUOExtProtocolUnRegisterHandler: TUOExtProtocolUnRegisterHandler;
     FUOExtProtocolSendPacket: TUOExtProtocolSendPacket;
 
+    FAPISearch: TAPISearch;
+    FLoadPluginsLibrary: TLoadPluginsLibrary;
+
   public
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
@@ -46,13 +49,16 @@ type
 
     function HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; virtual;
 
-    function GUISetLog(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal;
-    function GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal;
-    procedure GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal);
+    function GUISetLog(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; virtual;
+    function GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; virtual;
+    procedure GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal); virtual;
 
-    procedure UOExtProtocolRegisterHandler(Header:Byte; Handler:TUOExtProtocolHandler);
-    procedure UOExtProtocolUnRegisterHandler(Header:Byte; Handler:TUOExtProtocolHandler);
-    procedure UOExtProtocolSendPacket(Header:Byte; Packet: Pointer; Size: Cardinal);
+    procedure UOExtProtocolRegisterHandler(Header:Byte; Handler:TUOExtProtocolHandler); virtual;
+    procedure UOExtProtocolUnRegisterHandler(Header:Byte; Handler:TUOExtProtocolHandler); virtual;
+    procedure UOExtProtocolSendPacket(Header:Byte; Packet: Pointer; Size: Cardinal); virtual;
+
+    function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; virtual;
+    function LoadPluginsLibrary(APath: PAnsiChar):Boolean; virtual;
 
     constructor Create;
   end;
@@ -138,6 +144,9 @@ begin
         PF_UOEXTREGISTERPACKETHANDLER   : FUOExtProtocolRegisterHandler   := PAPI(APluginEventData)^.APIs[i].Func;
         PF_UOEXTUNREGISTERPACKETHANDLER : FUOExtProtocolUnRegisterHandler := PAPI(APluginEventData)^.APIs[i].Func;
         PF_UOEXTSENDPACKET              : FUOExtProtocolSendPacket        := PAPI(APluginEventData)^.APIs[i].Func;
+
+        PF_APISEARCH                    : FAPISearch                      := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_LOADPLUGINLIBRARY            : FLoadPluginsLibrary             := PAPI(APluginEventData)^.APIs[i].Func;
       End;
       Result := True;
     End;
@@ -239,6 +248,16 @@ End;
 procedure TPluginApi.UOExtProtocolSendPacket(Header:Byte; Packet: Pointer; Size: Cardinal);
 Begin
   FUOExtProtocolSendPacket(Header, Packet, Size);
+End;
+
+function TPluginApi.APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
+Begin
+  Result := FAPISearch(APluginName, AnAPIName, Flags);
+End;
+
+function TPluginApi.LoadPluginsLibrary(APath: PAnsiChar):Boolean;
+Begin
+  Result := FLoadPluginsLibrary(APath);
 End;
 
 

@@ -12,6 +12,7 @@ type
     FSetLog: TGUISetLog;
     FStartProcess: TGUIStartProcess;
     FUpdateProcess: TGUIUpdateProcess;
+    FCommand: TGUICommand;
     FFree: Pointer;
     FPath: AnsiString;
   public
@@ -19,6 +20,7 @@ type
     property SetLog: TGUISetLog read FSetLog;
     property StartProcess: TGUIStartProcess read FStartProcess;
     property UpdateProcess: TGUIUpdateProcess read FUpdateProcess;
+    property Command: TGUICommand read FCommand;
     function Init(Path: AnsiString):Boolean;
     procedure Replace;
     destructor Destroy; override;
@@ -30,6 +32,7 @@ var
 function GUISetLog(LineHandle: LongWord; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
 function GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; stdcall;
 procedure GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal); stdcall;
+function GUICommand(Command: Cardinal; lParam: Pointer; wParam: Pointer): Pointer; stdcall;
 
 implementation
 
@@ -55,6 +58,15 @@ Begin
     CurrGUI.UpdateProcess(ProcessHandle, Min, Max, Current);
 End;
 
+function GUICommand(Command: Cardinal; lParam: Pointer; wParam: Pointer): Pointer; stdcall;
+Begin
+  if Assigned(CurrGUI) and (CurrGUI.Lib <> 0) then
+    Result := CurrGUI.Command(Command, lParam, wParam)
+  else
+    Result := nil;
+End;
+
+
 function TGUI.Init(Path: AnsiString):Boolean;
 type
   TInit = procedure; stdcall;
@@ -77,6 +89,9 @@ begin
   if not Assigned(FStartProcess) then Exit;
 
   @FUpdateProcess := GetProcAddress(FLib, 'UpdateProcess');
+  if not Assigned(FUpdateProcess) then Exit;
+
+  @FCommand := GetProcAddress(FLib, 'Command');
   if not Assigned(FUpdateProcess) then Exit;
 
   FFree := GetProcAddress(Flib, 'Free');
