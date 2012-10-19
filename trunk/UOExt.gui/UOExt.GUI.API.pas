@@ -5,6 +5,7 @@ interface
   function SetLog(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
   function StartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; stdcall;
   procedure UpdateProcess(ProcessHandle, Min, Max, Current: Cardinal); stdcall;
+  function Command(Command: Cardinal; lParam: Pointer; wParam: Pointer): Pointer; stdcall;
   procedure Init; stdcall;
   procedure Free; stdcall;
 
@@ -21,8 +22,13 @@ Begin
     GUI := TGUIThread.Create;
     GUI.Run;
     while not GUI.CanAcceptCalls do Sleep(1);
-    
+
   End;
+End;
+
+function Command(Command: Cardinal; lParam: Pointer; wParam: Pointer): Pointer; stdcall;
+Begin
+  Result := nil;
 End;
 
 procedure Free; stdcall;

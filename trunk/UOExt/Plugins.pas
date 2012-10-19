@@ -2,11 +2,9 @@ unit Plugins;
 
 interface
 
-uses Windows, WinSock, PluginsShared, Common, Updater;
+uses Windows, WinSock, PluginsShared, Common;
 
 type
-
-
   TPluginSystem=class
   strict private type
     TDllInfo = record
@@ -16,12 +14,6 @@ type
       FirstPluginOffset: Cardinal;
     end;
     TProtocolHandlerArray = array [0..255] of TPacketHandler;
-    TUOExtPacketHandlerInfo = packed record
-      Handler: TUOExtProtocolHandler;
-      Plugin: Cardinal;
-    end;
-    PUOExtPacketHandlerInfo = ^TUOExtPacketHandlerInfo;
-    TUOExtProtocolHandlerArray = array [0..255] of TUOExtPacketHandlerInfo;
     TPluginInfo = record
       Handle: Byte;
       Name: PAnsiChar;
@@ -32,55 +24,33 @@ type
       OnPacketSended: TPacketSendedCallback;
       OnPacketSendedParam: Pointer;
 
-      UOExtPacketMin: Byte;
-      UOExtPacketAmount: Byte;
-      OnUOExtPacketSended: TUOExtPacketSendedCallback;
-      OnUOExtPacketSendedParam: Pointer;
-
       ExportedAPI: PPluginAPIInfo;
     end;
   strict private var
     FDlls: Array of TDllInfo;
     FDllCount: Cardinal;
-    FDllPos: Cardinal;
 
     FPlugins: Array of TPluginInfo;
     FPluginsCount: Cardinal;
 
-    FAPILoaded: Boolean;
-
     FSocket: TSocket;
 
     FActivePlugin: Cardinal;
-    FCurrentUpdater: TUpdater;
-
-    FUOExtProtocolHandlers: TUOExtProtocolHandlerArray;
-
-    constructor Create;
-    procedure ProcessLoadingList(Updater:TUpdater);
-    function LoadDll(ADllPath: AnsiString): Boolean;
-    procedure LoadAPIFromList(Updater:TUpdater);
-
-    procedure FetchAllUpdateData(Updater: TUpdater);
   private
     FSyncEventCount: Integer;
   strict private class var
     FInstance: TPluginSystem;
-
-    class constructor CCreate;
   public
     class property Instance: TPluginSystem read FInstance;
 
     property DllCount: Cardinal read FDllCount write FDllCount;
     property PluginsCount: Cardinal read FPluginsCount;
 
-{    property OnRegisterPacketHandler: TOnRegisterPacketHandler read FOnRegisterPacketHandler write FOnRegisterPacketHandler;
-    property OnUnRegisterPacketHandler: TOnRegisterPacketHandler read FOnUnregisterPacketHandler write FOnUnregisterPacketHandler;
-    property OnRegisterpacketType: TOnRegisterPacketType read FOnRegisterPacketType write FOnRegisterPacketType;}
+    function LoadDll(ADllPath: AnsiString): Boolean;
 
     {Control from UOExt}
-    procedure Initialize(Updater:TUpdater);
-    procedure InvokeUpdateProcess(Updater:TUpdater);
+    procedure Init; overload;
+    procedure Init(PluginHandle: Word); overload;
     procedure ProxyStart;
     property Socket: TSocket read FSocket;
     procedure ProxyEnd(ServStatus, CliStatus: Integer);
@@ -89,6 +59,8 @@ type
     procedure CheckSyncEvent;
     procedure PacketSended(Header: Byte; IsFromServerToClient: Boolean);
 
+    function LoadMasterLibrary(APath:AnsiString): Byte;
+
     {Control from Plugins}
 
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
@@ -96,30 +68,35 @@ type
     function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
     function RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
 
-    function UOExtPacket(UOExtHeader:Byte; Data: Pointer; Length: Cardinal): Boolean;
-    procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
-    procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
-
     function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
 
+    constructor Create;
     destructor Destory;
   end;
 
+var
+  PluginSystem: TPluginSystem;
+
 implementation
 
-uses ClientThread, ProtocolDescription, Serials, zLib, HookLogic
+uses ClientThread, ProtocolDescription, zLib, HookLogic
 , ShardSetup, PreConnectIPDiscover, GUI;
 
 const
-  LastAPIFuncNum = 19;
+  LastAPIFuncNum = 13;
+  LastMasterAPIFuncNum = 14;
 type
   TRealAPI=packed record
     APICount: Cardinal;
     APIs: Array [0..LastAPIFuncNum] of TAPIFunc;
   end;
+  TMasterAPI=packed record
+    APICount: Cardinal;
+    APIs: Array [0..LastMasterAPIFuncNum] of TAPIFunc;
+  end;
 
-var
-  API: TRealAPI;
+{var
+  API: TRealAPI;}
 
 // Local functions
 function DuplicatePluginsAPIStruct(AStruct: PPluginAPIInfo): PPluginAPIInfo;
@@ -190,49 +167,73 @@ begin
   InterlockedIncrement(TPluginSystem.Instance.FSyncEventCount);
 end;
 
-procedure UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler) stdcall;
-begin
-  TPluginSystem.Instance.UOExtRegisterPacketHandler(Header, Handler);
-end;
-
-procedure UOExtUnRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler) stdcall;
-begin
-  TPluginSystem.Instance.UOExtUnRegisterPacketHandler(Header, Handler);
-end;
-
-function UOExtSendPacket(Header:Byte; Packet: Pointer; Length: Cardinal):Boolean; stdcall;
-begin
-  Result := False;
-  If not Assigned(CurrentClientThread) Then Exit;
-  Result := TPluginSystem.Instance.UOExtPacket(Header, Packet, Length);
-end;
-
 function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; stdcall;
 Begin
   Result := TPluginSystem.Instance.APISearch(APluginName, AnAPIName, Flags);
 End;
 
-// TPluginSystem
-
-class constructor TPluginSystem.CCreate;
+function LoadPluginsLibrary(APath: PAnsiChar):Boolean; stdcall;
 Begin
-  FInstance := TPluginSystem.Create;
+  Result := TPluginSystem.Instance.LoadDll(APath);
 End;
 
+const
+  API:TRealAPI = (
+    APICount: LastAPIFuncNum + 1;
+    APIs: (
+      (FuncType: PF_REGISTERPACKETHANDLER;    Func: @RegisterPacketHandler),
+      (FuncType: PF_UNREGISTERPACKETHANDLER;  Func: @UnRegisterPacketHandler),
+      (FuncType: PF_REGISTERPACKETTYPE;       Func: @RegisterPacketType),
+      (FuncType: PF_SENDPACKET;               Func: @SendPacket),
+      (FuncType: PF_REGISTERSYNCEVENTHANDLER; Func: @RegisterSyncEventHandler),
+      (FuncType: PF_ASKSYNCEVENT;             Func: @AskSyncEvent),
+      (FuncType: PF_ZLIBCOMPRESS2;            Func: @zLib.Compress),
+      (FuncType: PF_ZLIBDECOMPRESS;           Func: @zLib.Decompress),
+      (FuncType: PF_AFTERPACKETCALLBACK;      Func: @AfterPacketCallback),
+      (FuncType: PF_GUISETLOG;                Func: @GUI.GUISetLog),
+      (FuncType: PF_GUISTARTPROCESS;          Func: @GUI.GUIStartProcess),
+      (FuncType: PF_GUIUPDATEPROCESS;         Func: @GUI.GUIUpdateProcess),
+      (FuncType: PF_GUICOMMAND;               Func: @GUI.GUICommand),
+      (FuncType: PF_APISEARCH;                Func: @APISearch)
+    )
+  );
+  MasterAPI:TMasterAPI = (
+    APICount: LastMasterAPIFuncNum + 1;
+    APIs: (
+      (FuncType: PF_REGISTERPACKETHANDLER;    Func: @RegisterPacketHandler),
+      (FuncType: PF_UNREGISTERPACKETHANDLER;  Func: @UnRegisterPacketHandler),
+      (FuncType: PF_REGISTERPACKETTYPE;       Func: @RegisterPacketType),
+      (FuncType: PF_SENDPACKET;               Func: @SendPacket),
+      (FuncType: PF_REGISTERSYNCEVENTHANDLER; Func: @RegisterSyncEventHandler),
+      (FuncType: PF_ASKSYNCEVENT;             Func: @AskSyncEvent),
+      (FuncType: PF_ZLIBCOMPRESS2;            Func: @zLib.Compress),
+      (FuncType: PF_ZLIBDECOMPRESS;           Func: @zLib.Decompress),
+      (FuncType: PF_AFTERPACKETCALLBACK;      Func: @AfterPacketCallback),
+      (FuncType: PF_GUISETLOG;                Func: @GUI.GUISetLog),
+      (FuncType: PF_GUISTARTPROCESS;          Func: @GUI.GUIStartProcess),
+      (FuncType: PF_GUIUPDATEPROCESS;         Func: @GUI.GUIUpdateProcess),
+      (FuncType: PF_GUICOMMAND;               Func: @GUI.GUICommand),
+      (FuncType: PF_APISEARCH;                Func: @APISearch),
+      (FuncType: PF_LOADPLUGINLIBRARY;        Func: @LoadPluginsLibrary)
+    )
+  );
+  MasterInit:TPE_MasterPluginInit = (
+    API: @MasterAPI;
+    Result: 0;
+  );
+
+// TPluginSystem
+
 constructor TPluginSystem.Create;
-var
-  i: Byte;
 begin
   Inherited;
   SetLength(FDlls, 0);
   SetLength(FPlugins, 0);
   FDllCount := 0;
-  FDllPos := 0;
   FPluginsCount := 0;
   FSocket := 0;
   FActivePlugin := MAXDWORD;
-  ZeroMemory(@FUOExtProtocolHandlers, SizeOf(FUOExtProtocolHandlers));
-  For i := 0 to 255 Do FUOExtProtocolHandlers[i].Plugin := MAXDWORD;
+  FInstance := Self;
 end;
 
 destructor TPluginSystem.Destory;
@@ -249,65 +250,30 @@ begin
   Inherited;
 end;
 
-procedure TPluginSystem.Initialize(Updater:TUpdater);
+function TPluginSystem.LoadMasterLibrary(APath: AnsiString):Byte;
 begin
-  FCurrentUpdater := Updater;
+  Result := 3;
+  if LoadDll(APath) then Begin
+    If FPluginsCount > 0 Then Begin
+      If FPlugins[0].InitProc(PE_MASTERINIT, @MasterInit) Then Result := 0 Else Result := 3;
+    End;
+  End;
 
-  ProcessLoadingList(Updater);
-  LoadAPIFromList(Updater);
-
-  FCurrentUpdater := nil;
 end;
-
-procedure TPluginSystem.ProcessLoadingList(Updater:TUpdater);
-var
-  i, j :Byte;
-  Path, Dll: AnsiString;
-Begin
-  if not Assigned(Updater.DllList) then Begin
-    {$IFDEF DEBUG}
-    WriteLn('Plugins: Dll list is nil. Can''t continue.');
-    {$ENDIF}
-    Halt(1);
-  End;
-  if Updater.DllList^.Amount = 0 then Begin
-    {$IFDEF DEBUG}
-    WriteLn('Plugins: Warning: Dll list is empty. This might be an error, but I will continue.');
-    {$ENDIF}
-    Exit;
-  End;
-
-  FDllCount := Updater.DllList^.Amount;
-  SetLength(FDlls, FDllCount);
-  FDllPos := 0;
-  FPluginsCount := 0;
-  Path := ExtractFilePath(AnsiString(ParamStr(0))) + 'Plugins\';
-
-  For i := 0 to FDllCount - 1 Do Begin
-    Dll := '';
-    For j := 0 to 15 do Dll := Dll + IntToHex(Updater.DllList^.Items[i].MD5[j], 2);
-    Self.LoadDll(Path + Dll + '.cache');
-  End;
-
-End;
 
 function TPluginSystem.LoadDll(ADllPath: AnsiString):Boolean;
 var
   DllInitProc: TDllInit;
   hDll: THandle;
+  i, j: Integer;
+
+  Descriptors : PluginsShared.PPluginInfo;
 begin
   Result := False;
   ADllPath := ADllPath + #0;
   {$IFDEF DEBUG}
   Write('Plugins: Loading library from ', ADllPath, ' ... ');
   {$ENDIF}
-  If FAPILoaded or ((FDllPos + 1) > FDllCount) Then Begin
-    {$IFDEF DEBUG}
-    WriteLn('failed (no more room for libraries).');
-    {$ENDIF}
-    Exit;
-  End;
-
 
   hDll := LoadLibraryA(@ADllPath[1]);
   if hDll = INVALID_HANDLE_VALUE then Begin
@@ -318,7 +284,8 @@ begin
     Exit;
   End;
 
-  FDlls[FDllPos].Handle := hDll;
+  SetLength(FDlls, FDllCount + 1);
+  FDlls[FDllCount].Handle := hDll;
   DllInitProc := GetProcAddress(hDll, 'DllInit');
   if not Assigned(DllInitProc) then Begin
     FDllCount := FDllCount - 1;
@@ -328,153 +295,76 @@ begin
     {$ENDIF}
     Exit;
   End;
-  FDlls[FDllPos].PluginsInfo := DllInitProc;
-  FDlls[FDllPos].PluginsAmount := FDlls[FDllPos].PluginsInfo^.PluginsCount;
-  FDlls[FDllPos].FirstPluginOffset := FPluginsCount;
-  FPluginsCount := FPluginsCount + FDlls[FDllPos].PluginsAmount;
+  FDlls[FDllCount].PluginsInfo := DllInitProc;
+  FDlls[FDllCount].PluginsAmount := FDlls[FDllCount].PluginsInfo^.PluginsCount;
+  FDlls[FDllCount].FirstPluginOffset := FPluginsCount;
   {$IFDEF DEBUG}
-  WriteLn('done (', FDlls[FDllPos].PluginsAmount, ' plugins found).');
+  WriteLn('done (', FDlls[FDllCount].PluginsAmount, ' plugins found).');
   {$ENDIF}
-  FDllPos := FDllPos + 1;
+
+  if FDlls[FDllCount].PluginsAmount > 0 then Begin
+
+    For i := 0 to FDlls[FDllCount].PluginsAmount - 1 do Begin
+      SetLength(FPlugins, FPluginsCount + 1);
+      ZeroMemory(@FPlugins[FPluginsCount], SizeOf(TPluginInfo));
+      Descriptors := FDlls[FDllCount].PluginsInfo^.Plugins[i];
+      if Descriptors^.DescriptorsCount > 0 Then for j := 0 to Descriptors^.DescriptorsCount - 1 do Begin
+        if Descriptors^.Descriptors[j].Descriptor = PD_APIEXPORT then FPlugins[FPluginsCount].ExportedAPI := DuplicatePluginsAPIStruct(PPluginAPIInfo(Descriptors^.Descriptors[j].Value));
+      End;
+      FPlugins[FPluginsCount].InitProc := FDlls[FDllCount].PluginsInfo^.Plugins[i].InitProcedure;
+      FPluginsCount := FPluginsCount + 1;
+
+    End;
+
+    FDllCount := FDllCount + 1;
+  End Else Begin
+    {$IFDEF DEBUG}
+    WriteLn('Plugins: Last library unloaded. Reason: No plugins found');
+    {$ENDIF}
+    FreeLibrary(hDll);
+    SetLength(FDlls, FDllCount);
+  End;
   Result := True;
-end;
-
-procedure TPluginSystem.LoadAPIFromList(Updater:TUpdater);
-var
-  i, j: Cardinal;
-  CurrentPluginInfo: PPluginInitInfo;
-  CurrentPluginDescriptors : PluginsShared.PPluginInfo;
-  InitDone: TDllInitDone;
-  CurrentUOExtPacketStart: Byte;
-begin
-  if FAPILoaded then Exit;
-  if not Assigned(Updater.PluginLoadingList) then Begin
-    {$IFDEF DEBUG}
-    WriteLn('Plugins: Plugins list is nil. Can''t continue.');
-    {$ENDIF}
-    Halt(1);
-  End;
-  FAPILoaded := True;
-  if Updater.PluginLoadingList^.Amount = 0 then Begin
-    {$IFDEF DEBUG}
-    WriteLn('Plugins: Warning: Plugins list is empty. This might be an error, but I will continue.');
-    {$ENDIF}
-    Exit;
-  End;
-  SetLength(FPlugins, Updater.PluginLoadingList^.Amount);
-
-  CurrentUOExtPacketStart := 1;
-  For i := 0 to Updater.PluginLoadingList^.Amount - 1 Do Begin
-    CurrentPluginInfo := @Updater.PluginLoadingList^.Items[i];
-    If CurrentPluginInfo^.Dll > FDllCount Then Begin
-      {$IFDEF DEBUG}
-      WriteLn('Plugins: Error: Plugins entry ', i,' refers to Out Of Bounds Dll. This is error.');
-      {$ENDIF}
-      Halt(1);
-    End;
-    if CurrentPluginInfo^.Plugin > FDlls[CurrentPluginInfo^.Dll].PluginsAmount then Begin
-      {$IFDEF DEBUG}
-      WriteLn('Plugins: Error: Plugins entry ', i,' refers to Out Of Bounds Plugin ', CurrentPluginInfo^.Plugin,' for Dll ', CurrentPluginInfo^.Dll,'. This is error.');
-      {$ENDIF}
-      Halt(1);
-    End;
-    FActivePlugin := i;
-    ZeroMemory(@FPlugins[i], SizeOf(TPluginInfo));
-
-    FPlugins[i].UOExtPacketMin := CurrentUOExtPacketStart;
-
-    CurrentPluginDescriptors := FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin];
-    If CurrentPluginDescriptors^.DescriptorsCount > 0 Then For j := 0 to CurrentPluginDescriptors^.DescriptorsCount - 1 Do Begin
-      if CurrentPluginDescriptors^.Descriptors[j].Descriptor = PD_UOEXTPROTO_PACKETAMOUNT then FPlugins[i].UOExtPacketAmount := CurrentPluginDescriptors^.Descriptors[j].Value;
-      if CurrentPluginDescriptors^.Descriptors[j].Descriptor = PD_APIEXPORT then FPlugins[i].ExportedAPI := DuplicatePluginsAPIStruct(PPluginAPIInfo(CurrentPluginDescriptors^.Descriptors[j].Value));
-
-    End;
-
-    If TPluginProcedure(FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin].InitProcedure)(PE_INIT, @API) Then Begin
-      FPlugins[i].InitProc := FDlls[CurrentPluginInfo^.Dll].PluginsInfo^.Plugins[CurrentPluginInfo^.Plugin].InitProcedure;
-//      FetchAllUpdateData(Updater);
-      InvokeUpdateProcess(Updater);
-    End Else Begin
-      {$IFDEF DEBUG}
-      WriteLn('Plugins: Error: Plugin ', CurrentPluginInfo^.Plugin,' for Dll ', CurrentPluginInfo^.Dll,' filed to initialize. This is error.');
-      {$ENDIF}
-      Halt(1);
-    End;
-    FActivePlugin := MAXWORD;
-  End;
-  For i := 0 to FDllCount - 1 Do Begin
-    InitDone := GetProcAddress(FDlls[i].Handle, 'DllInitDone');
-    If Assigned(InitDone) Then InitDone();
-  End;
-  FPluginsCount := Updater.PluginLoadingList^.Amount;
-  FDllCount := Updater.DllList^.Amount;
-  {$IFDEF DEBUG}
-  WriteLn('Plugins: Initialization done. Loaded ', FPluginsCount, ' plugins from ', FDllCount, ' libraries.');
-  {$ENDIF}
 end;
 
 function TPluginSystem.ClientToServerPacket(Data: Pointer; var Size: Cardinal): Boolean;
 var
   iPluginPos: Cardinal;
-  bSend, bIsUOExt: Boolean;
-  CurrentUOExtHandler: PUOExtPacketHandlerInfo;
+  bSend: Boolean;
 begin
-  bIsUoExt := PByte(Data)^ = ShardSetup.InternalProtocolHeader;
   bSend := True;
   Result := False;
-  if bIsUOExt then Begin
-    // Is it really goes here any time?
-    CurrentUOExtHandler := @FUOExtProtocolHandlers[PByte(Cardinal(Data) + 3)^];
-    if Assigned(CurrentUOExtHandler^.Handler) then Begin
-      FActivePlugin := CurrentUOExtHandler^.Plugin;
-      CurrentUOExtHandler^.Handler(Pointer(Cardinal(Data) + 3), Size - 3);
+  If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
+    If Assigned(FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^]) then Begin
+      FActivePlugin := iPluginPos;
+      Result := FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^](Data, Size, bSend, False);
       FActivePlugin := MAXDWORD;
     End;
-  End Else Begin
-    If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
-      If Assigned(FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^]) then Begin
-        FActivePlugin := iPluginPos;
-        Result := FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^](Data, Size, bSend, False);
-        FActivePlugin := MAXDWORD;
-      End;
-      if Result or not bSend then Begin
-        Result := bSend;
-        Exit;
-      End;
+    if Result or not bSend then Begin
+      Result := bSend;
+      Exit;
     End;
-    Result := bSend;
   End;
+  Result := bSend;
 end;
 
 function TPluginSystem.ServerToClientPacket(Data: Pointer; var Size: Cardinal): Boolean;
 var
   iPluginPos: Cardinal;
-  bSend, bIsUoExt: Boolean;
-  CurrentUOExtHandler: PUOExtPacketHandlerInfo;
+  bSend: Boolean;
 begin
-  bIsUoExt := PByte(Data)^ = ShardSetup.InternalProtocolHeader;
   bSend := True;
   Result := False;
-  if bIsUOExt then Begin
-    CurrentUOExtHandler := @FUOExtProtocolHandlers[PByte(Cardinal(Data) + 3)^];
-    if Assigned(CurrentUOExtHandler^.Handler) then Begin
-      FActivePlugin := CurrentUOExtHandler^.Plugin;
-      CurrentUOExtHandler^.Handler(Pointer(Cardinal(Data) + 3), Size - 3);
+  If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
+    if Assigned(FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^]) then Begin
+      FActivePlugin := iPluginPos;
+      Result := FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^](Data, Size, bSend, True);
       FActivePlugin := MAXDWORD;
     End;
-  End Else Begin
-    If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
-      if Assigned(FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^]) then Begin
-        FActivePlugin := iPluginPos;
-        Result := FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^](Data, Size, bSend, True);
-        FActivePlugin := MAXDWORD;
-      End;
-      if Result or not bSend then Begin
-        Result := bSend;
-        Exit;
-      End;
+    if Result or not bSend then Begin
+      Result := bSend;
+      Exit;
     End;
-    Result := bSend;
   End;
 end;
 
@@ -493,6 +383,42 @@ begin
       End;
     end;
   end;
+end;
+
+procedure TPluginSystem.Init;
+var
+  iPluginPos: Cardinal;
+begin
+  If (FPluginsCount > 0) Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
+    FActivePlugin := iPluginPos;
+    try
+      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_INIT, @API);
+    except
+      {$IFDEF DEBUG}
+        WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
+        ReadLn;
+      {$ENDIF}
+      Halt(1);
+    end;
+    FActivePlugin := MAXDWORD;
+  End;
+end;
+
+procedure TPluginSystem.Init(PluginHandle: Word);
+begin
+  if (FPluginsCount > PluginHandle) then Begin
+    FActivePlugin := PluginHandle;
+    try
+      TPluginProcedure(FPlugins[PluginHandle].InitProc)(PE_INIT, @API);
+    except
+      {$IFDEF DEBUG}
+        WriteLn('Plugins: Exception disarmed in plugin ', PluginHandle);
+        ReadLn;
+      {$ENDIF}
+      Halt(1);
+    end;
+    FActivePlugin := MAXDWORD;
+  End;
 end;
 
 procedure TPluginSystem.ProxyStart;
@@ -545,39 +471,20 @@ procedure TPluginSystem.PacketSended(Header: Byte; IsFromServerToClient: Boolean
 var
   iPluginPos: Cardinal;
 begin
-  if (Header = ShardSetup.InternalProtocolHeader) AND NOT IsFromServerToClient then Begin
-    If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
-      If Assigned(FPlugins[iPluginPos].OnUOExtPacketSended) then Begin
-        FActivePlugin := iPluginPos;
-        try
-          TUOExtPacketSendedCallback(FPlugins[iPluginPos].OnUOExtPacketSended)(Header, FPlugins[iPluginPos].OnUOExtPacketSendedParam);
-        except
-          {$IFDEF DEBUG}
-            WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
-            ReadLn;
-          {$ENDIF}
-          Halt(1);
-        end;
-        FPlugins[iPluginPos].OnUOExtPacketSended := nil;
-        FActivePlugin := MAXDWORD;
-      End;
-    End;
-  End Else Begin
-    If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
-      if Assigned(FPlugins[iPluginPos].OnPacketSended) then Begin
-        FActivePlugin := iPluginPos;
-        try
-          TPacketSendedCallback(FPlugins[iPluginPos].OnPacketSended)(Header, FPlugins[iPluginPos].OnPacketSendedParam, IsFromServerToClient);
-        except
-          {$IFDEF DEBUG}
-            WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
-            ReadLn;
-          {$ENDIF}
-          Halt(1);
-        end;
-        FPlugins[iPluginPos].OnPacketSended := nil;
-        FActivePlugin := MAXDWORD;
-      End;
+  If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
+    if Assigned(FPlugins[iPluginPos].OnPacketSended) then Begin
+      FActivePlugin := iPluginPos;
+      try
+        TPacketSendedCallback(FPlugins[iPluginPos].OnPacketSended)(Header, FPlugins[iPluginPos].OnPacketSendedParam, IsFromServerToClient);
+      except
+        {$IFDEF DEBUG}
+          WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
+          ReadLn;
+        {$ENDIF}
+        Halt(1);
+      end;
+      FPlugins[iPluginPos].OnPacketSended := nil;
+      FActivePlugin := MAXDWORD;
     End;
   End;
 end;
@@ -615,74 +522,6 @@ begin
   End;
 end;
 
-procedure TPluginSystem.UOExtRegisterPacketHandler(Header:Byte; Handler: TUOExtProtocolHandler);
-Begin
-  If FActivePlugin <> MAXDWORD then Begin
-    if Header > FPlugins[FActivePlugin].UOExtPacketAmount then Begin
-      {$IFDEF DEBUG}
-      WriteLn('Plugins: Error: Plugin with handle ', FActivePlugin, ' request for register packet handler for header 0x', IntToHex(Header, 2), ' but it''s more than he exported! This is error. I will die!');
-      ReadLn;
-      {$ENDIF}
-      Halt(1);
-    End;
-    FUOExtProtocolHandlers[FPlugins[FActivePlugin].UOExtPacketMin + Header].Plugin := FActivePlugin;
-    FUOExtProtocolHandlers[FPlugins[FActivePlugin].UOExtPacketMin + Header].Handler := Handler;
-  End;
-End;
-
-procedure TPluginSystem.UOExtUnRegisterPacketHandler(Header: Byte; Handler: TUOExtProtocolHandler);
-begin
-  If FActivePlugin <> MAXDWORD then Begin
-    If Header > FPlugins[FActivePlugin].UOExtPacketAmount then Begin
-      {$IFDEF DEBUG}
-      WriteLn('Plugins: Error: Plugin with handle ', FActivePlugin, ' request for unregister packet handler for header 0x', IntToHex(Header, 2), ' but it''s more than he exported! This is error. I will die!');
-      ReadLn;
-      {$ENDIF}
-      Halt(1);
-    End;
-    ZeroMemory(@FUOExtProtocolHandlers[FPlugins[FActivePlugin].UOExtPacketMin + Header], SizeOf(TUOExtPacketHandlerInfo));
-    FUOExtProtocolHandlers[FPlugins[FActivePlugin].UOExtPacketMin + Header].Plugin := MAXDWORD;
-  End;
-end;
-
-procedure TPluginSystem.FetchAllUpdateData(Updater: TUpdater);
-var
-  Data: Pointer;
-  Size: Cardinal;
-Begin
-  while Updater.UOExtCanRead do Begin
-    Data := Updater.UOExtTryGetPacket(Size, 30000);
-    if Data = nil then Exit;
-    FActivePlugin := FUOExtProtocolHandlers[PByte(Data)^].Plugin;
-    FUOExtProtocolHandlers[PByte(Data)^].Handler(Pointer(Cardinal(Data) + 1), Size - 1);
-    FActivePlugin := MAXDWORD;
-    FreeMemory(Data);
-  End;
-End;
-
-procedure TPluginSystem.InvokeUpdateProcess(Updater:TUpdater);
-var
-  i: Byte;
-  bClear : Boolean;
-Begin
-  Repeat
-    Sleep(1);
-    FetchAllUpdateData(Updater);
-    bClear := True;
-    For i := 0 to 255 do if FUOExtProtocolHandlers[i].Plugin <> MAXDWORD then Begin
-      bClear := False;
-      Break;
-    End;
-  Until bClear;
-End;
-
-function TPluginSystem.UOExtPacket(UOExtHeader:Byte; Data: Pointer; Length: Cardinal): Boolean;
-Begin
-  Result := False;
-  if FActivePlugin = MAXDWORD then Exit;
-  Result := FCurrentUpdater.UOExtPacket(FPlugins[FActivePlugin].UOExtPacketMin + UOExtHeader, Data, Length);
-End;
-
 function TPluginSystem.APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
 var
   i, j: Cardinal;
@@ -701,46 +540,4 @@ begin
         End;
 end;
 
-initialization
-  API.APICount := LastAPIFuncNum + 1;
-  API.APIs[0] .FuncType := PF_REGISTERPACKETHANDLER;
-  API.APIs[0].Func := @RegisterPacketHandler;
-  API.APIs[1].FuncType := PF_UNREGISTERPACKETHANDLER;
-  API.APIs[1].Func := @UnRegisterPacketHandler;
-  API.APIs[2].FuncType := PF_REGISTERPACKETTYPE;
-  API.APIs[2].Func := @RegisterPacketType;
-  API.APIs[3].FuncType := PF_SENDPACKET;
-  API.APIs[3].Func := @SendPacket;
-  API.APIs[4].FuncType := PF_GETNEWSERIAL;
-  API.APIs[4].Func := @GetNewSerial;
-  API.APIs[5].FuncType := PF_FREESERIAL;
-  API.APIs[5].Func := @FreeSerial;
-  API.APIs[6].FuncType := PF_GETSERVERSERIAL;
-  API.APIs[6].Func := @GetServerSerial;
-  API.APIs[7].FuncType := PF_GETCLIENTSERIAL;
-  API.APIs[7].Func := @GetClientSerial;
-  API.APIs[8].FuncType := PF_REGISTERSYNCEVENTHANDLER;
-  API.APIs[8].Func := @RegisterSyncEventHandler;
-  API.APIs[9].FuncType := PF_ASKSYNCEVENT;
-  API.APIs[9].Func := @AskSyncEvent;
-  API.APIs[10].FuncType := PF_ZLIBCOMPRESS2;
-  API.APIs[10].Func := @zLib.Compress;
-  API.APIs[11].FuncType := PF_ZLIBDECOMPRESS;
-  API.APIs[11].Func := @zLib.Decompress;
-  API.APIs[12].FuncType := PF_AFTERPACKETCALLBACK;
-  API.APIs[12].Func := @AfterPacketCallback;
-  API.APIs[13].FuncType := PF_UOEXTREGISTERPACKETHANDLER;
-  API.APIs[13].Func := @UOExtRegisterPacketHandler;
-  API.APIs[14].FuncType := PF_UOEXTUNREGISTERPACKETHANDLER;
-  API.APIs[14].Func := @UOExtUnRegisterPacketHandler;
-  API.APIs[15].FuncType := PF_UOEXTSENDPACKET;
-  API.APIs[15].Func := @UOExtSendPacket;
-  API.APIs[16].FuncType := PF_GUISETLOG;
-  API.APIs[16].Func := @GUI.GUISetLog;
-  API.APIs[17].FuncType := PF_GUISTARTPROCESS;
-  API.APIs[17].Func := @GUI.GUIStartProcess;
-  API.APIs[18].FuncType := PF_GUIUPDATEPROCESS;
-  API.APIs[18].Func := @GUI.GUIUpdateProcess;
-  API.APIs[19].FuncType := PF_APISEARCH;
-  API.APIs[19].Func := @APISearch;
 end.

@@ -12,7 +12,6 @@ uses
   ShardSetup in 'UOExt\ShardSetup.pas',
   Plugins in 'UOExt\Plugins.pas',
   PluginsShared in 'UOExt\PluginsShared.pas',
-  Serials in 'UOExt\Serials.pas',
   zLib in 'UOExt\zLib.pas',
   Encryption in 'UOExt\Encryption.pas',
   DCPcrypt in 'Common\DCPcrypt.pas',
@@ -22,7 +21,6 @@ uses
   Executable in 'UOExt\Executable.pas',
   APIHooker in 'UOExt\APIHooker.pas',
   GUI in 'UOExt\GUI.pas',
-  Updater in 'UOExt\Updater.pas',
   md5 in 'Common\md5.pas',
   PluginsExceptionHandling in 'UOExt\PluginsExceptionHandling.pas';
 
