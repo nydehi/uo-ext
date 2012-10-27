@@ -18,19 +18,12 @@ uses
   Twofish in 'Common\Twofish.pas',
   PreConnectIPDiscover in 'UOExt\PreConnectIPDiscover.pas',
   CoreInitialization in 'UOExt\CoreInitialization.pas',
-  Executable in 'UOExt\Executable.pas',
   APIHooker in 'UOExt\APIHooker.pas',
   GUI in 'UOExt\GUI.pas',
-  md5 in 'Common\md5.pas',
-  PluginsExceptionHandling in 'UOExt\PluginsExceptionHandling.pas';
+  md5 in 'Common\md5.pas';
 
 exports
-  CoreInitialization.CoreInitialize
-  , Executable.Infect32
-  , Executable.InfectA
-  , Executable.InfectW
-  , Executable.ExtractXMLMeta32
-;
+  CoreInitialization.CoreInitialize;
 
 begin
 end.

@@ -29,14 +29,14 @@ type
 var
   CurrGUI: TGUI;
 
-function GUISetLog(LineHandle: LongWord; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
-function GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; stdcall;
-procedure GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal); stdcall;
-function GUICommand(Command: Cardinal; lParam: Pointer; wParam: Pointer): Pointer; stdcall;
+function GUISetLog(LineHandle: LongWord; ParentHandle: Cardinal; Data: PAnsiChar; APlugin: Cardinal): Cardinal; stdcall;
+function GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal; APlugin: Cardinal): Cardinal; stdcall;
+procedure GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal; APlugin: Cardinal); stdcall;
+function GUICommand(Command: Cardinal; lParam: Pointer; wParam: Pointer; APlugin: Cardinal): Pointer; stdcall;
 
 implementation
 
-function GUISetLog(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal; stdcall;
+function GUISetLog(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar; APlugin: Cardinal): Cardinal; stdcall;
 Begin
   if Assigned(CurrGUI) and (CurrGUI.Lib <> 0) then
     Result := CurrGUI.SetLog(LineHandle, ParentHandle, Data)
@@ -44,7 +44,7 @@ Begin
     Result := 0;
 End;
 
-function GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal): Cardinal; stdcall;
+function GUIStartProcess(LineHandle, ParentHandle: Cardinal; ProcessLabel: PAnsiChar; Min, Max, Current: Cardinal; APlugin: Cardinal): Cardinal; stdcall;
 Begin
   if Assigned(CurrGUI) and (CurrGUI.Lib <> 0) then
     Result := CurrGUI.StartProcess(LineHandle, ParentHandle, ProcessLabel, Min, Max, Current)
@@ -52,13 +52,13 @@ Begin
     Result := 0;
 End;
 
-procedure GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal); stdcall;
+procedure GUIUpdateProcess(ProcessHandle, Min, Max, Current: Cardinal; APlugin: Cardinal); stdcall;
 Begin
   if Assigned(CurrGUI) and (CurrGUI.Lib <> 0) then
     CurrGUI.UpdateProcess(ProcessHandle, Min, Max, Current);
 End;
 
-function GUICommand(Command: Cardinal; lParam: Pointer; wParam: Pointer): Pointer; stdcall;
+function GUICommand(Command: Cardinal; lParam: Pointer; wParam: Pointer; APlugin: Cardinal): Pointer; stdcall;
 Begin
   if Assigned(CurrGUI) and (CurrGUI.Lib <> 0) then
     Result := CurrGUI.Command(Command, lParam, wParam)

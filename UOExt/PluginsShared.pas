@@ -19,8 +19,8 @@ const
   PF_FREESERIAL = 6;
   PF_GETSERVERSERIAL = 7;
   PF_GETCLIENTSERIAL = 8;
-  PF_REGISTERSYNCEVENTHANDLER = 9;
-  PF_ASKSYNCEVENT = 10;
+//  PF_REGISTERSYNCEVENTHANDLER = 9; // RC3: Dropped due to thread safe API call
+//  PF_ASKSYNCEVENT = 10;
   PF_ZLIBCOMPRESS2 = 11;
   PF_ZLIBDECOMPRESS = 12;
   PF_AFTERPACKETCALLBACK = 13;
@@ -171,16 +171,13 @@ type
       BYTES Data
     ) than you just need to write it ;)
   **)
-  TSendPacket = function(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean; stdcall;
+  TSendPacket = function(Packet: Pointer; Length: Cardinal; ToServer: Boolean; var Valid: Boolean):Boolean; stdcall;
   TGetNewSerial = function(IsMobile:Boolean): Cardinal; stdcall;
   TFreeSerial = procedure(Serial: Cardinal); stdcall;
   TGetServerSerial = function(Serial:Cardinal):Cardinal; stdcall;
   TGetClientSerial = function(Serial:Cardinal):Cardinal; stdcall;
   TAfterPacketCallback = function(ACallBack: TPacketSendedCallback; lParam: Pointer):Boolean; stdcall;
 
-  TSyncEvent = procedure; stdcall;
-  TRegisterSyncEventHandler = function(Event: TSyncEvent): Pointer; stdcall;
-  TAskSyncEvent = procedure(InterlockedValue: Pointer); stdcall;
   (**
     Can be called from anywhere. Thread safe. (Must be)
   **)

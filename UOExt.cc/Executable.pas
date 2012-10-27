@@ -4,12 +4,9 @@ interface
 
 uses Windows, Common;
 
-function Infect32(Wnd: HWnd; Instance: HInst; CmdLine: PAnsiChar; nCmdShow: Integer): Bool; stdcall;
+procedure InfectA(AExecutablePath: PAnsiChar);
+procedure ExtractXMLMeta32(FromWhat: AnsiString);
 
-function InfectA(AExecutablePath: PAnsiChar):Boolean; stdcall;
-function InfectW(AExecutablePath: PWideChar):Boolean; stdcall;
-
-function ExtractXMLMeta32(Wnd: Hwnd; Instance: HInst; CmdLine: PAnsiChar; nCmdShow: Integer): Bool; stdcall;
 implementation
 
 uses PluginsShared;
@@ -289,48 +286,7 @@ Begin
   CloseHandle(hFile);
 End;
 
-function GetMappingSizeW(AFile: PWideChar; var InjectCode: Pointer; var CodeSize: Cardinal): Cardinal;
-var
-  hFile, hMapping: THandle;
-  pFile: Pointer;
-  DosHeader: PImageDosHeader;
-  PEHeader: PImageFileHeader;
-  OptHeader: PImageOptionalHeader;
-Begin
-  Result := 0;
-  hFile := CreateFileW(AFile, GENERIC_READ OR GENERIC_WRITE, FILE_SHARE_WRITE, nil, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-  if hFile = INVALID_HANDLE_VALUE then Begin
-    WriteLn('Can''t infect ', AFile, ' CreateFileA failed. GLE: ', GetLastError);
-    Halt(1);
-  End;
-  hMapping := CreateFileMappingW(hFile, nil, PAGE_READWRITE, 0, 0, nil);
-  pFile := MapViewOfFile(hMapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-  if pFile = nil then Begin
-    WriteLn('Can''t infect ', AFile, ' MapViewOfFile failed. GLE: ', GetLastError);
-    Halt(1);
-  End;
-
-  DosHeader := pFile;
-  PEHeader := Pointer(Cardinal(pFile) + Cardinal(DosHeader^._lfanew) + 4);
-  if PEHeader^.SizeOfOptionalHeader = 0 then Begin
-    Exit;
-  End;
-  OptHeader := Pointer(Cardinal(pFile) + Cardinal(DosHeader^._lfanew) + 4 + SizeOf(TImageFileHeader));
-
-  InjectCode := PrepareInjectCode(OptHeader^.AddressOfEntryPoint + OptHeader^.ImageBase, CodeSize);
-
-  Result := GetFileSize(hFile, nil) + Align(CodeSize + 7, OptHeader^.FileAlignment);
-  UnmapViewOfFile(pFile);
-  CloseHandle(hMapping);
-  CloseHandle(hFile);
-End;
-
-function Infect32(Wnd: HWnd; Instance: HInst; CmdLine: PAnsiChar; nCmdShow: Integer): Bool; stdcall;
-Begin
-  Result := InfectA(CmdLine);
-End;
-
-function InfectA(AExecutablePath: PAnsiChar):Boolean; stdcall;
+procedure InfectA(AExecutablePath: PAnsiChar);
 type
   TPorcedure = procedure;
   TSections = Array [0..999] of TImageSectionHeader;
@@ -350,15 +306,14 @@ var
   pCodeData: Pointer;
   sInfectMark: AnsiString;
 Begin
-  Result := False;
 
   sInfectMark := 'UOEX';
   PCardinal(@cInfectMark)^ := PCardinal(@sInfectMark[1])^;
 
   cFileSize := GetMappingSizeA(AExecutablePath, pCodeData, cCodeSize);
   if cFileSize = 0 then Begin
-    MessageBox(0, 'This executable not supported', nil, MB_OK);
-    Exit;
+    Writeln('This executable not supported');
+    Halt(1);
   End;
 
   hFile := CreateFileA(AExecutablePath, GENERIC_READ OR GENERIC_WRITE, FILE_SHARE_WRITE, nil, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
@@ -401,88 +356,12 @@ Begin
   CloseHandle(hFile);
 
   FreeMemory(pCodeData);
-
-  Result := True;
 End;
 
-function InfectW(AExecutablePath: PWideChar):Boolean; stdcall;
-type
-  TPorcedure = procedure;
-  TSections = Array [0..999] of TImageSectionHeader;
-  PSections = ^TSections;
-var
-  DosHeader: PImageDosHeader;
-  PEHeader: PImageFileHeader;
-  OptHeader: PImageOptionalHeader;
-  Sections: PSections;
-
-  hFile, hMapping: THandle;
-  pFile: Pointer;
-
-  i, LastSectionId: Word;
-
-  cMaxVirtualAddress, cCodeSize, cInfectMark, cFileSize: Cardinal;
-  pCodeData: Pointer;
-  sInfectMark: AnsiString;
-Begin
-  Result := False;
-
-  sInfectMark := 'UOEX';
-  PCardinal(@cInfectMark)^ := PCardinal(@sInfectMark[1])^;
-
-  cFileSize := GetMappingSizeW(AExecutablePath, pCodeData, cCodeSize);
-  if cFileSize = 0 then Begin
-    MessageBox(0, 'This executable not supported', nil, MB_OK);
-    Exit;
-  End;
-
-  hFile := CreateFileW(AExecutablePath, GENERIC_READ OR GENERIC_WRITE, FILE_SHARE_WRITE, nil, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-  hMapping := CreateFileMappingW(hFile, nil, PAGE_READWRITE, 0, cFileSize, nil);
-  pFile := MapViewOfFile(hMapping, FILE_MAP_ALL_ACCESS, 0, 0, cFileSize);
-
-  DosHeader := pFile;
-  PEHeader := Pointer(Cardinal(pFile) + Cardinal(DosHeader^._lfanew) + 4);
-  OptHeader := Pointer(Cardinal(pFile) + Cardinal(DosHeader^._lfanew) + 4 + SizeOf(TImageFileHeader));
-  Sections := Pointer(Cardinal(pFile) + Cardinal(DosHeader^._lfanew) + 4 + SizeOf(TImageFileHeader) + SizeOf(TImageOptionalHeader) + (OptHeader^.NumberOfRvaAndSizes - IMAGE_NUMBEROF_DIRECTORY_ENTRIES) * SizeOf(TImageDataDirectory));
-
-  LastSectionId := 0;
-  cMaxVirtualAddress := 0;
-  For i := 0 to PEHeader^.NumberOfSections - 1 do Begin
-    if cMaxVirtualAddress < Sections^[i].VirtualAddress then Begin
-      LastSectionId := i;
-      cMaxVirtualAddress := Sections^[i].VirtualAddress;
-    End;
-  End;
-
-  {Write infect code}
-  CopyMemory(Pointer(Cardinal(pFile) + Sections[LastSectionId].PointerToRawData + Sections[LastSectionId].SizeOfRawData), pCodeData, cCodeSize);
-
-  {Fix Entry point}
-  OptHeader.AddressOfEntryPoint := Sections[LastSectionId].VirtualAddress + Sections[LastSectionId].SizeOfRawData;
-
-  {Fix Virtual and Physical sizes}
-  Sections[LastSectionId].Misc.VirtualSize := Align(Sections[LastSectionId].Misc.VirtualSize + cCodeSize, OptHeader.SectionAlignment);
-  Sections[LastSectionId].SizeOfRawData := Align(Sections[LastSectionId].SizeOfRawData + cCodeSize, OptHeader.FileAlignment);
-  if Sections[LastSectionId].SizeOfRawData > Sections[LastSectionId].Misc.VirtualSize then
-    Sections[LastSectionId].Misc.VirtualSize := Align(Sections[LastSectionId].SizeOfRawData, OptHeader.SectionAlignment);
-
-  OptHeader.SizeOfImage := Sections[LastSectionId].VirtualAddress + Sections[LastSectionId].Misc.VirtualSize;
-
-  {Allowing to execut this section and misc changes}
-  Sections[LastSectionId].Characteristics := (Sections[LastSectionId].Characteristics OR $A0000020) AND ( NOT $02000000 );
-
-  UnmapViewOfFile(pFile);
-  CloseHandle(hMapping);
-  CloseHandle(hFile);
-
-  FreeMemory(pCodeData);
-
-  Result := True;
-End;
 {$ENDREGION}
 
 {$REGION 'XMLWriter'}
-function ExtractXMLMeta32(Wnd: Hwnd; Instance: HInst; CmdLine: PAnsiChar; nCmdShow: Integer): Bool; stdcall;
+procedure ExtractXMLMeta32(FromWhat: AnsiString);
 var
   hLib: THandle;
   DllInit: TDllInit;
@@ -490,23 +369,25 @@ var
   F:Text;
   PlgCntr, DescrCntr: Cardinal;
 Begin
-  hLib := LoadLibraryA(CmdLine);
+  FromWhat := FromWhat + #0;
+  hLib := LoadLibraryA(@FromWhat[1]);
   if hLib = INVALID_HANDLE_VALUE then Begin
-    WriteLn('Can''t load library ', CmdLine);
+    WriteLn('Can''t load library ', FromWhat);
     Halt(1);
   End;
   @DllInit := GetProcAddress(hLib, 'DllInit');
   if not Assigned(@DllInit) then Begin
-    WriteLn('Can''t load init proc (DllInit) in ', CmdLine);
+    WriteLn('Can''t load init proc (DllInit) in ', FromWhat);
     Halt(1);
   End;
   Plugins := DllInit;
   if Plugins^.PluginsCount = 0 then Begin
-    WriteLn('DllInit returns 0 plugins. It''s not an UOExt plugins library. (', CmdLine,')');
+    WriteLn('DllInit returns 0 plugins. It''s not an UOExt plugins library. (', FromWhat,')');
     Halt(1);
   End;
 
-  AssignFile(F, String(AnsiString(CmdLine) + '.xml'));
+  SetLength(FromWhat, Length(FromWhat) - 1);
+  AssignFile(F, String(FromWhat + '.xml'));
   Rewrite(F);
   WriteLn(F, '<?xml version="1.0" encoding="utf-8" ?>');
   WriteLn(F, '<Library Plugins="', Plugins^.PluginsCount,'">');
@@ -526,7 +407,6 @@ Begin
 
   FreeLibrary(hLib);
   CloseFile(F);
-  Result := True;
 End;
 {$ENDREGION}
 end.

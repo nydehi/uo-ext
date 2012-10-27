@@ -53,6 +53,8 @@ type
     FCompression:Boolean;
     FIsCliServ:Boolean;
 
+    FOutcommingLock: TRTLCriticalSection;
+
     {$IFDEF Debug}
     FDebugPresent:AnsiString;
     FLogLock: TRTLCriticalSection;
@@ -263,6 +265,8 @@ begin
 
   FCryptObject := nil;
 
+  InitializeCriticalSection(FOutcommingLock);
+
   {$IFDEF Debug}
   InitializeCriticalSection(FLogLock);
   {$ENDIF}
@@ -273,6 +277,7 @@ begin
   FIncommingBuffer.Free;
   FOutcommingBuffer.Free;
   If Assigned(FCryptObject) Then FCryptObject.Free;
+  DeleteCriticalSection(FOutcommingLock);
   {$IFDEF Debug}
   DeleteCriticalSection(FLogLock);
   {$ENDIF}
@@ -287,6 +292,7 @@ var
   EncodedLen:Cardinal;
   pOldWork: Pointer;
 begin
+  EnterCriticalSection(FOutcommingLock);
   If FCompression Then Begin
     EncodedLen:=EncodedLength;
     If not Huffman.compress(@Encoded[0], EncodedLen, Packet, Length) Then Begin
@@ -307,6 +313,7 @@ begin
   {$IFDEF Debug}
   Flush;
   {$ENDIF}
+  LeaveCriticalSection(FOutcommingLock);
 end;
 
 procedure TPacketStream.Flush;
