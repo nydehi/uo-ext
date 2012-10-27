@@ -15,8 +15,8 @@ var
   zCompress2: TCompress2;
   zDecompress: TDecompress;
 
-function Compress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; stdcall;
-function Decompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; stdcall;
+function Compress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer; APlugin: Cardinal):Integer; stdcall;
+function Decompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer; APlugin: Cardinal):Integer; stdcall;
 
 
 implementation
@@ -57,7 +57,7 @@ Begin
   Initted := True;
 End;
 
-function Compress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; stdcall;
+function Compress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer; APlugin: Cardinal):Integer; stdcall;
 Begin
   If not Initted Then
     If not InitZLib('zlib32.dll', 'zlib64.dll') Then begin
@@ -67,7 +67,7 @@ Begin
   Result := zCompress2(dest, destLength, source, sourceLength, quality);
 End;
 
-function Decompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; stdcall;
+function Decompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer; APlugin: Cardinal):Integer; stdcall;
 Begin
   If not Initted Then
     If not InitZLib('zlib32.dll', 'zlib64.dll') Then Begin

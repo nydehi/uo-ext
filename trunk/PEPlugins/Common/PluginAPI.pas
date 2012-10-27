@@ -19,8 +19,6 @@ type
     FFreeSerial: TFreeSerial;
     FGetServerSerial: TGetServerSerial;
     FGetClientSerial: TGetClientSerial;
-    FRegisterSyncEventHandler: TRegisterSyncEventHandler;
-    FAskSyncEvent: TAskSyncEvent;
     FAfterPacketCallback:TAfterPacketCallback;
 
     FGUISetLog: TGUISetLog;
@@ -37,15 +35,12 @@ type
   public
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
-    function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean; virtual;
+    function SendPacket(Packet: Pointer; Length: Cardinal; ToServer: Boolean; var Valid: Boolean):Boolean; virtual;
     procedure RegisterPacketType(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition); virtual;
     function GetNewSerial(IsMobile:Boolean): Cardinal; virtual;
     procedure FreeSerial(Serial: Cardinal); virtual;
     function GetServerSerial(Serial:Cardinal):Cardinal; virtual;
     function GetClientSerial(Serial:Cardinal):Cardinal; virtual;
-    function RegisterSyncEventHandler(Event: TSyncEvent): Pointer; virtual;
-    procedure AskSyncEvent(InterlockedValue: Pointer); virtual;
-    function AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean; virtual;
 
     function HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean; virtual;
 
@@ -133,8 +128,6 @@ begin
         PF_GETSERVERSERIAL              : FGetServerSerial                := PAPI(APluginEventData)^.APIs[i].Func;
         PF_GETCLIENTSERIAL              : FGetClientSerial                := PAPI(APluginEventData)^.APIs[i].Func;
 
-        PF_REGISTERSYNCEVENTHANDLER     : FRegisterSyncEventHandler       := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_ASKSYNCEVENT                 : FAskSyncEvent                   := PAPI(APluginEventData)^.APIs[i].Func;
         PF_AFTERPACKETCALLBACK          : FAfterPacketCallback            := PAPI(APluginEventData)^.APIs[i].Func;
 
         PF_GUISETLOG                    : FGUISetLog                      := PAPI(APluginEventData)^.APIs[i].Func;
@@ -175,9 +168,9 @@ begin
   FUnRegisterPacketHandler(Header, Handler);
 end;
 
-function TPluginApi.SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean;
+function TPluginApi.SendPacket(Packet: Pointer; Length: Cardinal; ToServer: Boolean; var Valid: Boolean):Boolean;
 begin
-  Result := FSendPacket(Packet, Length, ToServer, Direct, Valid);
+  Result := FSendPacket(Packet, Length, ToServer, Valid);
 end;
 
 procedure TPluginApi.RegisterPacketType(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition);
@@ -204,21 +197,6 @@ function TPluginApi.GetClientSerial(Serial:Cardinal):Cardinal;
 Begin
   Result := FGetClientSerial(Serial);
 End;
-
-function TPluginApi.RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
-Begin
-  Result := FRegisterSyncEventHandler(Event);
-End;
-
-procedure TPluginApi.AskSyncEvent(InterlockedValue: Pointer);
-Begin
-  FAskSyncEvent(InterlockedValue);
-End;
-
-function TPluginApi.AskPacketProcessedEvent(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
-begin
-  Result := FAfterPacketCallback(ACallBack, lParam);
-end;
 
 function TPluginApi.GUISetLog(LineHandle: Cardinal; ParentHandle: Cardinal; Data: PAnsiChar): Cardinal;
 Begin

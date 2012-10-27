@@ -208,7 +208,6 @@ begin
     end;
     FCSObj.Flush;
     FSCObj.Flush;
-    TPluginSystem.Instance.CheckSyncEvent;
   until FNeedExit;
   Write('Connection terminated by some reason.');
   TPluginSystem.Instance.ProxyEnd(SocketClosedReason(FServerConnection), SocketClosedReason(FClientConnection));

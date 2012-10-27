@@ -19,12 +19,11 @@ type
       Name: PAnsiChar;
       InitProc: TPluginProcedure;
       ProtocolHandlers: TProtocolHandlerArray;
-      SyncEventCount: Integer;
-      EventCallback: TSyncEvent;
       OnPacketSended: TPacketSendedCallback;
       OnPacketSendedParam: Pointer;
 
       ExportedAPI: PPluginAPIInfo;
+      Trampolines: Pointer;
     end;
   strict private var
     FDlls: Array of TDllInfo;
@@ -35,9 +34,11 @@ type
 
     FSocket: TSocket;
 
-    FActivePlugin: Cardinal;
+//    FActivePlugin: Cardinal;
+    FMasterTrampolines: Pointer;
   private
     FSyncEventCount: Integer;
+    FThreadLocker: TRTLCriticalSection;
   strict private class var
     FInstance: TPluginSystem;
   public
@@ -56,19 +57,17 @@ type
     procedure ProxyEnd(ServStatus, CliStatus: Integer);
     function ClientToServerPacket(Data: Pointer; var Size:Cardinal): Boolean;
     function ServerToClientPacket(Data: Pointer; var Size:Cardinal): Boolean;
-    procedure CheckSyncEvent;
     procedure PacketSended(Header: Byte; IsFromServerToClient: Boolean);
 
     function LoadMasterLibrary(APath:AnsiString): Byte;
 
     {Control from Plugins}
 
-    procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
-    procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
-    function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
-    function RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
+    procedure RegisterPacketHandler(APlugin:Cardinal; Header:Byte; Handler: TPacketHandler);
+    procedure UnRegisterPacketHandler(APlugin:Cardinal; Header:Byte; Handler: TPacketHandler);
+    function AfterPacketCallback(APlugin:Cardinal; ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
 
-    function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
+    function APISearch(APlugin:Cardinal; APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
 
     constructor Create;
     destructor Destory;
@@ -83,8 +82,8 @@ uses ClientThread, ProtocolDescription, zLib, HookLogic
 , ShardSetup, PreConnectIPDiscover, GUI;
 
 const
-  LastAPIFuncNum = 13;
-  LastMasterAPIFuncNum = 14;
+  LastAPIFuncNum = 11;
+  LastMasterAPIFuncNum = 12;
 type
   TRealAPI=packed record
     APICount: Cardinal;
@@ -124,31 +123,32 @@ procedure DestroyPluginsAPIStruct(AStruct: PPluginAPIInfo);
 Begin
   FreeMemory(AStruct);
 End;
+
 // Plugin functions
 
-procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler) stdcall;
+procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler; APlugin: Cardinal) stdcall;
 begin
-  TPluginSystem.Instance.RegisterPacketHandler(Header, Handler);
+  TPluginSystem.Instance.RegisterPacketHandler(APlugin, Header, Handler);
 end;
 
-procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler) stdcall;
+procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler; APlugin: Cardinal) stdcall;
 begin
-  TPluginSystem.Instance.UnRegisterPacketHandler(Header, Handler);
+  TPluginSystem.Instance.UnRegisterPacketHandler(APlugin, Header, Handler);
 end;
 
-function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer):Boolean; stdcall;
+function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer; APlugin: Cardinal):Boolean; stdcall;
 Begin
-  Result := TPluginSystem.Instance.AfterPacketCallback(ACallBack, lParam);
+  Result := TPluginSystem.Instance.AfterPacketCallback(APlugin, ACallBack, lParam);
 End;
 
-function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean; stdcall;
+function SendPacket(Packet: Pointer; Length: Cardinal; ToServer: Boolean; var Valid: Boolean; APlugin: Cardinal):Boolean; stdcall;
 begin
   Result := False;
   If not Assigned(CurrentClientThread) Then Exit;
-  Result := CurrentClientThread.SendPacket(Packet, Length, ToServer, Direct, Valid);
+  Result := CurrentClientThread.SendPacket(Packet, Length, ToServer, True, Valid);
 end;
 
-procedure RegisterPacketType(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition) stdcall;
+procedure RegisterPacketType(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition; APlugin: Cardinal) stdcall;
 begin
   If not Assigned(HandleProc) Then
     ProtocolDescriptor.AddPacketInfo(Header, Size)
@@ -156,23 +156,18 @@ begin
     ProtocolDescriptor.AddPacketInfo(Header, HandleProc);
 end;
 
-function RegisterSyncEventHandler(Event: TSyncEvent): Pointer; stdcall;
-begin
-  Result := TPluginSystem.Instance.RegisterSyncEventHandler(Event);
-end;
-
-procedure AskSyncEvent(InterlockedValue: Pointer); stdcall;
+procedure AskSyncEvent(InterlockedValue: Pointer; APlugin: Cardinal); stdcall;
 begin
   InterlockedIncrement(PInteger(InterlockedValue)^);
   InterlockedIncrement(TPluginSystem.Instance.FSyncEventCount);
 end;
 
-function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; stdcall;
+function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal; APlugin: Cardinal): Pointer; stdcall;
 Begin
-  Result := TPluginSystem.Instance.APISearch(APluginName, AnAPIName, Flags);
+  Result := TPluginSystem.Instance.APISearch(APlugin, APluginName, AnAPIName, Flags);
 End;
 
-function LoadPluginsLibrary(APath: PAnsiChar):Boolean; stdcall;
+function LoadPluginsLibrary(APath: PAnsiChar; APlugin: Cardinal):Boolean; stdcall;
 Begin
   Result := TPluginSystem.Instance.LoadDll(APath);
 End;
@@ -185,8 +180,6 @@ const
       (FuncType: PF_UNREGISTERPACKETHANDLER;  Func: @UnRegisterPacketHandler),
       (FuncType: PF_REGISTERPACKETTYPE;       Func: @RegisterPacketType),
       (FuncType: PF_SENDPACKET;               Func: @SendPacket),
-      (FuncType: PF_REGISTERSYNCEVENTHANDLER; Func: @RegisterSyncEventHandler),
-      (FuncType: PF_ASKSYNCEVENT;             Func: @AskSyncEvent),
       (FuncType: PF_ZLIBCOMPRESS2;            Func: @zLib.Compress),
       (FuncType: PF_ZLIBDECOMPRESS;           Func: @zLib.Decompress),
       (FuncType: PF_AFTERPACKETCALLBACK;      Func: @AfterPacketCallback),
@@ -204,8 +197,6 @@ const
       (FuncType: PF_UNREGISTERPACKETHANDLER;  Func: @UnRegisterPacketHandler),
       (FuncType: PF_REGISTERPACKETTYPE;       Func: @RegisterPacketType),
       (FuncType: PF_SENDPACKET;               Func: @SendPacket),
-      (FuncType: PF_REGISTERSYNCEVENTHANDLER; Func: @RegisterSyncEventHandler),
-      (FuncType: PF_ASKSYNCEVENT;             Func: @AskSyncEvent),
       (FuncType: PF_ZLIBCOMPRESS2;            Func: @zLib.Compress),
       (FuncType: PF_ZLIBDECOMPRESS;           Func: @zLib.Decompress),
       (FuncType: PF_AFTERPACKETCALLBACK;      Func: @AfterPacketCallback),
@@ -221,6 +212,40 @@ const
     API: @MasterAPI;
     Result: 0;
   );
+// Local functions
+function MakeAPITrampolinesForPlugin(APlugin: Cardinal; Master: Boolean): Pointer;
+type
+  TTrampoline = packed record
+    Push1: Byte;
+    Plugin: Cardinal;
+    Push2: Byte;
+    RetPoint: Pointer;
+    Ret: Byte;
+  end;
+  TTramolines = Array [0..0] of TTrampoline;
+  PTramolines = ^TTramolines;
+const
+  TrampolineSize = 11;
+var
+  WorkStruct: PAPI;
+  i: Cardinal;
+Begin
+  if Master then WorkStruct := PAPI(@MasterAPI) Else WorkStruct := PAPI(@API);
+  Result := GetMemory(WorkStruct^.APICount * TrampolineSize);
+  for i := 0 to WorkStruct^.APICount - 1 do Begin
+    PTramolines(Result)^[i].Push1 := $68;
+    PTramolines(Result)^[i].Push2 := $68;
+    PTramolines(Result)^[i].Ret := $C3;
+    PTramolines(Result)^[i].Plugin := APlugin;
+    PTramolines(Result)^[i].RetPoint := WorkStruct^.APIs[i].Func;
+  End;
+End;
+
+procedure FreeAPITrampolinesForPlugin(ATrampolines: Pointer);
+Begin
+  FreeMemory(ATrampolines);
+End;
+
 
 // TPluginSystem
 
@@ -232,8 +257,10 @@ begin
   FDllCount := 0;
   FPluginsCount := 0;
   FSocket := 0;
-  FActivePlugin := MAXDWORD;
   FInstance := Self;
+  FMasterTrampolines := MakeAPITrampolinesForPlugin(0, True);
+  PPointer(@MasterInit.API)^ := FMasterTrampolines;
+  InitializeCriticalSection(FThreadLocker);
 end;
 
 destructor TPluginSystem.Destory;
@@ -241,12 +268,17 @@ var
   i: Integer;
 begin
   SetLength(FDlls, 0);
-  for i := 0 to FPluginsCount - 1 do DestroyPluginsAPIStruct(FPlugins[i].ExportedAPI);
+  for i := 0 to FPluginsCount - 1 do Begin
+    DestroyPluginsAPIStruct(FPlugins[i].ExportedAPI);
+    FreeAPITrampolinesForPlugin(FPlugins[i].Trampolines);
+  End;
+  FreeAPITrampolinesForPlugin(FMasterTrampolines);
   SetLength(FPlugins, 0);
   if FSocket <> 0 then Begin
     closesocket(FSocket);
     FSocket := 0;
   End;
+  DeleteCriticalSection(FThreadLocker);
   Inherited;
 end;
 
@@ -312,6 +344,7 @@ begin
         if Descriptors^.Descriptors[j].Descriptor = PD_APIEXPORT then FPlugins[FPluginsCount].ExportedAPI := DuplicatePluginsAPIStruct(PPluginAPIInfo(Descriptors^.Descriptors[j].Value));
       End;
       FPlugins[FPluginsCount].InitProc := FDlls[FDllCount].PluginsInfo^.Plugins[i].InitProcedure;
+      FPlugins[FPluginsCount].Trampolines := MakeAPITrampolinesForPlugin(FPluginsCount, False);
       FPluginsCount := FPluginsCount + 1;
 
     End;
@@ -334,17 +367,17 @@ var
 begin
   bSend := True;
   Result := False;
+  EnterCriticalSection(FThreadLocker);
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
     If Assigned(FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^]) then Begin
-      FActivePlugin := iPluginPos;
       Result := FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^](Data, Size, bSend, False);
-      FActivePlugin := MAXDWORD;
     End;
     if Result or not bSend then Begin
       Result := bSend;
       Exit;
     End;
   End;
+  LeaveCriticalSection(FThreadLocker);
   Result := bSend;
 end;
 
@@ -355,34 +388,17 @@ var
 begin
   bSend := True;
   Result := False;
+  EnterCriticalSection(FThreadLocker);
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
     if Assigned(FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^]) then Begin
-      FActivePlugin := iPluginPos;
       Result := FPlugins[iPluginPos].ProtocolHandlers[PByte(Data)^](Data, Size, bSend, True);
-      FActivePlugin := MAXDWORD;
     End;
     if Result or not bSend then Begin
       Result := bSend;
       Exit;
     End;
   End;
-end;
-
-procedure TPluginSystem.CheckSyncEvent;
-var
-  iPluginPos: Cardinal;
-begin
-  If InterlockedExchange(FSyncEventCount, 0) > 0 Then begin
-    If FPluginsCount > 0 Then for iPluginPos := 0 to FPluginsCount do begin
-      if InterlockedExchange(FPlugins[iPluginPos].SyncEventCount, 0) > 0 Then Begin
-        if Assigned(FPlugins[iPluginPos].EventCallback) then Begin
-         FActivePlugin := iPluginPos;
-         FPlugins[iPluginPos].EventCallback();
-         FActivePlugin := MAXDWORD;
-        End;
-      End;
-    end;
-  end;
+  LeaveCriticalSection(FThreadLocker);
 end;
 
 procedure TPluginSystem.Init;
@@ -390,9 +406,8 @@ var
   iPluginPos: Cardinal;
 begin
   If (FPluginsCount > 0) Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
-    FActivePlugin := iPluginPos;
     try
-      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_INIT, @API);
+      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_INIT, FPlugins[iPluginPos].Trampolines);
     except
       {$IFDEF DEBUG}
         WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
@@ -400,16 +415,14 @@ begin
       {$ENDIF}
       Halt(1);
     end;
-    FActivePlugin := MAXDWORD;
   End;
 end;
 
 procedure TPluginSystem.Init(PluginHandle: Word);
 begin
   if (FPluginsCount > PluginHandle) then Begin
-    FActivePlugin := PluginHandle;
     try
-      TPluginProcedure(FPlugins[PluginHandle].InitProc)(PE_INIT, @API);
+      TPluginProcedure(FPlugins[PluginHandle].InitProc)(PE_INIT, FPlugins[PluginHandle].Trampolines);
     except
       {$IFDEF DEBUG}
         WriteLn('Plugins: Exception disarmed in plugin ', PluginHandle);
@@ -417,7 +430,6 @@ begin
       {$ENDIF}
       Halt(1);
     end;
-    FActivePlugin := MAXDWORD;
   End;
 end;
 
@@ -426,8 +438,9 @@ var
   iPluginPos: Cardinal;
 begin
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
+    EnterCriticalSection(FThreadLocker);
     ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
-    FActivePlugin := iPluginPos;
+    LeaveCriticalSection(FThreadLocker);
     try
       TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYSTART, nil);
     except
@@ -437,7 +450,6 @@ begin
       {$ENDIF}
       Halt(1);
     end;
-    FActivePlugin := MAXDWORD;
   End;
 end;
 
@@ -452,7 +464,6 @@ begin
   Arg.ClientCloseReason := CliStatus;
 
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
-    FActivePlugin := iPluginPos;
     try
       TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYEND, @Arg);
     except
@@ -462,8 +473,9 @@ begin
       {$ENDIF}
       Halt(1);
     end;
+    EnterCriticalSection(FThreadLocker);
     ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
-    FActivePlugin := MAXDWORD;
+    LeaveCriticalSection(FThreadLocker);
   End;
 end;
 
@@ -471,9 +483,9 @@ procedure TPluginSystem.PacketSended(Header: Byte; IsFromServerToClient: Boolean
 var
   iPluginPos: Cardinal;
 begin
+  EnterCriticalSection(FThreadLocker);
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
     if Assigned(FPlugins[iPluginPos].OnPacketSended) then Begin
-      FActivePlugin := iPluginPos;
       try
         TPacketSendedCallback(FPlugins[iPluginPos].OnPacketSended)(Header, FPlugins[iPluginPos].OnPacketSendedParam, IsFromServerToClient);
       except
@@ -484,45 +496,37 @@ begin
         Halt(1);
       end;
       FPlugins[iPluginPos].OnPacketSended := nil;
-      FActivePlugin := MAXDWORD;
     End;
   End;
+  LeaveCriticalSection(FThreadLocker);
 end;
 
-function TPluginSystem.RegisterSyncEventHandler(Event: TSyncEvent): Pointer;
-begin
-  if FActivePlugin <> MAXDWORD then Begin
-    FPlugins[FActivePlugin].EventCallback := Event;
-    Result := @FPlugins[FActivePlugin].SyncEventCount;
-  End Else Begin
-    Result := nil;
-  End;
-end;
-
-procedure TPluginSystem.RegisterPacketHandler(Header:Byte; Handler: TPacketHandler);
+procedure TPluginSystem.RegisterPacketHandler(APlugin:Cardinal; Header:Byte; Handler: TPacketHandler);
 Begin
-  If FActivePlugin <> MAXDWORD then FPlugins[FActivePlugin].ProtocolHandlers[Header] := Handler;
+  EnterCriticalSection(FThreadLocker);
+  FPlugins[APlugin].ProtocolHandlers[Header] := Handler;
+  LeaveCriticalSection(FThreadLocker);
 End;
 
-procedure TPluginSystem.UnRegisterPacketHandler(Header: Byte; Handler: TPacketHandler);
+procedure TPluginSystem.UnRegisterPacketHandler(APlugin:Cardinal; Header: Byte; Handler: TPacketHandler);
 begin
-  If FActivePlugin <> MAXDWORD then FPlugins[FActivePlugin].ProtocolHandlers[Header] := nil;
+  EnterCriticalSection(FThreadLocker);
+  FPlugins[APlugin].ProtocolHandlers[Header] := nil;
+  LeaveCriticalSection(FThreadLocker);
 end;
 
-function TPluginSystem.AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
+function TPluginSystem.AfterPacketCallback(APlugin:Cardinal; ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
 begin
-  If FActivePlugin <> MAXDWORD then Begin
-    Result := not Assigned(FPlugins[FActivePlugin].OnPacketSended);
-    if Result then Begin
-      FPlugins[FActivePlugin].OnPacketSended := ACallBack;
-      FPlugins[FActivePlugin].OnPacketSendedParam := lParam;
-    End;
-  End Else Begin
-    Result := False;
+  EnterCriticalSection(FThreadLocker);
+  Result := not Assigned(FPlugins[APlugin].OnPacketSended);
+  if Result then Begin
+    FPlugins[APlugin].OnPacketSended := ACallBack;
+    FPlugins[APlugin].OnPacketSendedParam := lParam;
   End;
+  LeaveCriticalSection(FThreadLocker);
 end;
 
-function TPluginSystem.APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
+function TPluginSystem.APISearch(APlugin:Cardinal; APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer;
 var
   i, j: Cardinal;
   PlName, APIName: AnsiString;
