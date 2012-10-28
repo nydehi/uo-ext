@@ -226,15 +226,14 @@ type
   end;
   TTrampolines = Array [0..0] of TTrampoline;
   PTrampolines = ^TTrampolines;
-const
-  TrampolineSize = 11;
 var
   WorkStruct: PAPI;
   i: Cardinal;
   Trampolines: PTrampolines;
 Begin
+  // TODO: Refactor this place. PAPI needs only for PE_INIT call. No need to hold it after Init stage.
   if Master then WorkStruct := PAPI(@MasterAPI) Else WorkStruct := PAPI(@API);
-  Result := GetMemory(WorkStruct^.APICount * (SizeOf(TAPIFunc) + TrampolineSize) + 4);
+  Result := GetMemory(WorkStruct^.APICount * (SizeOf(TAPIFunc) + SizeOf(TTrampoline)) + 4);
   Trampolines := Pointer(Cardinal(Result) + WorkStruct^.APICount * SizeOf(TAPIFunc) + 4);
   Result^.APICount := WorkStruct^.APICount;
   for i := 0 to WorkStruct^.APICount - 1 do Begin
