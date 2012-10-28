@@ -111,8 +111,8 @@ Begin
   GUI.CurrGUI := TGUI.Create;
   GUI.CurrGUI.Init(ShardSetup.UOExtBasePath + ShardSetup.GUIDLLName);
 
-  uMainLine := GUI.GUISetLog($FFFFFFFF, $FFFFFFFF, 'Loading ... ', 0);
-  GUI.GUISetLog($FFFFFFFF, uMainLine, 'Initializing', 0);
+  uMainLine := GUI.GUISetLog(0, $FFFFFFFF, $FFFFFFFF, 'Loading ... ');
+  GUI.GUISetLog(0, $FFFFFFFF, uMainLine, 'Initializing');
 
   ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
   DeleteFileA(PAnsiChar(ShardSetup.UOExtBasePath + 'UOExt.packetlog.log')); // Delete file, if any
@@ -143,14 +143,14 @@ Begin
   End;*)
 
 // Hook needed WinAPI, before plugins init.
-  uStatusLine := GUI.GUISetLog($FFFFFFFF, uMainLine, 'Hooking', 0);
+  uStatusLine := GUI.GUISetLog(0, $FFFFFFFF, uMainLine, 'Hooking');
   {$IFDEF DEBUG}
   Write('Core: Hooking APIs for launch ... ');
   {$ENDIF}
   HookIt;
 
   // Ok. All Init is done! Loading plugins.
-  GUI.GUISetLog(uStatusLine, uMainLine, 'Initializing plugins.', 0);
+  GUI.GUISetLog(0, uStatusLine, uMainLine, 'Initializing plugins.');
   {$IFDEF DEBUG}
   WriteLn('done.');
   WriteLn('Core: Starting plug-ins loading.');

@@ -32,6 +32,8 @@ type
     FAPISearch: TAPISearch;
     FLoadPluginsLibrary: TLoadPluginsLibrary;
 
+  protected
+    procedure ReadBindings(APluginEventData:Pointer);
   public
     procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
@@ -110,13 +112,10 @@ Begin
   Inherited;
 End;
 
-function TPluginApi.HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean;
+procedure TPluginApi.ReadBindings(APluginEventData: Pointer);
 var
   i: Cardinal;
 begin
-  Result := False;
-  case APluginEvent of
-    PE_INIT       : Begin
       for i := 0 to PAPI(APluginEventData)^.APICount -1 do case PAPI(APluginEventData)^.APIs[i].FuncType of
         PF_REGISTERPACKETHANDLER        : FRegisterPacketHandler          := PAPI(APluginEventData)^.APIs[i].Func;
         PF_UNREGISTERPACKETHANDLER      : FUnRegisterPacketHandler        := PAPI(APluginEventData)^.APIs[i].Func;
@@ -141,20 +140,14 @@ begin
         PF_APISEARCH                    : FAPISearch                      := PAPI(APluginEventData)^.APIs[i].Func;
         PF_LOADPLUGINLIBRARY            : FLoadPluginsLibrary             := PAPI(APluginEventData)^.APIs[i].Func;
       End;
-      Result := True;
-    End;
+end;
 
-    PE_FREE       : Begin
-      Result := True;
-    End;
-
-    PE_PROXYSTART : Begin
-      Result := True;
-    End;
-
-    PE_PROXYEND   : Begin
-      Result := True;
-    End;
+function TPluginApi.HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean;
+begin
+  Result := False;
+  case APluginEvent of
+    PE_MASTERINIT : ReadBindings(APluginEventData);
+    PE_INIT       : ReadBindings(APluginEventData);
   end;
 end;
 

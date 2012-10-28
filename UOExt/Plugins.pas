@@ -126,29 +126,29 @@ End;
 
 // Plugin functions
 
-procedure RegisterPacketHandler(Header:Byte; Handler: TPacketHandler; APlugin: Cardinal) stdcall;
+procedure RegisterPacketHandler(APlugin: Cardinal; Header:Byte; Handler: TPacketHandler) stdcall;
 begin
   TPluginSystem.Instance.RegisterPacketHandler(APlugin, Header, Handler);
 end;
 
-procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler; APlugin: Cardinal) stdcall;
+procedure UnRegisterPacketHandler(APlugin: Cardinal; Header:Byte; Handler: TPacketHandler) stdcall;
 begin
   TPluginSystem.Instance.UnRegisterPacketHandler(APlugin, Header, Handler);
 end;
 
-function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer; APlugin: Cardinal):Boolean; stdcall;
+function AfterPacketCallback(APlugin: Cardinal; ACallBack: TPacketSendedCallback; lParam: Pointer):Boolean; stdcall;
 Begin
   Result := TPluginSystem.Instance.AfterPacketCallback(APlugin, ACallBack, lParam);
 End;
 
-function SendPacket(Packet: Pointer; Length: Cardinal; ToServer: Boolean; var Valid: Boolean; APlugin: Cardinal):Boolean; stdcall;
+function SendPacket(APlugin: Cardinal; Packet: Pointer; Length: Cardinal; ToServer: Boolean; var Valid: Boolean):Boolean; stdcall;
 begin
   Result := False;
   If not Assigned(CurrentClientThread) Then Exit;
   Result := CurrentClientThread.SendPacket(Packet, Length, ToServer, True, Valid);
 end;
 
-procedure RegisterPacketType(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition; APlugin: Cardinal) stdcall;
+procedure RegisterPacketType(APlugin: Cardinal; Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition) stdcall;
 begin
   If not Assigned(HandleProc) Then
     ProtocolDescriptor.AddPacketInfo(Header, Size)
@@ -162,12 +162,12 @@ begin
   InterlockedIncrement(TPluginSystem.Instance.FSyncEventCount);
 end;
 
-function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal; APlugin: Cardinal): Pointer; stdcall;
+function APISearch( APlugin: Cardinal; APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; stdcall;
 Begin
   Result := TPluginSystem.Instance.APISearch(APlugin, APluginName, AnAPIName, Flags);
 End;
 
-function LoadPluginsLibrary(APath: PAnsiChar; APlugin: Cardinal):Boolean; stdcall;
+function LoadPluginsLibrary(APlugin: Cardinal; APath: PAnsiChar):Boolean; stdcall;
 Begin
   Result := TPluginSystem.Instance.LoadDll(APath);
 End;
@@ -213,37 +213,48 @@ const
     Result: 0;
   );
 // Local functions
-function MakeAPITrampolinesForPlugin(APlugin: Cardinal; Master: Boolean): Pointer;
+function MakeAPIForPlugin(APlugin: Cardinal; Master: Boolean): PAPI;
 type
   TTrampoline = packed record
+    PopEAX: Byte;
     Push1: Byte;
     Plugin: Cardinal;
+    PushEAX: Byte;
     Push2: Byte;
     RetPoint: Pointer;
     Ret: Byte;
   end;
-  TTramolines = Array [0..0] of TTrampoline;
-  PTramolines = ^TTramolines;
+  TTrampolines = Array [0..0] of TTrampoline;
+  PTrampolines = ^TTrampolines;
 const
   TrampolineSize = 11;
 var
   WorkStruct: PAPI;
   i: Cardinal;
+  Trampolines: PTrampolines;
 Begin
   if Master then WorkStruct := PAPI(@MasterAPI) Else WorkStruct := PAPI(@API);
-  Result := GetMemory(WorkStruct^.APICount * TrampolineSize);
+  Result := GetMemory(WorkStruct^.APICount * (SizeOf(TAPIFunc) + TrampolineSize) + 4);
+  Trampolines := Pointer(Cardinal(Result) + WorkStruct^.APICount * SizeOf(TAPIFunc) + 4);
+  Result^.APICount := WorkStruct^.APICount;
   for i := 0 to WorkStruct^.APICount - 1 do Begin
-    PTramolines(Result)^[i].Push1 := $68;
-    PTramolines(Result)^[i].Push2 := $68;
-    PTramolines(Result)^[i].Ret := $C3;
-    PTramolines(Result)^[i].Plugin := APlugin;
-    PTramolines(Result)^[i].RetPoint := WorkStruct^.APIs[i].Func;
+    Result^.APIs[i].FuncType := WorkStruct^.APIs[i].FuncType;
+    Result^.APIs[i].Func := @Trampolines^[i];
+    Trampolines^[i].PopEAX := $58;
+    Trampolines^[i].Push1 := $68;
+    Trampolines^[i].Plugin := APlugin;
+    Trampolines^[i].PushEAX := $50;
+    Trampolines^[i].Push2 := $68;
+    Trampolines^[i].RetPoint := WorkStruct^.APIs[i].Func;
+    Trampolines^[i].Ret := $C3;
   End;
+
 End;
 
-procedure FreeAPITrampolinesForPlugin(ATrampolines: Pointer);
+
+procedure FreeAPIForPlugin(AnAPI: PAPI);
 Begin
-  FreeMemory(ATrampolines);
+  FreeMemory(AnAPI);
 End;
 
 
@@ -258,7 +269,7 @@ begin
   FPluginsCount := 0;
   FSocket := 0;
   FInstance := Self;
-  FMasterTrampolines := MakeAPITrampolinesForPlugin(0, True);
+  FMasterTrampolines := MakeAPIForPlugin(0, True);
   PPointer(@MasterInit.API)^ := FMasterTrampolines;
   InitializeCriticalSection(FThreadLocker);
 end;
@@ -270,9 +281,9 @@ begin
   SetLength(FDlls, 0);
   for i := 0 to FPluginsCount - 1 do Begin
     DestroyPluginsAPIStruct(FPlugins[i].ExportedAPI);
-    FreeAPITrampolinesForPlugin(FPlugins[i].Trampolines);
+    FreeAPIForPlugin(FPlugins[i].Trampolines);
   End;
-  FreeAPITrampolinesForPlugin(FMasterTrampolines);
+  FreeAPIForPlugin(FMasterTrampolines);
   SetLength(FPlugins, 0);
   if FSocket <> 0 then Begin
     closesocket(FSocket);
@@ -344,7 +355,7 @@ begin
         if Descriptors^.Descriptors[j].Descriptor = PD_APIEXPORT then FPlugins[FPluginsCount].ExportedAPI := DuplicatePluginsAPIStruct(PPluginAPIInfo(Descriptors^.Descriptors[j].Value));
       End;
       FPlugins[FPluginsCount].InitProc := FDlls[FDllCount].PluginsInfo^.Plugins[i].InitProcedure;
-      FPlugins[FPluginsCount].Trampolines := MakeAPITrampolinesForPlugin(FPluginsCount, False);
+      FPlugins[FPluginsCount].Trampolines := MakeAPIForPlugin(FPluginsCount, False);
       FPluginsCount := FPluginsCount + 1;
 
     End;
