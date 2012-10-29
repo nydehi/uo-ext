@@ -30,6 +30,7 @@ Begin
     API := TPluginApi.Create;
     Result := API.HandlePluginEvent(PE_INIT, PPE_MasterPluginInit(APluginEventData)^.API);
     LoadPluginLibraries;
+    PPE_MasterPluginInit(APluginEventData)^.Result := 0;
   End Else Begin
     Result := API.HandlePluginEvent(APluginEvent, APluginEventData);
   End;
@@ -44,7 +45,7 @@ type
   end;
 
 const
-  Name: AnsiString = 'MSP Hdd Load' + #0;
+  Name: AnsiString = 'Master plugin: Hdd Load' + #0;
   Description:TMyDescription = (
     InitProcedure : @PluginInit;
     Size: 1;

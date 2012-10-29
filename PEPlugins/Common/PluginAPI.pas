@@ -144,7 +144,7 @@ end;
 
 function TPluginApi.HandlePluginEvent(APluginEvent: Cardinal; APluginEventData: Pointer): Boolean;
 begin
-  Result := False;
+  Result := True;
   case APluginEvent of
     PE_MASTERINIT : ReadBindings(APluginEventData);
     PE_INIT       : ReadBindings(APluginEventData);

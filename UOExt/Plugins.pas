@@ -2,7 +2,7 @@ unit Plugins;
 
 interface
 
-uses Windows, WinSock, PluginsShared, Common;
+uses Windows, WinSock2, PluginsShared, Common;
 
 type
   TPluginSystem=class
@@ -59,7 +59,7 @@ type
     function ServerToClientPacket(Data: Pointer; var Size:Cardinal): Boolean;
     procedure PacketSended(Header: Byte; IsFromServerToClient: Boolean);
 
-    function LoadMasterLibrary(APath:AnsiString): Byte;
+    function LoadMasterLibrary(APath:AnsiString): Cardinal;
 
     {Control from Plugins}
 
@@ -292,12 +292,15 @@ begin
   Inherited;
 end;
 
-function TPluginSystem.LoadMasterLibrary(APath: AnsiString):Byte;
+function TPluginSystem.LoadMasterLibrary(APath: AnsiString):Cardinal;
 begin
   Result := 3;
   if LoadDll(APath) then Begin
     If FPluginsCount > 0 Then Begin
-      If FPlugins[0].InitProc(PE_MASTERINIT, @MasterInit) Then Result := 0 Else Result := 3;
+      If FPlugins[0].InitProc(PE_MASTERINIT, @MasterInit) Then
+        Result := MasterInit.Result
+      Else
+        Result := 3;
     End;
   End;
 
