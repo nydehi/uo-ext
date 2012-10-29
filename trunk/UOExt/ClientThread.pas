@@ -2,7 +2,7 @@ unit ClientThread;
 
 interface
 
-uses Windows, WinSock, AbstractThread, PacketStream, ProtocolDescription, APIHooker;
+uses Windows, WinSock2, AbstractThread, PacketStream, ProtocolDescription, APIHooker;
 
 type
   TClientThread=class(TAbstractThread)
@@ -11,6 +11,7 @@ type
     FServerConnection:TSocket;
 
     FLocalPort:Word;
+    FSendEvent:THandle;
 
     FCSObj:TPacketStream;
     FSCObj:TPacketStream;
@@ -48,8 +49,8 @@ var
 function CreateSocketPair(var ServerSocket: TSocket; var ClientSocket: TSocket): Boolean;
 var
   ListenSocket: TSocket;
-  SockAddr:TSockAddr;
-  NonBlock:Integer;
+  SockAddr:TSockAddrIn;
+//  NonBlock:Cardinal;
   SA_Len: Integer;
 
   wLocalPort: Word;
@@ -66,7 +67,7 @@ begin
   SockAddr.sin_port:=0;
   SockAddr.sin_addr.S_addr:=htonl(INADDR_LOOPBACK);
 
-  If bind(ListenSocket, SockAddr, SizeOf(SockAddr)) <> 0 Then Begin
+  If bind(ListenSocket, TSockAddr(SockAddr), SizeOf(SockAddr)) <> 0 Then Begin
     closesocket(ListenSocket);
     Exit;
   End;
@@ -75,12 +76,12 @@ begin
     Exit;
   End;
   SA_Len := SizeOf(SockAddr);
-  If getsockname(ListenSocket, SockAddr, SA_Len) <> 0 Then Begin
+  If getsockname(ListenSocket, TSockAddr(SockAddr), SA_Len) <> 0 Then Begin
     closesocket(ListenSocket);
     Exit;
   End;
 
-  NonBlock:=1;
+//  NonBlock:=1;
   wLocalPort := ntohs(SockAddr.sin_port);
 
   ZeroMemory(@SockAddr, SizeOf(SockAddr));
@@ -88,9 +89,9 @@ begin
   SockAddr.sin_port:=htons(wLocalPort);
   SockAddr.sin_addr.S_addr:=htonl(INADDR_LOOPBACK);
 
-  ioctlsocket(ClientSocket, FIONBIO, NonBlock);
+//  ioctlsocket(ClientSocket, FIONBIO, NonBlock);
 
-  iConnResult := connect(ClientSocket, SockAddr, SizeOf(SockAddr));
+  iConnResult := connect(ClientSocket, TSockAddr(SockAddr), SizeOf(SockAddr));
   If iConnResult = SOCKET_ERROR Then Begin
     WSAGLE := WSAGetLastError;
     if WSAGLE <> WSAEWOULDBLOCK then Begin
@@ -101,14 +102,14 @@ begin
   End;
 
   ServerSocket := accept(ListenSocket, nil, nil);
-  If ServerSocket = SOCKET_ERROR Then Begin
+  If ServerSocket = INVALID_SOCKET Then Begin
     closesocket(ClientSocket);
     closesocket(ListenSocket);
     Exit;
   End;
 
-  NonBlock := 0;
-  ioctlsocket(ClientSocket, FIONBIO, NonBlock);
+//  NonBlock := 0;
+//  ioctlsocket(ClientSocket, FIONBIO, NonBlock);
   closesocket(ListenSocket);
 
   Result:=True;
@@ -116,7 +117,7 @@ End;
 
 function ConnectToServer(IP: Integer; Port: Word):TSocket;
 var
-  SA: TSockAddr;
+  SA: TSockAddrIn;
 Begin
   Result := socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   If Result = INVALID_SOCKET Then Begin
@@ -127,7 +128,7 @@ Begin
   SA.sin_family := AF_INET;
   SA.sin_addr.S_addr := IP;
   SA.sin_port := Port;
-  If connect(Result, SA, SizeOf(SA)) = SOCKET_ERROR Then Begin
+  If connect(Result, TSockAddr(SA), SizeOf(SA)) = SOCKET_ERROR Then Begin
     closesocket(Result);
     Result := INVALID_SOCKET;
   End;
@@ -136,13 +137,13 @@ End;
 
 function SocketClosedReason(Sock: TSocket): Integer;
 var
-  Sock_Set: TFDSet;
+  Sock_Set: TFdSet;
   Buff: Byte;
   Size: Integer;
 Begin
   Result := 1;
   FD_ZERO(Sock_Set);
-  FD_SET(Sock, Sock_Set);
+  _FD_SET(Sock, Sock_Set);
   select(0, @Sock_Set, nil, nil, @TV_Timeout);
   If FD_ISSET(Sock, Sock_Set) then Begin
     Size := recv(Sock, Buff, 1, MSG_PEEK);
@@ -162,24 +163,32 @@ end;
 
 function TClientThread.Execute:Integer;
 var
-  fs:TFDSet;
-  ITrue:Integer;
+//  ITrue:Cardinal;
   Buffer: Array [0..1] of Byte;
   Valid: Boolean;
+  Events: Array [0..2] of WSAEVENT;
+  NeEvents: WSANETWORKEVENTS;
 begin
   Write('Thread in.');
   repeat
     if CurrentClientThread <> nil then Begin
       CurrentClientThread.FNeedExit := True;
+      Events[0] := OpenEventA(EVENT_ALL_ACCESS, False, 'FlushEvent');
+      If(Events[0] <> 0) Then Begin
+        SetEvent(Events[0]);
+        CloseHandle(Events[0]);
+      End;
     End;
     Sleep(1);
   until CurrentClientThread = nil;
+  Events[0] := CreateEventA(nil, True, False, 'FlushEvent');
+  FSendEvent := Events[0];
   CurrentClientThread := Self;
   TPluginSystem.Instance.ProxyStart;
   Write('ProxyStart done');
-  ITrue:=1;
-  ioctlsocket(FClientConnection, FIONBIO, ITrue);
-  ioctlsocket(FServerConnection, FIONBIO, ITrue);
+//  ITrue:=1;
+//  ioctlsocket(FClientConnection, FIONBIO, ITrue);
+//  ioctlsocket(FServerConnection, FIONBIO, ITrue);
   FCSObj:=TPacketStream.Create(FClientConnection, FServerConnection);
   FSCObj:=TPacketStream.Create(FServerConnection, FClientConnection);
   FSCObj.Seed:=1;
@@ -194,21 +203,41 @@ begin
   FSCObj.DebugPresend:='ClientThread: ';
   FCSObj.DebugPresend:=FSCObj.DebugPresend;
   {$ENDIF}
+  Events[1] := WSACreateEvent;
+  Events[2] := WSACreateEvent;
+  WSAEventSelect(FClientConnection, Events[1], FD_READ);
+  WSAEventSelect(FServerConnection, Events[2], FD_READ);
   Write('Client thread ready to work.');
   repeat
-    FD_ZERO(fs);
-    FD_SET(FClientConnection, fs);
-    FD_SET(FServerConnection, fs);
-    select(0, @fs, nil, nil, @TV_Timeout);
-    If FD_ISSET(FClientConnection, fs) Then Begin
-      If not FCSObj.ProcessNetworkData Then Break;
-    End;
-    If FD_ISSET(FServerConnection, fs) Then Begin
-      If not FSCObj.ProcessNetworkData Then Break;
+    case WSAWaitForMultipleEvents(3, @Events[0], False, WSA_INFINITE, False) of
+      WSA_WAIT_EVENT_0: Begin
+        ResetEvent(Events[0]);
+      End;
+      WSA_WAIT_EVENT_0 + 1: Begin
+        if WSAEnumNetworkEvents(FClientConnection, Events[1], NeEvents) <> SOCKET_ERROR Then Begin
+          If (NeEvents.lNetworkEvents = FD_READ)AND(NeEvents.iErrorCode[FD_READ_BIT] = 0) Then Begin
+            If not FCSObj.ProcessNetworkData Then FNeedExit := True;
+          End Else FNeedExit := True;
+        End;
+      End;
+      WSA_WAIT_EVENT_0 + 2: Begin
+        if WSAEnumNetworkEvents(FServerConnection, Events[2], NeEvents) <> SOCKET_ERROR Then Begin
+          If (NeEvents.lNetworkEvents = FD_READ)AND(NeEvents.iErrorCode[FD_READ_BIT] = 0) Then Begin
+            If not FSCObj.ProcessNetworkData Then FNeedExit := True;
+          End Else FNeedExit := True;
+        End;
+      End;
+      WSA_WAIT_FAILED: FNeedExit := True;
     end;
     FCSObj.Flush;
     FSCObj.Flush;
   until FNeedExit;
+  WSAEventSelect(FClientConnection, Events[1], 0);
+  WSAEventSelect(FServerConnection, Events[2], 0);
+  WSACloseEvent(Events[1]);
+  WSACloseEvent(Events[2]);
+  CloseHandle(Events[0]);
+
   Write('Connection terminated by some reason.');
   TPluginSystem.Instance.ProxyEnd(SocketClosedReason(FServerConnection), SocketClosedReason(FClientConnection));
   If (SocketClosedReason(FClientConnection) = 1)and(not FSCObj.Compression) then Begin
@@ -219,9 +248,9 @@ begin
   End;
 
   Result:=0;
-  ITrue:=0;
-  ioctlsocket(FClientConnection, FIONBIO, ITrue);
-  ioctlsocket(FServerConnection, FIONBIO, ITrue);
+//  ITrue:=0;
+//  ioctlsocket(FClientConnection, FIONBIO, ITrue);
+//  ioctlsocket(FServerConnection, FIONBIO, ITrue);
   closesocket(FClientConnection);
   closesocket(FServerConnection);
   FCSObj.Free;
@@ -291,6 +320,7 @@ begin
     Valid := FCSObj.DoSendPacket(Packet, Length, Direct, True)
   Else
     Valid := FSCObj.DoSendPacket(Packet, Length, Direct, True);
+  SetEvent(FSendEvent);
   {$IFDEF DEBUG}
   If not Valid Then begin
     Write('Plugin''s packet is not correct. Size: ' + IntToStr(oldSize) + ' Expected: ' + IntToStr(Length));

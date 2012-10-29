@@ -89,7 +89,7 @@ var
   WSAData: TWSAData;
 Begin
   if ParamCount >= 1 then Begin
-    WSAStartup($101, WSAData);
+    WSAStartup($0202, WSAData);
     Host := Split2(':', AnsiString(ParamStr(1)), sPort);
     Host := Host + #0;
     rHost := gethostbyname(@Host[1]);

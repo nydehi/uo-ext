@@ -409,6 +409,7 @@ begin
     End;
   End;
   LeaveCriticalSection(FThreadLocker);
+  Result := bSend;
 end;
 
 procedure TPluginSystem.Init;

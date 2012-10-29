@@ -2,7 +2,7 @@ unit PacketStream;
 
 interface
 
-uses Windows, WinSock, ProtocolDescription, HuffmanAlgo, Encryption;
+uses Windows, WinSock2, ProtocolDescription, HuffmanAlgo, Encryption;
 
 type
   TBuffer = class
@@ -113,15 +113,12 @@ implementation
 
 uses Common, ShardSetup;
 
-var
-  TV_Timeout:timeval;
-
 // Local procedures
 
 procedure WriteDump(Point:Pointer; Len:Cardinal; var F: TextFile); overload;
 var
   cLine:AnsiString;
-  cBuffer: Array [0..16] of AnsiChar;
+  cBuffer: Array [0..15] of AnsiChar;
   cPos:Cardinal;
   i: Byte;
 begin
@@ -318,7 +315,6 @@ end;
 
 procedure TPacketStream.Flush;
 var
-  fs: TFDSet;
   Sended: Integer;
   CurrentPoint: Pointer;
   CurrentLength: Cardinal;
@@ -327,11 +323,6 @@ begin
     CurrentPoint := FOutcommingBuffer.Base;
     CurrentLength := FOutcommingBuffer.Amount;
     repeat
-      repeat
-        FD_ZERO(fs);
-        FD_SET(FOutcommingSocket, fs);
-        select(0, nil, @fs, nil, @TV_Timeout);
-      until FD_ISSET(FOutcommingSocket, fs);
       Sended := send(FOutcommingSocket, CurrentPoint^, CurrentLength, 0);
       If Sended = SOCKET_ERROR Then Begin
         {$IFDEF Debug}
@@ -351,14 +342,22 @@ end;
 
 function TPacketStream.GetNetworkData:Boolean;
 var
-  Readed:Integer;
+  Readed, OutLength:Cardinal;
+//  RecvResult: Integer;
+  wsaBuffer: WSABUF;
 begin
   Result:=False;
 
-  ioctlsocket(FIncommingSocket, FIONREAD, Readed);
+  WSAIoctl(FIncommingSocket, FIONREAD, nil, 0, @Readed, sizeOf(Readed), OutLength, nil, nil);
+//  ioctlsocket(FIncommingSocket, FIONREAD, Readed);
   FIncommingBuffer.EnshureFreeSpace(Readed);
+  wsaBuffer.len := Readed;
+  wsaBuffer.buf := PAnsiChar(FIncommingBuffer.WritePoint^);
+  OutLength := 0;
+//  RecvResult := WSARecv(FIncommingSocket, LPWSABUF(@wsaBuffer), 1, Readed, OutLength, nil, nil);
   Readed := recv(FIncommingSocket, FIncommingBuffer.WritePoint^, Readed, 0);
-  If (Readed = SOCKET_ERROR) or (Readed = 0) Then Begin
+  If (Readed = 0) Then Begin
+//  If (Readed = 0) OR (RecvResult = SOCKET_ERROR) Then Begin
     if FIncommingBuffer.Amount > 0 then Result := True;
     Exit;
   End;
@@ -596,6 +595,4 @@ begin
 end;
 {$ENDIF}
 
-initialization
-  TV_Timeout.tv_usec:=100;
 end.

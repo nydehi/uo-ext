@@ -2,7 +2,7 @@ unit HookLogic;
 
 interface
 
-uses Windows, APIHooker, ShardSetup, AbstractThread, PluginsShared, WinSock, Messages, TLHelp32;
+uses Windows, APIHooker, ShardSetup, AbstractThread, PluginsShared, WinSock2, Messages, TLHelp32;
 
 var
   iIP: Integer;
@@ -73,11 +73,11 @@ Begin
   ExeSections := ReadSections(GetModuleHandleA(nil));
 End;
 
-function connectHookInvoke(s: TSocket; var name: TSockAddr; namelen: Integer): Integer; stdcall;
+function connectHookInvoke(s: TSocket; var name: TSockAddrIn; namelen: Integer): Integer; stdcall;
 var
   ServSocket, DistantServerSocket: TSocket;
   SockPair:Boolean;
-  SockAddr:TSockAddr;
+  SockAddr:TSockAddrIn;
   SA_Len: Integer;
   i: Cardinal;
   bFromExe: Boolean;
@@ -104,7 +104,7 @@ Begin
 
   if not bFromExe Then Begin
     THooker.Hooker.TrueAPI;
-    Result := connect(s, name, namelen);
+    Result := connect(s, TSockAddr(name), namelen);
     THooker.Hooker.TrueAPIEnd;
     Exit;
   End;
@@ -130,7 +130,7 @@ Begin
   THooker.Hooker.TrueAPIEnd;
   if SockPair then Begin
     SA_Len := SizeOf(SockAddr);
-    If getsockname(ServSocket, SockAddr, SA_Len) <> 0 Then SockPair := False;
+    If getsockname(ServSocket, TSockAddr(SockAddr), SA_Len) <> 0 Then SockPair := False;
   End;
 
   if not SockPair then Begin

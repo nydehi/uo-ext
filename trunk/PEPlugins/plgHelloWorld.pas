@@ -4,19 +4,38 @@ interface
 
 implementation
 
-uses Windows, WinSock, PluginAPI, PluginsShared;
+uses Windows, WinSock, PluginAPI, PluginsShared, AbstractThread;
 
+type
+  TTimerThread=class(TAbstractThread)
+  protected
+    function Execute:Integer; override;
+  end;
 var
   HelloWorldPacket: Array [0..63] of Byte;
   API: TPluginApi;
+  TimerThread: TTimerThread;
+
+function TTimerThread.Execute;
+var
+  isValid: Boolean;
+begin
+  Sleep(1000);
+  API.SendPacket(@HelloWorldPacket, 64, False, isValid);
+  Sleep(1000);
+  API.SendPacket(@HelloWorldPacket, 64, False, isValid);
+  Result := 0;
+end;
 
 function HelloHandler(Data: Pointer; var Size:Cardinal; var Send: Boolean; IsFromServerToClient: Boolean):Boolean stdcall;
 var
   isValid: Boolean;
 begin
   API.UnRegisterPacketHandler($3A, @HelloHandler);
-  API.SendPacket(@HelloWorldPacket, 64, False, True, isValid);
+  API.SendPacket(@HelloWorldPacket, 64, False, isValid);
   Result := False;
+  TimerThread := TTimerThread.Create;
+  TimerThread.Run;
 end;
 
 procedure Init;
