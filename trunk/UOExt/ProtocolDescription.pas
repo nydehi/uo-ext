@@ -2,7 +2,7 @@ unit ProtocolDescription;
 
 interface
 
-uses Windows, WinSock, PluginsShared, Common;
+uses Windows, WinSock2, PluginsShared, Common;
 
 type
 

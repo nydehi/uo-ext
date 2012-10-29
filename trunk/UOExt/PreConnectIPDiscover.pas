@@ -7,7 +7,7 @@ function GetTransServPort: Word;
 
 implementation
 
-uses Windows, Common, WinSock, TLHelp32, ShardSetup;
+uses Windows, Common, WinSock2, TLHelp32, ShardSetup;
 
 Procedure UpString(Start: PAnsiChar);
 Var

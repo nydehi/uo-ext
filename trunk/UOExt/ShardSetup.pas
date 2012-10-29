@@ -2,7 +2,7 @@ unit ShardSetup;
 
 interface
 
-uses WinSock;
+uses WinSock2;
 
 type
   TSerialSupplyMethods = (ssmStatic, ssmProxy, ssmServer);

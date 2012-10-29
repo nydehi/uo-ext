@@ -6,8 +6,8 @@ function CoreInitialize:Byte; stdcall;
 
 implementation
 
-uses Windows, HookLogic, Plugins, Common, WinSock, ShardSetup, zLib,
-  GUI, ProtocolDescription, PreConnectIPDiscover;
+uses Windows, HookLogic, Plugins, Common, WinSock2, ShardSetup, zLib,
+  GUI, ProtocolDescription, PreConnectIPDiscover, Qos;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}
@@ -103,6 +103,7 @@ function InProcess:Byte;
 var
   uMainLine: Cardinal;
   uStatusLine: Cardinal;
+  MasterResult: Cardinal;
 Begin
 // Create console if needed
   CreateConsole;
@@ -122,27 +123,31 @@ Begin
   ProtocolDescription.Init; // Try to fill protocol table from client
 
   PluginSystem := TPluginSystem.Create;
-  PluginSystem.LoadMasterLibrary(ShardSetup.UOExtBasePath + 'MP.HddLoad.msp');
-(*
-  if Plugins.TPluginSystem.Instance.MasterPluginRequest = 1 then Begin
-    {$IFDEF DEBUG}
-    Writeln('Core: Core has been updated. Reloading...');
-    {$ENDIF}
-    Result := 1;
-    Exit;
-  End Else if Plugins.TPluginSystem.Instance.MasterPluginRequest = 2 then Begin
-    {$IFDEF DEBUG}
-    WriteLn('Core: GUI has been updated.');
-    {$ENDIF}
-    GUI.CurrGUI.Replace;
-    GUI.CurrGUI.Free;
-    GUI.CurrGUI := TGUI.Create;
-    uMainLine := $FFFFFFFF;
-  End Else if Plugins.TPluginSystem.Instance.MasterPluginRequest = 3 then Begin
-    CriticalError('Core: Failed to self-update. Critical!');
-  End;*)
+  MasterResult := PluginSystem.LoadMasterLibrary(ShardSetup.UOExtBasePath + 'UOExt\Master.plg');
 
-// Hook needed WinAPI, before plugins init.
+  case MasterResult of
+    1: Begin
+      {$IFDEF DEBUG}
+      Writeln('Core: Core has been updated. Reloading...');
+      {$ENDIF}
+      Result := 1;
+      Exit;
+    End;
+    2: Begin
+      {$IFDEF DEBUG}
+      WriteLn('Core: GUI has been updated.');
+      {$ENDIF}
+      GUI.CurrGUI.Replace;
+      GUI.CurrGUI.Free;
+      GUI.CurrGUI := TGUI.Create;
+      uMainLine := $FFFFFFFF;
+    End;
+    3: Begin
+      CriticalError('Core: Failed to self-update. Critical!');
+    End;
+  end;
+
+// WinAPI hook needed, before plugins init.
   uStatusLine := GUI.GUISetLog(0, $FFFFFFFF, uMainLine, 'Hooking');
   {$IFDEF DEBUG}
   Write('Core: Hooking APIs for launch ... ');

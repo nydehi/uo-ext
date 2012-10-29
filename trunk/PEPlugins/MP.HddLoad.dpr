@@ -6,7 +6,7 @@ uses
   PluginsShared in '..\UOExt\PluginsShared.pas',
   Common in '..\Common\Common.pas';
 
-{$E msp}
+{$E plg}
 exports PluginAPI.DllInit, PluginAPI.DllInitDone;
 begin
 end.
