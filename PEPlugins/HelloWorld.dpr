@@ -1,10 +1,10 @@
 library HelloWorld;
 
 uses
-  PluginsShared in '..\UOExt\PluginsShared.pas',
-  PluginAPI in 'Common\PluginAPI.pas',
   plgHelloWorld in 'plgHelloWorld.pas',
-  AbstractThread in '..\UOExt\AbstractThread.pas';
+  AbstractThread in '..\UOExt\AbstractThread.pas',
+  PluginAPI in 'Common\PluginAPI.pas',
+  PluginsShared in '..\UOExt\PluginsShared.pas';
 
 {$E plg}
 exports PluginAPI.DllInit, PluginAPI.DllInitDone;

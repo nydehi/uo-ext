@@ -7,7 +7,7 @@ function CoreInitialize:Byte; stdcall;
 implementation
 
 uses Windows, HookLogic, Plugins, Common, WinSock2, ShardSetup, zLib,
-  GUI, ProtocolDescription, PreConnectIPDiscover, Qos;
+  GUI, ProtocolDescription, PreConnectIPDiscover;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}

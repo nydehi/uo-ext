@@ -3,7 +3,6 @@ library UOExt;
 uses
   Windows,
   AbstractThread in 'UOExt\AbstractThread.pas',
-  Common in 'Common\Common.pas',
   PacketStream in 'UOExt\PacketStream.pas',
   HuffmanAlgo in 'UOExt\HuffmanAlgo.pas',
   ProtocolDescription in 'UOExt\ProtocolDescription.pas',
@@ -20,7 +19,8 @@ uses
   CoreInitialization in 'UOExt\CoreInitialization.pas',
   APIHooker in 'UOExt\APIHooker.pas',
   GUI in 'UOExt\GUI.pas',
-  md5 in 'Common\md5.pas';
+  md5 in 'Common\md5.pas',
+  Common in 'Common\Common.pas';
 
 exports
   CoreInitialization.CoreInitialize;

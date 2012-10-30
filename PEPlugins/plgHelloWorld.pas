@@ -92,23 +92,20 @@ type
   TMyDescription = packed record
     InitProcedure: Pointer;
     Size: Cardinal;
-    Data: Array [0..1] of TPluginDescriptor;
+    Data: Array [0..0] of TPluginDescriptor;
   end;
 
 const
-  Name: AnsiString = 'Hello World' + #0;
+  Name: Array [0..11] of AnsiChar = ( 'H','e','l','l','o',' ','W','o','r','l','d',#0 );
   Description:TMyDescription = (
     InitProcedure : @PluginInit;
-    Size: 2;
+    Size: 1;
     Data: (
-      ( Descriptor: PD_NAME;                    Value: 0 ),
-      ( Descriptor: PD_UOEXTPROTO_PACKETAMOUNT; Value: 0 )
+      ( Descriptor: PD_NAME;                    Data: @Name )
     )
   );
 
 
 initialization
-  PPointer(@Description.Data[0].Value)^ := @Name[1];
-
   PluginAPI.AddPlugin(@Description);
 end.
