@@ -354,7 +354,10 @@ begin
       ZeroMemory(@FPlugins[FPluginsCount], SizeOf(TPluginInfo));
       Descriptors := FDlls[FDllCount].PluginsInfo^.Plugins[i];
       if Descriptors^.DescriptorsCount > 0 Then for j := 0 to Descriptors^.DescriptorsCount - 1 do Begin
-        if Descriptors^.Descriptors[j].Descriptor = PD_APIEXPORT then FPlugins[FPluginsCount].ExportedAPI := DuplicatePluginsAPIStruct(PPluginAPIInfo(Descriptors^.Descriptors[j].Value));
+        case Descriptors^.Descriptors[j].Descriptor of
+          PD_APIEXPORT: FPlugins[FPluginsCount].ExportedAPI := DuplicatePluginsAPIStruct(PPluginAPIInfo(Descriptors^.Descriptors[j].Value));
+          PD_NAME: FPlugins[FPluginsCount].Name := Descriptors^.Descriptors[j].Data;
+        end;
       End;
       FPlugins[FPluginsCount].InitProc := FDlls[FDllCount].PluginsInfo^.Plugins[i].InitProcedure;
       FPlugins[FPluginsCount].Trampolines := MakeAPIForPlugin(FPluginsCount, False);

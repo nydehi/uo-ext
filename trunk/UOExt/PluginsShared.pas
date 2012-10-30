@@ -74,7 +74,9 @@ type
 
   TPluginDescriptor=packed record
     Descriptor: Cardinal;
-    Value: Cardinal;
+    case Integer of
+      0: (Value: Cardinal);
+      1: (Data: Pointer);
   end;
 
   TPluginInfo=packed record

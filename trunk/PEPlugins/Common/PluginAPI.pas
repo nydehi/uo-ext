@@ -39,6 +39,7 @@ type
     procedure UnRegisterPacketHandler(Header:Byte; Handler: TPacketHandler); virtual;
     function SendPacket(Packet: Pointer; Length: Cardinal; ToServer: Boolean; var Valid: Boolean):Boolean; virtual;
     procedure RegisterPacketType(Header:Byte; Size:Word; HandleProc: TPacketLengthDefinition); virtual;
+    function AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer):Boolean; virtual;
     function GetNewSerial(IsMobile:Boolean): Cardinal; virtual;
     procedure FreeSerial(Serial: Cardinal); virtual;
     function GetServerSerial(Serial:Cardinal):Cardinal; virtual;
@@ -229,6 +230,11 @@ End;
 function TPluginApi.LoadPluginsLibrary(APath: PAnsiChar):Boolean;
 Begin
   Result := FLoadPluginsLibrary(APath);
+End;
+
+function TPluginApi.AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer):Boolean;
+Begin
+  Result := FAfterPacketCallback(ACallBack, lParam);
 End;
 
 
