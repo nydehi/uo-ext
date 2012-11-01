@@ -32,6 +32,8 @@ type
     FAPISearch: TAPISearch;
     FLoadPluginsLibrary: TLoadPluginsLibrary;
 
+    FzLibCompress2: TzLibCompress2;
+    FzLibDecompress: TzLibDecompress;
   protected
     procedure ReadBindings(APluginEventData:Pointer);
   public
@@ -57,6 +59,10 @@ type
 
     function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; virtual;
     function LoadPluginsLibrary(APath: PAnsiChar):Boolean; virtual;
+
+    function zLibCompress2(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; virtual;
+    function zLibDecompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer):Integer; virtual;
+
 
     constructor Create;
   end;
@@ -140,6 +146,9 @@ begin
 
         PF_APISEARCH                    : FAPISearch                      := PAPI(APluginEventData)^.APIs[i].Func;
         PF_LOADPLUGINLIBRARY            : FLoadPluginsLibrary             := PAPI(APluginEventData)^.APIs[i].Func;
+
+        PF_ZLIBCOMPRESS2                : FzLibCompress2                  := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_ZLIBDECOMPRESS               : FzLibDecompress                 := PAPI(APluginEventData)^.APIs[i].Func;
       End;
 end;
 
@@ -235,6 +244,16 @@ End;
 function TPluginApi.AfterPacketCallback(ACallBack: TPacketSendedCallback; lParam: Pointer):Boolean;
 Begin
   Result := FAfterPacketCallback(ACallBack, lParam);
+End;
+
+function TPluginApi.zLibCompress2(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer;
+Begin
+  Result := FzLibCompress2(dest, destLength, source, sourceLength, quality);
+End;
+
+function TPluginApi.zLibDecompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer):Integer;
+Begin
+  Result := FzLibDecompress(dest, destLength, source, sourceLength);
 End;
 
 
