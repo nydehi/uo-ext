@@ -118,7 +118,6 @@ Begin
   ShardSetup.UOExtBasePath := ExtractFilePath(AnsiString(ParamStr(0)));
   DeleteFileA(PAnsiChar(ShardSetup.UOExtBasePath + 'UOExt.packetlog.log')); // Delete file, if any
   GetIPOverride; // Check for IP override
-  HookLogic.ReadExecutableSections; // Read all code sections for futher hook
   HookLogic.TransServerPort := PreConnectIPDiscover.GetTransServPort; // For 2.0.3 - avoid TransServ connection
   ProtocolDescription.Init; // Try to fill protocol table from client
 

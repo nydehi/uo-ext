@@ -27,11 +27,28 @@ type
     FOriginalFunction: Pointer;
     FTrueFuncRequests: Integer;
   public
+    property IsTrue: Boolean read FTrueSetted;
     procedure Inject; virtual;
     procedure BeginTrueFunction; virtual;
     procedure EndTrueFunction; virtual;
-    constructor Create(AInjectFunction, AOriginalFunction: Pointer);
+    constructor Create(AInjectFunction, AOriginalFunction: Pointer); virtual;
     destructor Destroy; override;
+  end;
+
+  TAddCallerFunctionHooker=class(TFunctionHooker)
+  strict private type
+    RTrampoline = packed record
+      PopEAX: Byte;
+      PushEAX1: Byte;
+      PushEAX2: Byte;
+      Push1: Byte;
+      PushArg: pointer;
+      RetOp: byte;
+    end;
+  private
+    FTrampoline: RTrampoline;
+  public
+    constructor Create(AInjectFunction, AOriginalFunction: Pointer); override;
   end;
 
   TFunctionHookerClass = class of TFunctionHooker;
@@ -142,12 +159,8 @@ begin
 end;
 
 procedure TFunctionHooker.EndTrueFunction;
-//var
-//  Writen:Cardinal;
 begin
   Inject;
-//  ReadProcessMemory(GetCurrentProcess, FOriginalFunction, @FOldData, SizeOf(FOldData), Writen);
-//  WriteProcessMemory(GetCurrentProcess, FOriginalFunction, @FInject, SizeOf(FInject), Writen);
   FTrueSetted := False;
 end;
  // THooker
@@ -294,6 +307,20 @@ begin
       End;
     Until pCurrentRec^.ANext = nil;
   End;
+end;
+
+// TAddCallerFunctionHooker
+
+constructor TAddCallerFunctionHooker.Create(AInjectFunction: Pointer; AOriginalFunction: Pointer);
+begin
+  FTrampoline.PopEAX := $58;
+  FTrampoline.PushEAX1 := $50;
+  FTrampoline.PushEAX2 := $50;
+  FTrampoline.Push1 := $68;
+  FTrampoline.PushArg := AInjectFunction;
+  FTrampoline.RetOp := $C3;
+
+  Inherited Create(@FTrampoline, AOriginalFunction);
 end;
 
 end.

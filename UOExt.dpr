@@ -20,7 +20,8 @@ uses
   APIHooker in 'UOExt\APIHooker.pas',
   GUI in 'UOExt\GUI.pas',
   md5 in 'Common\md5.pas',
-  Common in 'Common\Common.pas';
+  Common in 'Common\Common.pas',
+  ExecutableSections in 'Common\ExecutableSections.pas';
 
 exports
   CoreInitialization.CoreInitialize;

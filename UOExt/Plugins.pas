@@ -34,10 +34,8 @@ type
 
     FSocket: TSocket;
 
-//    FActivePlugin: Cardinal;
     FMasterTrampolines: Pointer;
   private
-    FSyncEventCount: Integer;
     FThreadLocker: TRTLCriticalSection;
   strict private class var
     FInstance: TPluginSystem;
@@ -154,12 +152,6 @@ begin
     ProtocolDescriptor.AddPacketInfo(Header, Size)
   else
     ProtocolDescriptor.AddPacketInfo(Header, HandleProc);
-end;
-
-procedure AskSyncEvent(InterlockedValue: Pointer; APlugin: Cardinal); stdcall;
-begin
-  InterlockedIncrement(PInteger(InterlockedValue)^);
-  InterlockedIncrement(TPluginSystem.Instance.FSyncEventCount);
 end;
 
 function APISearch( APlugin: Cardinal; APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; stdcall;

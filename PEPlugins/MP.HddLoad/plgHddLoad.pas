@@ -19,7 +19,6 @@ Begin
   hFind := FindFirstFileA(@path[1], Dat);
   if hFind <> INVALID_HANDLE_VALUE then Repeat
     Lib := ExtractFilePath(AnsiString(ParamStr(0))) + 'UOExt\Plugins\' + Dat.cFileName + #0;
-    WriteLn('MSP: Loading plugin "', Dat.cFileName, '"');
     API.LoadPluginsLibrary(@lib[1]);
   Until not FindNextFileA(hFind, Dat);
 End;
@@ -45,7 +44,7 @@ type
   end;
 
 const
-  Name: AnsiString = 'Master plugin: Hdd Load' + #0;
+  Name: AnsiString = 'Master: Hdd Load' + #0;
   Description:TMyDescription = (
     InitProcedure : @PluginInit;
     Size: 1;
