@@ -55,7 +55,7 @@ type
   end;
   TMyPluginAPIInfo=packed record
     Count: Cardinal;
-    API: Array [0..5] of PPluginAPIEntry;
+    API: Array [0..6] of PPluginAPIEntry;
   end;
 
 const
@@ -66,6 +66,7 @@ const
   Name_GetClientInformation: Array [0..20] of AnsiChar = ( 'G','e','t','C','l','i','e','n','t','I','n','f','o','r','m','a','t','i','o','n',#0 );
   Name_AskForMulMapping: Array [0..16] of AnsiChar = ( 'A','s','k','F','o','r','M','u','l','M','a','p','p','i','n','g',#0 );
   Name_GetMulMappingInfo: Array [0..17] of AnsiChar = ( 'G','e','t','M','u','l','M','a','p','p','i','n','g','I','n','f','o',#0 );
+  Name_EnshureFreeMappedSpace: Array [0..22] of AnsiChar = ( 'E','n','s','h','u','r','e','F','r','e','e','M','a','p','p','e','d','S','p','a','c','e',#0 );
 
   API_AddOnPositionChanged: TPluginAPIEntry = (
     AName: @Name_AddOnPositionChanged;
@@ -97,9 +98,14 @@ const
     AnAPI: @GetMulMappingInfo;
     Flags: UF_INPROXY;
   );
+  API_EnshureFreeMappedSpace: TPluginAPIEntry = (
+    AName: @Name_EnshureFreeMappedSpace;
+    AnAPI: @EnshureFreeMappedSpace;
+    Flags: UF_INPROXY;
+  );
 
   PluginAPIInfo:TMyPluginAPIInfo = (
-    Count: 6;
+    Count: 7;
     API: (
         @API_AddOnPositionChanged
       , @API_RemoveOnPositionChanged
@@ -107,6 +113,7 @@ const
       , @API_GetClientInformation
       , @API_AskForMulMapping
       , @API_GetMulMappingInfo
+      , @API_EnshureFreeMappedSpace
     )
   );
 
