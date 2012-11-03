@@ -46,13 +46,16 @@ type
   TMappingRec = packed record
     FileName: PAnsiChar;
     FileHandle: THandle;
+    FileLength: Cardinal;
     MappingHandle: THandle;
     MappingLength: Cardinal;
+    AskedFreeSpace: Cardinal;
     MappingPointer: Pointer;
   end;
   PMappingRec = ^TMappingRec;
 
   TGetMulMappingInfo = function(AMulName:PAnsiChar):PMappingRec; stdcall;
+  TEnshureFreeMappedSpace = function(AMulName: PAnsiChar; Amount: Cardinal):Boolean; stdcall;
 
 
   TCli_Map_Info=packed record

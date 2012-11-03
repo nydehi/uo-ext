@@ -6,6 +6,7 @@ uses UOExt.Utility.Bindings;
 
   procedure AskForMulMapping; stdcall;
   function GetMulMappingInfo(AMulName:PAnsiChar):PMappingRec; stdcall;
+  function EnshureFreeMappedSpace(AMulName: PAnsiChar; Amount: Cardinal):Boolean; stdcall;
 
 implementation
 
@@ -34,6 +35,7 @@ var
   s:AnsiString;
   i:integer;
   bFound: Boolean;
+  Current: PMappingPage;
 begin
   if not IsAddressFromExecutable(ACaller) then Begin
     THooker.Hooker.TrueAPI;
@@ -75,11 +77,23 @@ begin
 
     bFound := False;
     if LastMappingPage <> nil then Begin
-      for i := 0 to LastMappingPage^.Size - 1 do if LastMappingPage^.Mapping[i].MappingPointer = nil then Begin
+      bFound := False;
+      Current := Mapping;
+      repeat
+        for i := 0 to Mapping.Size - 1 do if (Current.Mapping[i].MappingPointer <> nil) AND (Current.Mapping[i].FileName = s) then Begin
+          Current.Mapping[i].FileHandle := Result;
+          Current.Mapping[i].FileLength := GetFileSize(Result, nil);
+          bFound := True;
+          Break;
+        End;
+        Current := Current.Next;
+      until Current = nil;
+      if not bFound then for i := 0 to LastMappingPage^.Size - 1 do if LastMappingPage^.Mapping[i].MappingPointer = nil then Begin
         LastMappingPage^.Mapping[i].FileHandle := Result;
         LastMappingPage^.Mapping[i].FileName := GetMemory(Length(s) + 1);
         ZeroMemory(LastMappingPage^.Mapping[i].FileName, Length(s) + 1);
         CopyMemory(LastMappingPage^.Mapping[i].FileName, @s[1], Length(s));
+        LastMappingPage^.Mapping[i].FileLength := GetFileSize(Result, nil);
         bFound := True;
         Break;
       End;
@@ -95,12 +109,14 @@ begin
       LastMappingPage.Size := 10;
       for i := 0 to 9 do Begin
         LastMappingPage.Mapping[i].MappingPointer := nil;
+        LastMappingPage.Mapping[i].AskedFreeSpace := 0;
       End;
 
       LastMappingPage^.Mapping[0].FileHandle := Result;
       LastMappingPage^.Mapping[0].FileName := GetMemory(Length(s) + 1);
       ZeroMemory(LastMappingPage^.Mapping[0].FileName, Length(s) + 1);
       CopyMemory(LastMappingPage^.Mapping[0].FileName, @s[1], Length(s));
+      LastMappingPage^.Mapping[0].FileLength := GetFileSize(Result, nil);
     End;
   End;
 end;
@@ -148,6 +164,12 @@ Begin
       for i := 0 to Current.Size - 1 do if Current.Mapping[i].FileHandle = hFile then Begin
         flProtect := PAGE_READWRITE;
         bFutherProcessing := True;
+        if Current.Mapping[i].AskedFreeSpace > 0 then Begin
+          if dwMaximumSizeLow = 0 then Begin
+
+          End;
+        End;
+
         Break;
       End;
       if bFutherProcessing then Break;
@@ -258,6 +280,63 @@ Begin
     Current := Current.Next;
   Until Current = nil;
 
+
+End;
+
+function EnshureFreeMappedSpace(AMulName: PAnsiChar; Amount: Cardinal):Boolean; stdcall;
+var
+  i:integer;
+  bFound: Boolean;
+  Current: PMappingPage;
+  UpString: AnsiString;
+Begin
+  SetLength(UpString, Length(AMulName));
+  CopyMemory(@UpString[1], AMulName, Length(AMulName));
+  UpString := UpperCase(UpString);
+  bFound := False;
+  Result := True;
+  if LastMappingPage <> nil then Begin
+    Current := Mapping;
+    repeat
+      for i := 0 to Mapping.Size - 1 do if (Current.Mapping[i].MappingPointer <> nil) AND (Current.Mapping[i].FileName = UpString) then Begin
+        if Current.Mapping[i].MappingPointer <> nil then Begin
+          Result := False;
+          Exit;
+        End;
+        Current.Mapping[i].AskedFreeSpace := Amount;
+        bFound := True;
+        Break;
+      End;
+      Current := Current.Next;
+    until Current = nil;
+    if not bFound then for i := 0 to LastMappingPage^.Size - 1 do if LastMappingPage^.Mapping[i].MappingPointer = nil then Begin
+      LastMappingPage^.Mapping[i].FileName := GetMemory(Length(UpString) + 1);
+      ZeroMemory(LastMappingPage^.Mapping[i].FileName, Length(UpString) + 1);
+      CopyMemory(LastMappingPage^.Mapping[i].FileName, @UpString[1], Length(UpString));
+      LastMappingPage^.Mapping[i].AskedFreeSpace := Amount;
+      bFound := True;
+      Break;
+    End;
+  End;
+  if not bFound then Begin
+    if LastMappingPage <> nil then Begin
+      LastMappingPage.Next := GetMemory(SizeOf(TMappingPage) + SizeOf(TMappingRec)*9);
+      LastMappingPage := LastMappingPage.Next;
+    End Else Begin
+      LastMappingPage := GetMemory(SizeOf(TMappingPage) + SizeOf(TMappingRec)*9);
+      Mapping := LastMappingPage;
+    End;
+    LastMappingPage.Size := 10;
+    for i := 0 to 9 do Begin
+      LastMappingPage.Mapping[i].MappingPointer := nil;
+      LastMappingPage.Mapping[i].AskedFreeSpace := 0;
+    End;
+
+    LastMappingPage^.Mapping[0].FileName := GetMemory(Length(UpString) + 1);
+    ZeroMemory(LastMappingPage^.Mapping[0].FileName, Length(UpString) + 1);
+    CopyMemory(LastMappingPage^.Mapping[0].FileName, @UpString[1], Length(UpString));
+    LastMappingPage^.Mapping[0].AskedFreeSpace := Amount;
+  End;
 
 End;
 
