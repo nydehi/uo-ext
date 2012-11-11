@@ -24,7 +24,9 @@ uses
   ExecutableSections in 'Common\ExecutableSections.pas';
 
 exports
-  CoreInitialization.CoreInitialize;
+  CoreInitialization.CoreInitialize
+  , CoreInitialization.CoreFinalization
+  ;
 
 begin
 end.

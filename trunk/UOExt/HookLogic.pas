@@ -10,6 +10,7 @@ var
   TransServerPort: Word;
 
 procedure HookIt;
+procedure UnHookIt;
 
 implementation
 
@@ -100,6 +101,13 @@ begin
   THooker.Hooker.HookFunction(@connectHook, GetProcAddress(GetModuleHandle('wsock32.dll'), 'connect'));
   THooker.Hooker.InjectIt;
 end;
+
+procedure UnHookIt;
+Begin
+  If THooker.Hooker.Injected Then THooker.Hooker.Restore;
+  THooker.Hooker.Free;
+  THooker.Hooker := nil;
+End;
 
 initialization
   TransServerPort := 0;

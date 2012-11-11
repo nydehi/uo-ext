@@ -8,6 +8,8 @@ uses UOExt.Utility.Bindings;
   function GetMulMappingInfo(AMulName:PAnsiChar):PMappingRec; stdcall;
   function EnshureFreeMappedSpace(AMulName: PAnsiChar; Amount: Cardinal):Boolean; stdcall;
 
+  procedure FreeMulMapping;
+
 implementation
 
 uses Windows, Common, APIHooker, ExecutableSections;
@@ -23,6 +25,8 @@ type
 var
   Mapping: PMappingPage;
   LastMappingPage: PMappingPage;
+  CloseHandleLock: TRTLCriticalSection;
+  MapViewOfFileLock: TRTLCriticalSection;
 
 function CreateFileAHook(ACaller: Cardinal; lpFileName: PAnsiChar; dwDesiredAccess, dwShareMode: DWORD;
   lpSecurityAttributes: PSecurityAttributes; dwCreationDisposition, dwFlagsAndAttributes: DWORD;
@@ -36,11 +40,14 @@ var
   i:integer;
   bFound: Boolean;
   Current: PMappingPage;
+  lpwFileName: PWideChar;
 begin
+  lpwFileName := nil;
+  i := MultiByteToWideChar(DefaultSystemCodePage, 0, lpFileName, -1, lpwFileName, 0);
+  lpwFileName := GetMemory((i+1) * 2);
+  MultiByteToWideChar(DefaultSystemCodePage, 0, lpFileName, -1, lpwFileName, i+1);
   if not IsAddressFromExecutable(ACaller) then Begin
-    THooker.Hooker.TrueAPI;
-    Result := TCreateFileA(GetProcAddress(GetModuleHandle('kernel32.dll'), 'CreateFileA'))(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
-    THooker.Hooker.TrueAPIEnd;
+    Result := CreateFileW(lpwFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
     Exit;
   End;
 
@@ -59,9 +66,7 @@ begin
     dwShareMode := FILE_SHARE_READ + FILE_SHARE_WRITE;
   End;
 
-  THooker.Hooker.TrueAPI;
-  Result := TCreateFileA(GetProcAddress(GetModuleHandle('kernel32.dll'), 'CreateFileA'))(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
-  THooker.Hooker.TrueAPIEnd;
+  Result := CreateFileW(lpwFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
 
   if (s = 'MUL') or (s = 'IDX') then Begin
     s:=lpFileName;
@@ -126,12 +131,16 @@ var
   i: Integer;
   Current: PMappingPage;
 begin
+  EnterCriticalSection(CloseHandleLock);
   THooker.Hooker.TrueAPI;
   Result := CloseHandle(hObject);
   THooker.Hooker.TrueAPIEnd;
 
   If Result AND IsAddressFromExecutable(ACaller) Then Begin
-    if Mapping = nil then Exit;
+    if Mapping = nil then Begin
+      LeaveCriticalSection(CloseHandleLock);
+      Exit;
+    End;
     Current := Mapping;
     repeat
       For i := 0 to Current.Size - 1 do Begin
@@ -141,6 +150,7 @@ begin
       Current := Current.Next;
     until Current = nil;
   End;
+  LeaveCriticalSection(CloseHandleLock);
 end;
 
 function CreateFileMappingAHook(ACaller:Cardinal; hFile: THandle; lpFileMappingAttributes: PSecurityAttributes;
@@ -149,11 +159,15 @@ var
   i: Integer;
   bFutherProcessing: Boolean;
   Current: PMappingPage;
+  lpwName: PWideChar;
+
 Begin
+  lpwName := nil;
+  i := MultiByteToWideChar(DefaultSystemCodePage, 0, lpName, -1, lpwName, 0);
+  lpwName := GetMemory((i+1) * 2);
+  MultiByteToWideChar(DefaultSystemCodePage, 0, lpName, -1, lpwName, i+1);
   if not IsAddressFromExecutable(ACaller) then Begin
-    THooker.Hooker.TrueAPI;
-    Result := CreateFileMappingA(hFile, lpFileMappingAttributes, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
-    THooker.Hooker.TrueAPIEnd;
+    Result := CreateFileMappingW(hFile, lpFileMappingAttributes, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpwName);
     Exit;
   End;
 
@@ -164,9 +178,11 @@ Begin
       for i := 0 to Current.Size - 1 do if Current.Mapping[i].FileHandle = hFile then Begin
         flProtect := PAGE_READWRITE;
         bFutherProcessing := True;
+        Current.Mapping[i].MappingLength := Current.Mapping[i].FileLength;
         if Current.Mapping[i].AskedFreeSpace > 0 then Begin
           if dwMaximumSizeLow = 0 then Begin
-
+            dwMaximumSizeLow := Current.Mapping[i].FileLength + Current.Mapping[i].AskedFreeSpace;
+            Current.Mapping[i].MappingLength := dwMaximumSizeLow;
           End;
         End;
 
@@ -177,9 +193,7 @@ Begin
     Until Current = nil;
   End;
 
-  THooker.Hooker.TrueAPI;
-  Result := CreateFileMappingA(hFile, lpFileMappingAttributes, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
-  THooker.Hooker.TrueAPIEnd;
+  Result := CreateFileMappingW(hFile, lpFileMappingAttributes, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpwName);
 
   If (Result <> INVALID_HANDLE_VALUE) and bFutherProcessing Then Begin
     Current := Mapping;
@@ -209,10 +223,12 @@ var
   Current: PMappingPage;
   bFutherProcessing: Boolean;
 Begin
+  EnterCriticalSection(MapViewOfFileLock);
   if not IsAddressFromExecutable(ACaller) then Begin
     THooker.Hooker.TrueAPI;
     Result := MapViewOfFile(hFileMappingObject, dwDesiredAccess, dwFileOffsetHigh, dwFileOffsetLow, dwNumberOfBytesToMap);
     THooker.Hooker.TrueAPIEnd;
+    LeaveCriticalSection(MapViewOfFileLock);
     Exit;
   End;
 
@@ -233,6 +249,11 @@ Begin
   THooker.Hooker.TrueAPI;
   Result := MapViewOfFile(hFileMappingObject, dwDesiredAccess, dwFileOffsetHigh, dwFileOffsetLow, dwNumberOfBytesToMap);
   THooker.Hooker.TrueAPIEnd;
+  if Result = nil then Begin
+    i := GetLastError;
+    WriteLn('GLE = ', i);
+  End;
+
 
   if (Result <> nil) AND (bFutherProcessing) then begin
     Current := Mapping;
@@ -246,17 +267,39 @@ Begin
       Current := Current.Next;
     Until Current = nil;
   end;
+  LeaveCriticalSection(MapViewOfFileLock);
 End;
 
 procedure AskForMulMapping; stdcall;
 Begin
+  if THooker.Hooker.Injected then Exit;
+
   Mapping := nil;
   LastMappingPage := nil;
+
   THooker.Hooker.HookFunction(@CreateFileAHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CreateFileA'), TAddCallerFunctionHooker);
   THooker.Hooker.HookFunction(@CloseHandleHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CloseHandle'), TAddCallerFunctionHooker);
   THooker.Hooker.HookFunction(@MapViewOfFileHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'MapViewOfFile'), TAddCallerFunctionHooker);
   THooker.Hooker.HookFunction(@CreateFileMappingAHook, GetProcAddress(GetModuleHandle('kernel32.dll'), 'CreateFileMappingA'), TAddCallerFunctionHooker);
   THooker.Hooker.InjectIt;
+
+  InitializeCriticalSection(CloseHandleLock);
+  InitializeCriticalSection(MapViewOfFileLock);
+End;
+
+procedure FreeMulMapping;
+Var
+  Current, Next: PMappingPage;
+  i: Integer;
+Begin
+  if Mapping = nil then Exit;
+  THooker.Hooker.Free;
+  Current := Mapping;
+  repeat
+    Next := Current;
+    For i := 0 to Current.Size do FreeMemory(Current.Mapping[i].FileName);
+    FreeMemory(Current);
+  until Next = nil ;
 End;
 
 function GetMulMappingInfo(AMulName:PAnsiChar):PMappingRec; stdcall;
@@ -341,5 +384,6 @@ Begin
 End;
 
 
-
+initialization
+  Mapping := nil;
 end.

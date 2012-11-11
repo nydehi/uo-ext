@@ -22,7 +22,7 @@ const
 //  PF_REGISTERSYNCEVENTHANDLER = 9; // RC3: Dropped due to thread safe API call
 //  PF_ASKSYNCEVENT = 10;
   PF_ZLIBCOMPRESS2 = 11;
-  PF_ZLIBDECOMPRESS = 12;
+  PF_ZLIBUNCOMPRESS = 12;
   PF_AFTERPACKETCALLBACK = 13;
   PF_UOEXTREGISTERPACKETHANDLER = 14;
   PF_UOEXTUNREGISTERPACKETHANDLER = 15;
@@ -184,8 +184,8 @@ type
     Can be called from anywhere. Thread safe. (Must be)
   **)
 
-  TzLibCompress2 = function(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; stdcall;
-  TzLibDecompress = function(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer):Integer; stdcall;
+  TzLibCompress2 = function(dest: Pointer; destLength: PInteger; source: Pointer; sourceLength: Integer; quality: Integer):Integer; stdcall;
+  TzLibUncompress = function(dest: Pointer; destLength: PInteger; source: Pointer; sourceLength: Integer):Integer; stdcall;
 
   (**
     UOExtProtocol stuff.

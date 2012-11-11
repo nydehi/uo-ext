@@ -24,6 +24,7 @@ type
   protected
     function Execute:Integer; override;
   public
+    property NeedExit:Boolean read FNeedExit write FNeedExit;
     property ServerSocket:TSocket read FServerConnection write FServerConnection;
     property LocalPort:Word read FLocalPort write FLocalPort;
     property ClientSocket:TSocket read FClientConnection write FClientConnection;
@@ -50,7 +51,6 @@ function CreateSocketPair(var ServerSocket: TSocket; var ClientSocket: TSocket):
 var
   ListenSocket: TSocket;
   SockAddr:TSockAddrIn;
-//  NonBlock:Cardinal;
   SA_Len: Integer;
 
   wLocalPort: Word;
@@ -81,15 +81,12 @@ begin
     Exit;
   End;
 
-//  NonBlock:=1;
   wLocalPort := ntohs(SockAddr.sin_port);
 
   ZeroMemory(@SockAddr, SizeOf(SockAddr));
   SockAddr.sin_family:=AF_INET;
   SockAddr.sin_port:=htons(wLocalPort);
   SockAddr.sin_addr.S_addr:=htonl(INADDR_LOOPBACK);
-
-//  ioctlsocket(ClientSocket, FIONBIO, NonBlock);
 
   iConnResult := connect(ClientSocket, TSockAddr(SockAddr), SizeOf(SockAddr));
   If iConnResult = SOCKET_ERROR Then Begin
@@ -108,10 +105,7 @@ begin
     Exit;
   End;
 
-//  NonBlock := 0;
-//  ioctlsocket(ClientSocket, FIONBIO, NonBlock);
   closesocket(ListenSocket);
-
   Result:=True;
 End;
 
@@ -163,7 +157,6 @@ end;
 
 function TClientThread.Execute:Integer;
 var
-//  ITrue:Cardinal;
   Buffer: Array [0..1] of Byte;
   Valid: Boolean;
   Events: Array [0..2] of WSAEVENT;
@@ -186,9 +179,6 @@ begin
   CurrentClientThread := Self;
   TPluginSystem.Instance.ProxyStart;
   Write('ProxyStart done');
-//  ITrue:=1;
-//  ioctlsocket(FClientConnection, FIONBIO, ITrue);
-//  ioctlsocket(FServerConnection, FIONBIO, ITrue);
   FCSObj:=TPacketStream.Create(FClientConnection, FServerConnection);
   FSCObj:=TPacketStream.Create(FServerConnection, FClientConnection);
   FSCObj.Seed:=1;
@@ -205,8 +195,8 @@ begin
   {$ENDIF}
   Events[1] := WSACreateEvent;
   Events[2] := WSACreateEvent;
-  WSAEventSelect(FClientConnection, Events[1], FD_READ);
-  WSAEventSelect(FServerConnection, Events[2], FD_READ);
+  WSAEventSelect(FClientConnection, Events[1], FD_READ XOR FD_CLOSE);
+  WSAEventSelect(FServerConnection, Events[2], FD_READ XOR FD_CLOSE);
   Write('Client thread ready to work.');
   repeat
     case WSAWaitForMultipleEvents(3, @Events[0], False, WSA_INFINITE, False) of
@@ -248,9 +238,6 @@ begin
   End;
 
   Result:=0;
-//  ITrue:=0;
-//  ioctlsocket(FClientConnection, FIONBIO, ITrue);
-//  ioctlsocket(FServerConnection, FIONBIO, ITrue);
   closesocket(FClientConnection);
   closesocket(FServerConnection);
   FCSObj.Free;
@@ -286,14 +273,6 @@ begin
   Write('S->C: Packet: Header: 0x' + IntToHex(PByte(Packet)^, 2) + ' Length: ' + IntToStr(Length));
   WriteDump(Packet, Length);
   {$ENDIF}
-(*  If PByte(Packet)^=140 Then Begin
-
-    PCardinal(Cardinal(Packet) + 1)^:=  htonl(INADDR_LOOPBACK);
-    PWord(Cardinal(Packet) + 5)^:=htons(FLocalPort);
-    {$IFDEF Debug}
-    Write('S->C: Logging into game server with Auth_ID: '+IntToStr(PCardinal(Cardinal(Packet) + 7)^));
-    {$ENDIF}
-  End;*)
   Process := TPluginSystem.Instance.ServerToClientPacket(Packet, Length);
 end;
 
