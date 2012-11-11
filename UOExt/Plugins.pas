@@ -53,6 +53,7 @@ type
     procedure ProxyStart;
     property Socket: TSocket read FSocket;
     procedure ProxyEnd(ServStatus, CliStatus: Integer);
+    procedure DeInit;
     function ClientToServerPacket(Data: Pointer; var Size:Cardinal): Boolean;
     function ServerToClientPacket(Data: Pointer; var Size:Cardinal): Boolean;
     procedure PacketSended(Header: Byte; IsFromServerToClient: Boolean);
@@ -173,7 +174,7 @@ const
       (FuncType: PF_REGISTERPACKETTYPE;       Func: @RegisterPacketType),
       (FuncType: PF_SENDPACKET;               Func: @SendPacket),
       (FuncType: PF_ZLIBCOMPRESS2;            Func: @zLib.Compress),
-      (FuncType: PF_ZLIBDECOMPRESS;           Func: @zLib.Decompress),
+      (FuncType: PF_ZLIBUNCOMPRESS;           Func: @zLib.Uncompress),
       (FuncType: PF_AFTERPACKETCALLBACK;      Func: @AfterPacketCallback),
       (FuncType: PF_GUISETLOG;                Func: @GUI.GUISetLog),
       (FuncType: PF_GUISTARTPROCESS;          Func: @GUI.GUIStartProcess),
@@ -190,7 +191,7 @@ const
       (FuncType: PF_REGISTERPACKETTYPE;       Func: @RegisterPacketType),
       (FuncType: PF_SENDPACKET;               Func: @SendPacket),
       (FuncType: PF_ZLIBCOMPRESS2;            Func: @zLib.Compress),
-      (FuncType: PF_ZLIBDECOMPRESS;           Func: @zLib.Decompress),
+      (FuncType: PF_ZLIBUNCOMPRESS;           Func: @zLib.Uncompress),
       (FuncType: PF_AFTERPACKETCALLBACK;      Func: @AfterPacketCallback),
       (FuncType: PF_GUISETLOG;                Func: @GUI.GUISetLog),
       (FuncType: PF_GUISTARTPROCESS;          Func: @GUI.GUIStartProcess),
@@ -485,6 +486,26 @@ begin
     EnterCriticalSection(FThreadLocker);
     ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
     LeaveCriticalSection(FThreadLocker);
+  End;
+end;
+
+procedure TPluginSystem.DeInit;
+var
+  iPluginPos: Cardinal;
+begin
+  If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
+    EnterCriticalSection(FThreadLocker);
+    ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
+    LeaveCriticalSection(FThreadLocker);
+    try
+      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_FREE, nil);
+    except
+      {$IFDEF DEBUG}
+        WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
+        ReadLn;
+      {$ENDIF}
+      Halt(1);
+    end;
   End;
 end;
 

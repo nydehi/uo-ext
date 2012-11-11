@@ -10,6 +10,7 @@ type
     Z: ShortInt;
     Map: Byte;
   end;
+  PClientPosition = ^TClientPosition;
 
   TClientPositionDelta=packed record
     X: Integer;
@@ -18,6 +19,7 @@ type
     Z: SmallInt;
     Map: Byte;
   end;
+  PClientPositionDelta = ^TClientPositionDelta;
 
   TClientInfo=packed record
     Parameter: Cardinal;
@@ -32,7 +34,7 @@ type
   end;
   PClientInformation=^TClientInformation;
 
-  TOnPositionChanged = procedure(OldPosition: TClientPosition; Delta: TClientPositionDelta; AParam: Pointer); stdcall;
+  TOnPositionChanged = procedure(OldPosition: PClientPosition; Delta: PClientPositionDelta; AParam: Pointer); stdcall;
 
   TAddOnPositionChanged = function(Callback: TOnPositionChanged; AParam: Pointer): Cardinal; stdcall;
   TRemoveOnPositionChanged = procedure(AHandle: Cardinal); stdcall;

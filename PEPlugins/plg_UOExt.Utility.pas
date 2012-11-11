@@ -18,10 +18,12 @@ End;
 
 procedure Init;
 Begin
+  AskForMulMapping;
 End;
 
 procedure Clear;
 Begin
+  FreeMulMapping;
 End;
 
 procedure Network_Start;

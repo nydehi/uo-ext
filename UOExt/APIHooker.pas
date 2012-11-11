@@ -62,12 +62,15 @@ type
   THooker=class
   private
     FHooks:PHookRecord;
+    FInjected: Boolean;
   protected
     constructor Create;
   public
+    property Injected: Boolean read FInjected;
     procedure HookFunction(AInjectFunction, AOriginalFunction: Pointer); overload;
     procedure HookFunction(AInjectFunction, AOriginalFunction: Pointer; HookClass: TFunctionHookerClass); overload;
     procedure InjectIt;
+    procedure Restore;
     procedure TrueAPI; overload;
     procedure TrueAPI(AFunction: Pointer); overload;
     procedure TrueAPIEnd; overload;
@@ -153,14 +156,45 @@ end;
 procedure TFunctionHooker.BeginTrueFunction;
 var
   Writen:Cardinal;
+  {$IFDEF DEBUG}
+  Msg: AnsiString;
+  GLE: Cardinal;
+  {$ENDIF}
 begin
+  if FTrueSetted then Exit;
   WriteProcessMemory(GetCurrentProcess, FOriginalFunction, @FOldData, SizeOf(FOldData), Writen);
+  {$IFDEF DEBUG}
+  If Writen <> SizeOf(FInject) Then Begin
+    GLE := 0;
+    if Writen = 0 then GLE := GetLastError;
+    Msg := 'Inject. Written wrong size ('+IntToStr(Writen)+'). GLE := '+IntToStr(GLE);
+    MessageBoxA(0, @Msg[1], nil, MB_OK);
+    Halt(1);
+  End;
+  {$ENDIF}
   FTrueSetted := True;
 end;
 
 procedure TFunctionHooker.EndTrueFunction;
+var
+  Writen:Cardinal;
+  {$IFDEF DEBUG}
+  Msg: AnsiString;
+  GLE: Cardinal;
+  {$ENDIF}
 begin
-  Inject;
+  if not FTrueSetted then Exit;
+
+  WriteProcessMemory(GetCurrentProcess, FOriginalFunction, @FInject, SizeOf(FInject), Writen);
+  {$IFDEF DEBUG}
+  If Writen <> SizeOf(FInject) Then Begin
+    GLE := 0;
+    if Writen = 0 then GLE := GetLastError;
+    Msg := 'Inject. Written wrong size ('+IntToStr(Writen)+'). GLE := '+IntToStr(GLE);
+    MessageBoxA(0, @Msg[1], nil, MB_OK);
+    Halt(1);
+  End;
+  {$ENDIF}
   FTrueSetted := False;
 end;
  // THooker
@@ -169,6 +203,7 @@ constructor THooker.Create;
 begin
   Inherited;
   FHooks := nil;
+  FInjected := False;
 end;
 
 destructor THooker.Destroy;
@@ -213,6 +248,8 @@ begin
   pCurrentRec^.ANext := GetMemory(SizeOf(THookRecord));
   ZeroMemory(pCurrentRec^.ANext, SizeOf(THookRecord));
   pCurrentRec^.ANext^.AHooks[0] := AHook;
+  if FInjected then AHook.Inject;
+
 end;
 
 procedure THooker.HookFunction(AInjectFunction, AOriginalFunction: Pointer);
@@ -297,6 +334,8 @@ var
   Sentinel:THookRecord;
   i: Byte;
 begin
+  if FInjected then Exit;
+  FInjected := True;
   If FHooks <> nil Then Begin
     pCurrentRec := @Sentinel;
     Sentinel.ANext := FHooks;
@@ -307,6 +346,27 @@ begin
       End;
     Until pCurrentRec^.ANext = nil;
   End;
+end;
+
+procedure THooker.Restore;
+var
+  pCurrentRec: PHookRecord;
+  Sentinel:THookRecord;
+  i: Byte;
+begin
+  if FInjected then Exit;
+  FInjected := True;
+  If FHooks <> nil Then Begin
+    pCurrentRec := @Sentinel;
+    Sentinel.ANext := FHooks;
+    repeat
+      pCurrentRec := pCurrentRec^.ANext;
+      For i:=0 to 9 do If pCurrentRec^.AHooks[i] <> nil Then Begin
+        pCurrentRec^.AHooks[i].BeginTrueFunction;
+      End;
+    Until pCurrentRec^.ANext = nil;
+  End;
+  FInjected := False;
 end;
 
 // TAddCallerFunctionHooker

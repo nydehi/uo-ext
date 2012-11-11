@@ -3,11 +3,12 @@ unit CoreInitialization;
 interface
 
 function CoreInitialize:Byte; stdcall;
+procedure CoreFinalization; stdcall;
 
 implementation
 
 uses Windows, HookLogic, Plugins, Common, WinSock2, ShardSetup, zLib,
-  GUI, ProtocolDescription, PreConnectIPDiscover;
+  GUI, ProtocolDescription, PreConnectIPDiscover, ClientThread;
 
 {$IFDEF DEBUG}
   {$DEFINE DEBUGWINDOW}
@@ -175,6 +176,34 @@ Begin
   if Result = 2 then FreeConsole;
   {$ENDIF}
   if Assigned(GUI.CurrGUI) then GUI.CurrGUI.Free;
+End;
+
+procedure CoreFinalization; stdcall;
+var
+  Event: THandle;
+Begin
+  {$IFDEF DEBUG}
+  WriteLn('Core: Stopping Client thread if any.');
+  {$ENDIF}
+  repeat
+    if CurrentClientThread <> nil then Begin
+      CurrentClientThread.NeedExit := True;
+      Event := OpenEventA(EVENT_ALL_ACCESS, False, 'FlushEvent');
+      If(Event <> 0) Then Begin
+        SetEvent(Event);
+        CloseHandle(Event);
+      End;
+    End;
+    Sleep(1);
+  until CurrentClientThread = nil;
+  {$IFDEF DEBUG}
+  WriteLn('Core: Finishing plugins.');
+  {$ENDIF}
+  PluginSystem.DeInit;
+  PluginSystem.Free;
+  UnHookIt;
+  ProtocolDescriptor.Free;
+  WSACleanup;
 End;
 
 end.

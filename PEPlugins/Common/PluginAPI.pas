@@ -33,7 +33,7 @@ type
     FLoadPluginsLibrary: TLoadPluginsLibrary;
 
     FzLibCompress2: TzLibCompress2;
-    FzLibDecompress: TzLibDecompress;
+    FzLibUncompress: TzLibUncompress;
   protected
     procedure ReadBindings(APluginEventData:Pointer);
   public
@@ -60,8 +60,8 @@ type
     function APISearch(APluginName: PAnsiChar; AnAPIName: PAnsiChar; Flags: PCardinal): Pointer; virtual;
     function LoadPluginsLibrary(APath: PAnsiChar):Boolean; virtual;
 
-    function zLibCompress2(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer; virtual;
-    function zLibDecompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer):Integer; virtual;
+    function zLibCompress2(dest: Pointer; destLength: PInteger; source: Pointer; sourceLength: Integer; quality: Integer):Integer; virtual;
+    function zLibUncompress(dest: Pointer; destLength: PInteger; source: Pointer; sourceLength: Integer):Integer; virtual;
 
 
     constructor Create;
@@ -148,7 +148,7 @@ begin
         PF_LOADPLUGINLIBRARY            : FLoadPluginsLibrary             := PAPI(APluginEventData)^.APIs[i].Func;
 
         PF_ZLIBCOMPRESS2                : FzLibCompress2                  := PAPI(APluginEventData)^.APIs[i].Func;
-        PF_ZLIBDECOMPRESS               : FzLibDecompress                 := PAPI(APluginEventData)^.APIs[i].Func;
+        PF_ZLIBUNCOMPRESS               : FzLibUncompress                 := PAPI(APluginEventData)^.APIs[i].Func;
       End;
 end;
 
@@ -246,14 +246,14 @@ Begin
   Result := FAfterPacketCallback(ACallBack, lParam);
 End;
 
-function TPluginApi.zLibCompress2(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer; quality: Integer):Integer;
+function TPluginApi.zLibCompress2(dest: Pointer; destLength: PInteger; source: Pointer; sourceLength: Integer; quality: Integer):Integer;
 Begin
   Result := FzLibCompress2(dest, destLength, source, sourceLength, quality);
 End;
 
-function TPluginApi.zLibDecompress(dest: Pointer; var destLength: Integer; source: Pointer; sourceLength: Integer):Integer;
+function TPluginApi.zLibUncompress(dest: Pointer; destLength: PInteger; source: Pointer; sourceLength: Integer):Integer;
 Begin
-  Result := FzLibDecompress(dest, destLength, source, sourceLength);
+  Result := FzLibUncompress(dest, destLength, source, sourceLength);
 End;
 
 

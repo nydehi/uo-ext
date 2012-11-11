@@ -28,39 +28,41 @@ var
   Initialized: Boolean;
 
   Callbacks: Array of TCallbacks;
+  Callbacks_Length: Cardinal;
   FreeCallbacks: Cardinal;
 
 function AddOnPositionChanged(Callback: TOnPositionChanged; AParam: Pointer): Cardinal;
 Begin
   if FreeCallbacks = 0 then Begin
-    Result := High(Callbacks) + 1;
-    SetLength(Callbacks, Result + 1);
+    Result := Callbacks_Length;
+    SetLength(Callbacks, Callbacks_Length + 1);
   End Else Begin
-    For Result := Low(Callbacks) to High(Callbacks) do If not Assigned(Callbacks[Result].Callback) then Begin
+    For Result := 0 to Callbacks_Length - 1 do If not Assigned(Callbacks[Result].Callback) then Begin
       FreeCallbacks := FreeCallbacks - 1;
       Break;
     End;
   End;
   Callbacks[Result].Callback := Callback;
   Callbacks[Result].AParam := AParam;
+  Callbacks_Length := Callbacks_Length + 1;
 End;
 
 procedure RemoveOnPositionChanged(AHandle: Cardinal);
 Begin
   Callbacks[AHandle].Callback := nil;
-  if AHandle = High(Callbacks) then
-    SetLength(Callbacks, AHandle)
-  Else
+  if AHandle = Callbacks_Length then Begin
+    Callbacks_Length := Callbacks_Length - 1;
+    SetLength(Callbacks, Callbacks_Length);
+  End Else
     FreeCallbacks := FreeCallbacks + 1;
-
 End;
 
 procedure OnPlayerPositionChanged(APackeHead: Byte; lParam: Pointer; IsFromServerToClient: Boolean); stdcall;
 var
   i: Cardinal;
 Begin
-  for i := Low(Callbacks) to High(Callbacks) do if Assigned(Callbacks[i].Callback) then
-    Callbacks[i].Callback(PlayerPos, PlayerPosDelta, Callbacks[i].AParam);
+  If Callbacks_Length > 0 Then for i := 0 to Callbacks_Length - 1 do if Assigned(Callbacks[i].Callback) then
+    Callbacks[i].Callback(@PlayerPos, @PlayerPosDelta, Callbacks[i].AParam);
 
   PlayerPos.X := PlayerPos.X + PlayerPosDelta.X;
   PlayerPos.Y := PlayerPos.Y + PlayerPosDelta.Y;
@@ -190,8 +192,8 @@ end;
 
 procedure RegisterHandlers(AnAPI: TPluginApi);
 Begin
-  Initialized := High(Callbacks) >= 0;
-  if not Initialized then Exit;
+  Initialized := Callbacks_Length > 0;
+//  if not Initialized then Exit;
 
   API := AnAPI;
   API.RegisterPacketHandler($02, @ClientWalkRequest);
@@ -199,11 +201,13 @@ Begin
   API.RegisterPacketHandler($20, @MobileUpdate);
   API.RegisterPacketHandler($21, @ServerWalkReject);
   API.RegisterPacketHandler($BF, @BFPacket08);
+  ZeroMemory(@PlayerPos, SizeOf(TClientPosition));
+  ZeroMemory(@PlayerPosDelta, SizeOf(TClientPositionDelta));
 End;
 
 procedure UnRegisterHandlers;
 Begin
-  if not Initialized then Exit;
+//  if not Initialized then Exit;
 
   API.UnRegisterPacketHandler($02, @ClientWalkRequest);
   API.UnRegisterPacketHandler($1B, @LoginConfirm);
@@ -216,4 +220,5 @@ End;
 initialization
   SetLength(Callbacks, 0);
   FreeCallbacks := 0;
+  Callbacks_Length := 0;
 end.

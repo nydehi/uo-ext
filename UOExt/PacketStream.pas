@@ -126,6 +126,7 @@ begin
 {
 000000 | 00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00  |
 }
+
     cPos:=0;
     repeat
       if cPos mod 16 = 0 Then Begin
@@ -325,6 +326,7 @@ begin
     repeat
       Sended := send(FOutcommingSocket, CurrentPoint^, CurrentLength, 0);
       If Sended = SOCKET_ERROR Then Begin
+
         {$IFDEF Debug}
           WriteLn('Core: PacketStream: Send returned SOCK_ERR. WSAGLE = ', WSAGetLastError);
           Readln;
