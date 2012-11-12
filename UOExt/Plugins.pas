@@ -308,10 +308,10 @@ var
   Descriptors : PluginsShared.PPluginInfo;
 begin
   Result := False;
-  ADllPath := ADllPath + #0;
   {$IFDEF DEBUG}
   Write('Plugins: Loading library from ', ADllPath, ' ... ');
   {$ENDIF}
+  ADllPath := ADllPath + #0;
 
   hDll := LoadLibraryA(@ADllPath[1]);
   if hDll = INVALID_HANDLE_VALUE then Begin

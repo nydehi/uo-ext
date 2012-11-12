@@ -14,11 +14,17 @@ procedure UnHookIt;
 
 implementation
 
-uses Common, Plugins, ClientThread, ExecutableSections;
+uses Common, Plugins, ClientThread, ExecutableSections, CoreInitialization;
 
 var
   connectReturnAddr: Cardinal;
   connectHookInvokeAddr: Cardinal;
+
+procedure ExitProcessInvoke(uExitCode: UINT); stdcall;
+Begin
+  CoreFinalization; // There will be unhooked all hooks, so it's true API after here.
+  ExitProcess(uExitCode);
+End;
 
 function connectHookInvoke(s: TSocket; var name: TSockAddrIn; namelen: Integer): Integer; stdcall;
 var
@@ -99,14 +105,13 @@ begin
   iPort := 0;
   connectHookInvokeAddr := Cardinal(@connectHookInvoke);
   THooker.Hooker.HookFunction(@connectHook, GetProcAddress(GetModuleHandle('wsock32.dll'), 'connect'));
+  THooker.Hooker.HookFunction(@ExitProcessInvoke, GetProcAddress(GetModuleHandle('kernel32.dll'), 'ExitProcess'));
   THooker.Hooker.InjectIt;
 end;
 
 procedure UnHookIt;
 Begin
-  If THooker.Hooker.Injected Then THooker.Hooker.Restore;
   THooker.Hooker.Free;
-  THooker.Hooker := nil;
 End;
 
 initialization

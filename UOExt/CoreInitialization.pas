@@ -3,7 +3,7 @@ unit CoreInitialization;
 interface
 
 function CoreInitialize:Byte; stdcall;
-procedure CoreFinalization; stdcall;
+procedure CoreFinalization;
 
 implementation
 
@@ -59,11 +59,13 @@ Begin
   End;
   WriteLn('UOExt.dll Ultima Online (C) protocol and client patch system.');
   WriteLn('Core: Debug window started.');
-  WriteLn;
   Write('Core: Compile time directives: DEBUGWINDOW');
   {$IFDEF DEBUG} Write(', DEBUG'); {$ENDIF}
   {$IFDEF RELEASE} Write(', RELEASE');{$ENDIF}
   {$IFDEF WRITELOG} Write(', WRITELOG');{$ENDIF}
+  WriteLn;
+  WriteLn;
+  WriteLn('WARNING: Closing this console will not fire PE_FREE event or any other code.');
   WriteLn;
   {$ELSE}
   If GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) <> FILE_TYPE_UNKNOWN Then FreeConsole;
@@ -178,7 +180,7 @@ Begin
   if Assigned(GUI.CurrGUI) then GUI.CurrGUI.Free;
 End;
 
-procedure CoreFinalization; stdcall;
+procedure CoreFinalization;
 var
   Event: THandle;
 Begin
@@ -197,13 +199,16 @@ Begin
     Sleep(1);
   until CurrentClientThread = nil;
   {$IFDEF DEBUG}
-  WriteLn('Core: Finishing plugins.');
+  WriteLn('Core: Finishing plugins ');
   {$ENDIF}
   PluginSystem.DeInit;
   PluginSystem.Free;
   UnHookIt;
   ProtocolDescriptor.Free;
-  WSACleanup;
+  {$IFDEF DEBUG}
+  WriteLn('Core: All finished! You can press enter to enroute thread to ExitProcess.');
+  Readln;
+  {$ENDIF}
 End;
 
 end.

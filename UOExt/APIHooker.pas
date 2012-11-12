@@ -169,7 +169,7 @@ begin
     if Writen = 0 then GLE := GetLastError;
     Msg := 'Inject. Written wrong size ('+IntToStr(Writen)+'). GLE := '+IntToStr(GLE);
     MessageBoxA(0, @Msg[1], nil, MB_OK);
-    Halt(1);
+    ExitProcess(1);
   End;
   {$ENDIF}
   FTrueSetted := True;
@@ -192,7 +192,7 @@ begin
     if Writen = 0 then GLE := GetLastError;
     Msg := 'Inject. Written wrong size ('+IntToStr(Writen)+'). GLE := '+IntToStr(GLE);
     MessageBoxA(0, @Msg[1], nil, MB_OK);
-    Halt(1);
+    ExitProcess(1);
   End;
   {$ENDIF}
   FTrueSetted := False;
@@ -211,6 +211,7 @@ var
   pCurrentRec, pLastRec: PHookRecord;
   i: Byte;
 begin
+  Restore;
   pCurrentRec := FHooks;
   while pCurrentRec <> nil do begin
     For i:= 0 to 9 do if Assigned(pCurrentRec^.AHooks[i]) Then Begin
@@ -354,8 +355,8 @@ var
   Sentinel:THookRecord;
   i: Byte;
 begin
-  if FInjected then Exit;
-  FInjected := True;
+  if not FInjected then Exit;
+  FInjected := False;
   If FHooks <> nil Then Begin
     pCurrentRec := @Sentinel;
     Sentinel.ANext := FHooks;
