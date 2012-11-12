@@ -292,14 +292,19 @@ Var
   Current, Next: PMappingPage;
   i: Integer;
 Begin
-  if Mapping = nil then Exit;
+  EnterCriticalSection(CloseHandleLock);
+  EnterCriticalSection(MapViewOfFileLock);
   THooker.Hooker.Free;
+  if Mapping = nil then Exit;
   Current := Mapping;
   repeat
-    Next := Current;
+    Next := Current.Next;
     For i := 0 to Current.Size do FreeMemory(Current.Mapping[i].FileName);
     FreeMemory(Current);
-  until Next = nil ;
+    Current := Next;
+  until Next = nil;
+  DeleteCriticalSection(CloseHandleLock);
+  DeleteCriticalSection(MapViewOfFileLock);
 End;
 
 function GetMulMappingInfo(AMulName:PAnsiChar):PMappingRec; stdcall;

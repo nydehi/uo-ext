@@ -25,7 +25,6 @@ uses
 
 exports
   CoreInitialization.CoreInitialize
-  , CoreInitialization.CoreFinalization
   ;
 
 begin
