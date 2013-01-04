@@ -24,6 +24,7 @@ type
 
 var
   Mapping: PMappingPage;
+  MappingAsked: Boolean;
   LastMappingPage: PMappingPage;
   CloseHandleLock: TRTLCriticalSection;
   MapViewOfFileLock: TRTLCriticalSection;
@@ -285,6 +286,7 @@ Begin
 
   InitializeCriticalSection(CloseHandleLock);
   InitializeCriticalSection(MapViewOfFileLock);
+  MappingAsked := True;
 End;
 
 procedure FreeMulMapping;
@@ -292,17 +294,19 @@ Var
   Current, Next: PMappingPage;
   i: Integer;
 Begin
+  if not MappingAsked then Exit;
   EnterCriticalSection(CloseHandleLock);
   EnterCriticalSection(MapViewOfFileLock);
   THooker.Hooker.Free;
-  if Mapping = nil then Exit;
-  Current := Mapping;
-  repeat
-    Next := Current.Next;
-    For i := 0 to Current.Size do FreeMemory(Current.Mapping[i].FileName);
-    FreeMemory(Current);
-    Current := Next;
-  until Next = nil;
+  if Mapping <> nil then Begin
+    Current := Mapping;
+    repeat
+      Next := Current.Next;
+      For i := 0 to Current.Size do FreeMemory(Current.Mapping[i].FileName);
+      FreeMemory(Current);
+      Current := Next;
+    until Next = nil;
+  End;
   DeleteCriticalSection(CloseHandleLock);
   DeleteCriticalSection(MapViewOfFileLock);
 End;

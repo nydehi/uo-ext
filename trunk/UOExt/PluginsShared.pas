@@ -50,6 +50,7 @@ const
   **)
   PD_APIEXPORT = 5; // Reference to PPluginAPIInfo. Expots API from plugin, if any. You can free any memory after PE_INIT done. UOExt will copy this information to it's own.
   PD_NEEDTHREADSAFE = 6; // (Not working now) If Value = 1, then UOExt MUST make trampoline functions for its own API.
+  PD_HOOKPROTO = 7; // Boolean (0/1). If set - UOExt will hook protocol. If not set any call to protocol related Stuff will be ignored.
 
 
   (***
@@ -157,6 +158,12 @@ type
     Result: Cardinal;
   end;
   PPE_MasterPluginInit = ^TPE_MasterPluginInit;
+
+  TPE_ProxyStartEvent = packed record
+    ClientSocket: Cardinal;
+    UOExtSocket: Cardinal;
+    ServerSocket: Cardinal;
+  end;
 
   TRegisterPacketHandler = procedure(Header:Byte; Handler: TPacketHandler) stdcall;
   TUnRegisterPacketHandler = procedure(Header: Byte; Handler: TPacketHandler) stdcall;

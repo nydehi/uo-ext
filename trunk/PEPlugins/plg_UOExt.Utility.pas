@@ -18,7 +18,7 @@ End;
 
 procedure Init;
 Begin
-  AskForMulMapping;
+//  AskForMulMapping;
 End;
 
 procedure Clear;

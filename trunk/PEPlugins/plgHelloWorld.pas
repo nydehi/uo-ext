@@ -92,16 +92,17 @@ type
   TMyDescription = packed record
     InitProcedure: Pointer;
     Size: Cardinal;
-    Data: Array [0..0] of TPluginDescriptor;
+    Data: Array [0..1] of TPluginDescriptor;
   end;
 
 const
   Name: Array [0..11] of AnsiChar = ( 'H','e','l','l','o',' ','W','o','r','l','d',#0 );
   Description:TMyDescription = (
     InitProcedure : @PluginInit;
-    Size: 1;
+    Size: 2;
     Data: (
-      ( Descriptor: PD_NAME;                    Data: @Name )
+        ( Descriptor: PD_NAME;                    Data: @Name )
+      , ( Descriptor: PD_HOOKPROTO;               Value: 1 )
     )
   );
 

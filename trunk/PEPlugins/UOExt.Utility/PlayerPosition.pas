@@ -193,7 +193,7 @@ end;
 procedure RegisterHandlers(AnAPI: TPluginApi);
 Begin
   Initialized := Callbacks_Length > 0;
-//  if not Initialized then Exit;
+  if not Initialized then Exit;
 
   API := AnAPI;
   API.RegisterPacketHandler($02, @ClientWalkRequest);
@@ -207,7 +207,7 @@ End;
 
 procedure UnRegisterHandlers;
 Begin
-//  if not Initialized then Exit;
+  if not Initialized then Exit;
 
   API.UnRegisterPacketHandler($02, @ClientWalkRequest);
   API.UnRegisterPacketHandler($1B, @LoginConfirm);
