@@ -24,6 +24,8 @@ type
 
       ExportedAPI: PPluginAPIInfo;
       Trampolines: Pointer;
+
+      HookAsked: Boolean;
     end;
   strict private var
     FDlls: Array of TDllInfo;
@@ -35,8 +37,9 @@ type
     FSocket: TSocket;
 
     FMasterTrampolines: Pointer;
-  private
     FThreadLocker: TRTLCriticalSection;
+
+    FProtocolHook: Boolean;
   strict private class var
     FInstance: TPluginSystem;
   public
@@ -44,13 +47,14 @@ type
 
     property DllCount: Cardinal read FDllCount write FDllCount;
     property PluginsCount: Cardinal read FPluginsCount;
+    property ProtocolHook: Boolean read FProtocolHook;
 
     function LoadDll(ADllPath: AnsiString): Boolean;
 
     {Control from UOExt}
     procedure Init; overload;
     procedure Init(PluginHandle: Word); overload;
-    procedure ProxyStart;
+    procedure ProxyStart(ClientSocket, UOExtSocket, ServerSocket: TSocket);
     property Socket: TSocket read FSocket;
     procedure ProxyEnd(ServStatus, CliStatus: Integer);
     procedure DeInit;
@@ -263,6 +267,7 @@ begin
   FInstance := Self;
   FMasterTrampolines := MakeAPIForPlugin(0, True);
   PPointer(@MasterInit.API)^ := FMasterTrampolines;
+  FProtocolHook := False;
   InitializeCriticalSection(FThreadLocker);
 end;
 
@@ -350,6 +355,10 @@ begin
         case Descriptors^.Descriptors[j].Descriptor of
           PD_APIEXPORT: FPlugins[FPluginsCount].ExportedAPI := DuplicatePluginsAPIStruct(PPluginAPIInfo(Descriptors^.Descriptors[j].Value));
           PD_NAME: FPlugins[FPluginsCount].Name := Descriptors^.Descriptors[j].Data;
+          PD_HOOKPROTO: Begin
+            FPlugins[FPluginsCount].HookAsked := Descriptors^.Descriptors[j].Value = 1;
+            FProtocolHook := FProtocolHook OR FPlugins[FPluginsCount].HookAsked;
+          End;
         end;
       End;
       FPlugins[FPluginsCount].InitProc := FDlls[FDllCount].PluginsInfo^.Plugins[i].InitProcedure;
@@ -443,16 +452,20 @@ begin
   End;
 end;
 
-procedure TPluginSystem.ProxyStart;
+procedure TPluginSystem.ProxyStart(ClientSocket, UOExtSocket, ServerSocket: TSocket);
 var
   iPluginPos: Cardinal;
+  Arg: TPE_ProxyStartEvent;
 begin
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
+    Arg.ClientSocket := ClientSocket;
+    Arg.UOExtSocket := UOExtSocket;
+    Arg.ServerSocket := ServerSocket;
     EnterCriticalSection(FThreadLocker);
     ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
     LeaveCriticalSection(FThreadLocker);
     try
-      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYSTART, nil);
+      TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_PROXYSTART, @Arg);
     except
       {$IFDEF DEBUG}
         WriteLn('Plugins: Exception disarmed in plugin ', iPluginPos);
@@ -494,9 +507,15 @@ var
   iPluginPos: Cardinal;
 begin
   If FPluginsCount > 0 Then For iPluginPos := 0 to FPluginsCount - 1 do Begin
-    EnterCriticalSection(FThreadLocker);
-    ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
-    LeaveCriticalSection(FThreadLocker);
+    if not TryEnterCriticalSection(FThreadLocker) Then Begin
+      {$IFDEF DEBUG}
+      WriteLn('Plugins: Can''t get to critical section. Continue with lock violation');
+      {$ENDIF}
+      ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
+    End Else Begin
+      ZeroMemory(@FPlugins[iPluginPos].ProtocolHandlers, SizeOf(TProtocolHandlerArray));
+      LeaveCriticalSection(FThreadLocker);
+    End;
     try
       TPluginProcedure(FPlugins[iPluginPos].InitProc)(PE_FREE, nil);
     except
@@ -533,25 +552,31 @@ end;
 
 procedure TPluginSystem.RegisterPacketHandler(APlugin:Cardinal; Header:Byte; Handler: TPacketHandler);
 Begin
+  if not ProtocolHook then Exit;
   EnterCriticalSection(FThreadLocker);
-  FPlugins[APlugin].ProtocolHandlers[Header] := Handler;
+  if FPlugins[APlugin].HookAsked then FPlugins[APlugin].ProtocolHandlers[Header] := Handler;
   LeaveCriticalSection(FThreadLocker);
 End;
 
 procedure TPluginSystem.UnRegisterPacketHandler(APlugin:Cardinal; Header: Byte; Handler: TPacketHandler);
 begin
+  if not ProtocolHook then Exit;
   EnterCriticalSection(FThreadLocker);
-  FPlugins[APlugin].ProtocolHandlers[Header] := nil;
+  if FPlugins[APlugin].HookAsked then FPlugins[APlugin].ProtocolHandlers[Header] := nil;
   LeaveCriticalSection(FThreadLocker);
 end;
 
 function TPluginSystem.AfterPacketCallback(APlugin:Cardinal; ACallBack: TPacketSendedCallback; lParam: Pointer): Boolean;
 begin
+  Result := False;
+  if not ProtocolHook then Exit;
   EnterCriticalSection(FThreadLocker);
-  Result := not Assigned(FPlugins[APlugin].OnPacketSended);
-  if Result then Begin
-    FPlugins[APlugin].OnPacketSended := ACallBack;
-    FPlugins[APlugin].OnPacketSendedParam := lParam;
+  if FPlugins[APlugin].HookAsked then Begin
+    Result := not Assigned(FPlugins[APlugin].OnPacketSended);
+    if Result then Begin
+      FPlugins[APlugin].OnPacketSended := ACallBack;
+      FPlugins[APlugin].OnPacketSendedParam := lParam;
+    End;
   End;
   LeaveCriticalSection(FThreadLocker);
 end;

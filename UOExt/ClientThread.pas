@@ -9,6 +9,7 @@ type
   private
     FClientConnection:TSocket;
     FServerConnection:TSocket;
+    FUOClientSocket: TSocket;
 
     FLocalPort:Word;
     FSendEvent:THandle;
@@ -28,6 +29,7 @@ type
     property ServerSocket:TSocket read FServerConnection write FServerConnection;
     property LocalPort:Word read FLocalPort write FLocalPort;
     property ClientSocket:TSocket read FClientConnection write FClientConnection;
+    property UOClientSocket: TSocket read FUOClientSocket write FUOClientSocket;
     function SendPacket(Packet: Pointer; Length: Cardinal; ToServer, Direct: Boolean; var Valid: Boolean):Boolean;
 
   end;
@@ -177,7 +179,7 @@ begin
   Events[0] := CreateEventA(nil, True, False, 'FlushEvent');
   FSendEvent := Events[0];
   CurrentClientThread := Self;
-  TPluginSystem.Instance.ProxyStart;
+  TPluginSystem.Instance.ProxyStart(FUOClientSocket, FClientConnection, FServerConnection);
   Write('ProxyStart done');
   FCSObj:=TPacketStream.Create(FClientConnection, FServerConnection);
   FSCObj:=TPacketStream.Create(FServerConnection, FClientConnection);

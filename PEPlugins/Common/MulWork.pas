@@ -41,10 +41,13 @@ type
     property MulPointer: Pointer read FMulPointer write FMulPointer;
     property MulLength: Cardinal read FMulLength write FMulLength;
 
+    property FreeMulOffset: Cardinal read FFreeMulOffset;
+
     procedure MulParametersChanged;
     procedure OpenFilePair(AIndexName, AMulName: AnsiString);
     procedure CloseFilePair;
 
+    function GetIndexInfo(Index: Cardinal; Lookup, Size, Extra: PCardinal): Boolean;
     function GetDataBlock(Index: Cardinal; var Size: Cardinal; Extra: PCardinal): Pointer;
     function SetDataBlock(Index, Size:Cardinal; Extra: Cardinal; Data: Pointer):Boolean;
 
@@ -107,7 +110,7 @@ begin
   FMulPointer := MapViewOfFile(FMulMapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
   CloseHandle(hFile);
   FFreeOnDestroy := True;
-  FIndexCount := FIndexLength DIV 12;
+  FIndexCount := FIndexLength DIV SizeOf(TidxRecord);
   MulParametersChanged;
 end;
 
@@ -137,6 +140,18 @@ Begin
   End;
 End;
 
+function TIndexedMul.GetIndexInfo(Index: Cardinal; Lookup: PCardinal; Size: PCardinal; Extra: PCardinal):Boolean;
+var
+  Idx: PIdxRecord;
+begin
+  Result := False;
+  if (FIndexPointer = nil)or(FMulPointer = nil) then Exit;
+  Idx := Pointer(Cardinal(FIndexPointer) + Index * SizeOf(TidxRecord));
+  if Lookup <> nil then Lookup^ := Idx^.Lookup;
+  if Size <> nil then Size^ := Idx^.Size;
+  if Extra <> nil then Extra^ := Idx^.Extra;
+  Result := True;
+end;
 
 function TIndexedMul.GetDataBlock(Index: Cardinal; var Size: Cardinal; Extra: PCardinal):Pointer;
 var
@@ -166,7 +181,7 @@ Begin
     if Size = $FFFFFFFF then Begin
       CurrentIdx.Size := Size;
       CurrentIdx.Lookup := Size;
-    End Else If CurrentIdx.Size <= Size then Begin
+    End Else If CurrentIdx.Size < Size then Begin
       CurrentIdx.Lookup := FFreeMulOffset;
       CurrentIdx.Size := Size;
       FFreeMulOffset := FFreeMulOffset + Size;

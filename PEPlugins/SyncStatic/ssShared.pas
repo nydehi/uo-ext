@@ -10,6 +10,7 @@ var
   GetClientInformation: TGetClientInformation;
   AskForMulMapping: TAskForMulMapping;
   GetMulMappingInfo: TGetMulMappingInfo;
+  EnshureFreeMappedSpace: TEnshureFreeMappedSpace;
 
 procedure LoadAPIs(AnAPI: TPluginApi);
 
@@ -22,6 +23,7 @@ Begin
   GetClientInformation := AnAPI.APISearch('UOExt.Utility', 'GetClientInformation', nil);
   AskForMulMapping := AnAPI.APISearch('UOExt.Utility', 'AskForMulMapping', nil);
   GetMulMappingInfo := AnAPI.APISearch('UOExt.Utility', 'GetMulMappingInfo', nil);
+  EnshureFreeMappedSpace := AnAPI.APISearch('UOExt.Utility', 'EnshureFreeMappedSpace', nil);
 End;
 
 end.
