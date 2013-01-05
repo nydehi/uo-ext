@@ -1,0 +1,29 @@
+#sidebar TableOfContents
+*PE_ProxyStartEvent* - Describes sockets in PE_PROXYSTART event.
+----
+
+*PE_ProxyStartEvent* - Описывает сокеты, которые использовались для подключения в событии PE_PROXYSTART. 
+
+==Синтаксис==
+{{{
+  TPE_ProxyStartEvent = packed record
+    ClientSocket: Cardinal;
+    UOExtSocket: Cardinal;
+    ServerSocket: Cardinal;
+  end;
+  PPE_ProxyStartEvent = ^ TPE_ProxyStartEvent;
+}}}
+==Параметры==
+!ClientSocket 
+ * *Тип*: Cardinal
+ * *Описание*: Сокет, который создал клиент для подключения к серверу   
+!UOExtSocket 
+ * *Тип*: Cardinal
+ * *Описание*: Сокет, который создал UOExt для эмуляции сервера на локальном компьютере.    
+!ServerSocket
+ * *Тип*: Cardinal
+ * *Описание*: Сокет, который создал UOExt для подключения к реальному серверу.   
+==Замечания==
+Содержит идентификаторы сокетов, которые созались для проксирования протокола.
+В случае если реального проксирования не происходит, то !ClientSocket = !ServerSocket, а !UOExtSocket = INVALID_SOCKET
+На момент PE_PROXYSTART все сокеты подключены.

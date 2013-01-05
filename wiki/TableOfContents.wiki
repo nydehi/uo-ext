@@ -1,7 +1,7 @@
   * [Installation]
   * [WorkScheme Work scheme]
   * [PluginInit Plug-in init procedure]
-  * [UOExtUpdate Update sequence and UOExt protocol]
+  * [UOExtUpdate Update sequence and UOExt protocol] (Obsolated)
     * [UOExtUpdateServer Update server]
     * [UOExtProtocol UOExt protocol]        
   * [PluginsAPI Plug-ins API]
@@ -16,13 +16,10 @@
       * [FreeSerial]
       * [GetServerSerial]
       * [GetClientSerial]
-    * Events
-      * [RegisterSyncEventHandler]
-      * [AskSyncEvent]
     * zLib
       * [zLibCompress2]
       * [zLibDecompress]
-    * [UOExtProtocol UOExt Protocol]
+    * [UOExtProtocol UOExt Protocol] (Obsolated)
       * [UOExtProtocolRegisterHandler]
       * [UOExtProtocolUnRegisterHandler]
       * [UOExtProtocolSendPacket]
@@ -40,9 +37,7 @@
     * Packets
       * [PacketHandler]
       * [PacketLengthDefinition]
-    * Events 
-      * [SyncEvent]
-    * UOExt Protocol
+    * UOExt Protocol (Obsolated)
       * [UOExtProtocolHandler]
   * Plugins Structures
       * Initialize
@@ -51,4 +46,8 @@
         * [PluginDescriptor]
         * [APIStruct API]
         * [APIFunc]
-        * [ProxyEndEvent PE_ProxyEndEvent]                                       
+        * [ProxyEndEvent PE_ProxyEndEvent]
+        * [ProxyStartEvent PE_ProxyStartEvent]
+      * APIExport
+        * [PluginAPIInfo]
+        *                                                                        
