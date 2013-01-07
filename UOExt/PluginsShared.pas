@@ -37,7 +37,7 @@ const
 
   // Plugin dsecriptors
   PD_NAME = 0;
-  PD_UOEXTPROTO_PACKETAMOUNT = 1;
+  PD_UOEXTPROTO_PACKETAMOUNT = 1; // (Obsolated)
   PD_UOEXTPROTO_PERSISTENT = 2; // (Not working now) Plugin need persistent connection to server
   PD_VERSION = 3; // (Not working now)
   PD_ERRORURL = 4; // (Not working now) URL to send error reports. I.E.: www.warstone.ru/plugins?name={$Name}&ver={$Ver}.
@@ -164,6 +164,7 @@ type
     UOExtSocket: Cardinal;
     ServerSocket: Cardinal;
   end;
+  PPE_ProxyStartEvent = ^TPE_ProxyStartEvent;
 
   TRegisterPacketHandler = procedure(Header:Byte; Handler: TPacketHandler) stdcall;
   TUnRegisterPacketHandler = procedure(Header: Byte; Handler: TPacketHandler) stdcall;
